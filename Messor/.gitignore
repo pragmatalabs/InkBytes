@@ -1,0 +1,12 @@
+ *.pyc,
+ __pycache__/,
+    venv/,
+    .idea/,
+    .vscode/,
+    my_secret_file.txt,
+    .ipynb_checkpoints,
+    *.ipynb,
+    .log,
+    .env,
+
+
