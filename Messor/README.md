@@ -1,10 +1,10 @@
-# UriHarvest-Module-Client
+# InkBytes Messor Module
 
-# InkPills Aggregator News Scraping
+# News Scraping
 
-### Module : UriHarvest
+### Module : Messor
 
-### SCRAPING
+### URI Harvesting
 
 Scraping   refers to the process of extracting data from websites or web pages ([outlets](https://www.notion.so/News-Outlets-143acc3ecafe4f76a8ec36287f455d92?pvs=21)). This involves programmatically retrieving the HTML content of a web page, parsing it to extract the desired data, and then saving the data in a structured format for further analysis.
 
@@ -47,14 +47,14 @@ Already a pro? Just edit this README.md and make it your own. Want to make it ea
 
 ```
 cd existing_repo
-git remote add origin https://gitlab.com/inkpills/uriharvest/uriharvest-module-client.git
+git remote add origin https://gitlab.com/inkpills/Messor/Messor-module-client.git
 git branch -M main
 git push -uf origin main
 ```
 
 ## Integrate with your tools
 
-- [ ] [Set up project integrations](https://gitlab.com/inkpills/uriharvest/uriharvest-module-client/-/settings/integrations)
+- [ ] [Set up project integrations](https://gitlab.com/inkpills/Messor/Messor-module-client/-/settings/integrations)
 
 ## Collaborate with your team
 

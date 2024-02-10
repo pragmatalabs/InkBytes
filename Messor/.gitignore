@@ -7,6 +7,12 @@
     .ipynb_checkpoints,
     *.ipynb,
     .log,
-    .env,
-
+    .idea/,
+    DS_Store
+venv
+.idea
+.vscode
+.DS_Store/
+logs/
+.idea/
 

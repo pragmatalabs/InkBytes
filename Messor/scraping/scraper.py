@@ -1,8 +1,15 @@
 import json
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field
-from Articles import ArticleCollection
+
+from inkbytes.models.articles import ArticleCollection
+
+
+class SessionSavingMode(Enum):
+    SAVE_TO_FILE = "save_to_file"
+    SEND_TO_API = "send_to_api"
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -15,6 +22,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class ScrapingStats(BaseModel):
     start_time: datetime = Field(default_factory=datetime.utcnow)
     outlet_name: str = Field(default_factory=str)
+    results_staging_file_name: str = Field(default_factory=str)
     end_time: Optional[datetime] = Field(default_factory=datetime.utcnow)
     completed_session: Optional[bool] = False
     successful_articles: int = Field(
@@ -29,7 +37,7 @@ class ScrapingSession(ScrapingStats):
 
     def complete_session(self):
         self.end_time = datetime.utcnow()
-        self.completed_session=True
+        self.completed_session = True
 
     def increment_total_articles(self):
         self.total_articles += 1
@@ -39,6 +47,9 @@ class ScrapingSession(ScrapingStats):
 
     def increment_successful_articles(self):
         self.successful_articles += 1
+
+    def set_results_staging_file_name(self, file_name: str):
+        self.results_staging_file_name = file_name
 
     def calculate_duration(self) -> float:
         end_time = self.end_time or datetime.utcnow()
@@ -57,6 +68,7 @@ class ScrapingSession(ScrapingStats):
                 "start_time": self.start_time.isoformat(),
                 "end_time": self.end_time.isoformat(),
                 "total_articles": self.total_articles,
+                "results_staging_file_name": self.results_staging_file_name,
                 "failed_articles": self.failed_articles,
                 "successful_articles": self.successful_articles,
                 "duration": duration,

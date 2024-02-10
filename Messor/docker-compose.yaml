@@ -1,0 +1,11 @@
+version: "3"
+services:
+  messor:
+    tty: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "messor"
+    ports:
+      - 8585:8585
+    restart: always

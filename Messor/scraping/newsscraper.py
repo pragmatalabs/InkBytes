@@ -10,25 +10,25 @@ Language: Python 3.10
 License: MIT License
 """
 import concurrent
-import newspaper
+import logging
 from bs4 import BeautifulSoup
 from tinydb import Query
-import time
-import calendar
-import Logger
-import SysDictionary
-from Articles import Article, ArticleBuilder, ArticleCollection
-from DataHandler import DataHandler
-from NewsPapers import NewsPaper
-from Outlets import OutletsSource
-from Scrapper import ScrapingSession, ScrapingStats
-
-MODULE_NAME = "InkPills Scraper Downloader"
-__name__ = MODULE_NAME
-logger = Logger.get_logger(MODULE_NAME)
 
 
-class ScrapperPool:
+import newspaper
+
+from inkbytes.common import sysdictionary
+from inkbytes.common.utils import generate_threshold_timestamp
+from inkbytes.database.tinydb.DataHandler import DataHandler
+from inkbytes.models.articles import Article, ArticleBuilder, ArticleCollection
+from inkbytes.models.newspaperbase import NewsPaper
+from inkbytes.models.outlets import OutletsSource
+from scraping.scraper import ScrapingSession, ScrapingStats
+
+MODULE_NAME = "inkbytes.messor.scraping.newsscrapper"
+
+
+class ScraperPool:
     """
 
     :class: ScrapperPool
@@ -47,13 +47,13 @@ class ScrapperPool:
 
     :Example:
         >>> outlet = SourceOutlet(name="ExampleOutlet")
-        >>> scrapper_pool = ScrapperPool(outlet)
+        >>> scrapper_pool = ScraperPool(outlet)
         >>> scrapper_pool.scrape_outlet()
     """
 
     def __init__(self, outlet: OutletsSource, num_workers: int = 4):
         self.num_workers = num_workers
-        self.logger = logger
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.outlet = outlet
         self.session = None
         self.scrape_outlet()
@@ -63,10 +63,10 @@ class ScrapperPool:
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             self.logger.info(f"Scraping articles from: {self.outlet.name}")
             try:
-                newsPaper = NewsPaper(agent=SysDictionary.DEFAULT_AGENT, headers=SysDictionary.DEFAULT_HEADER)
+                newsPaper = NewsPaper(agent=sysdictionary.DEFAULT_AGENT, headers=sysdictionary.DEFAULT_HEADER)
                 NewsScraper(self.outlet, newsPaper, executor, session=self.session)
             except ValueError as e:
-                logger.error(f"Loading articles from: {self.outlet.name} failed with error: {e}")
+                self.logger.error(f"Loading articles from: {self.outlet.name} failed with error: {e}")
                 return
 
 
@@ -76,11 +76,11 @@ class NewsScraper:
     """
 
     def __init__(self, outlet: OutletsSource, paper: NewsPaper, executor: object, session: ScrapingSession = None):
-        self.paper = paper
+        self.newspaper = paper
         self.processed_articles = ArticleCollection()
         self.outlet = outlet
         self.executor = executor
-        self.logger = logger
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.stats = ScrapingStats()
         self.session = session
         self.scrape_news_outlet(self.executor, self.outlet)
@@ -91,16 +91,16 @@ class NewsScraper:
         :param outlet: The news outlet object containing information about the outlet to be scraped.
         :return: None
 
-        This method scrapes articles from the given news outlet using the provided executor object. It updates the outlet name in the session, validates the outlet URL, builds the paper object
+        This method scrapes articles from the given news outlet using the provided executor object. It updates the outlet name in the session, validates the outlet URL, builds the newspaper object
         *, logs the number of articles found, processes the articles using the executor, logs the number of processed articles, and then processes the outlet articles. If any errors occur during
         * the process, a ValueError will be raised and logged. Finally, the session is completed.
         """
         try:
             self.session.outlet_name = outlet.name
             if self.validate_outlet_url(outlet):
-                paper = self.build_paper(outlet)
-                # self.log_article_count(len(paper.articles), outlet)
-                results = self.process_articles(executor, outlet, paper)
+                paper = self.build_paper_from_outlet(outlet)
+                # self.log_foundarticles_count(len(newspaper.articles), outlet)
+                results = self.process_found_articles(executor, outlet, paper)
                 self.logger.info(f"Processing {len(results)} articles for {outlet.name}")
                 self.session.total_articles = len(results)
                 self.process_outlet_articles(outlet.name, results)
@@ -116,15 +116,15 @@ class NewsScraper:
         """
         return outlet.url and outlet.url.strip()
 
-    def build_paper(self, outlet):
+    def build_paper_from_outlet(self, outlet):
         """
-        :param outlet: The outlet where the paper will be built. This could be a file path, a file-like object, or any other valid output destination.
-        :return: The built paper as a string.
+        :param outlet: The outlet where the newspaper will be built. This could be a file path, a file-like object, or any other valid output destination.
+        :return: The built newspaper as a string.
         """
-        self.paper.build(outlet)
-        return self.paper.paper
+        self.newspaper.build(outlet)
+        return self.newspaper.paper
 
-    def log_article_count(self, count, outlet):
+    def log_foundarticles_count(self, count, outlet):
         """
         Logs the count of articles being processed for a given outlet.
 
@@ -134,9 +134,9 @@ class NewsScraper:
         """
         self.logger.info(f"Processing {count} articles for {outlet.name}")
 
-    def process_articles(self, executor, outlet, paper):
+    def process_found_articles(self, executor, outlet, paper):
         """
-        Process articles from a paper.
+        Process articles from a newspaper.
 
         :param executor: The executor to submit tasks to.
         :type executor: Executor
@@ -144,10 +144,10 @@ class NewsScraper:
         :param outlet: The outlet to scrape articles from.
         :type outlet: Outlet
 
-        :param paper: The paper containing the articles to be processed.
+        :param paper: The newspaper containing the articles to be processed.
         :type paper: Paper
 
-        :return: A list of submitted tasks for scraping outlet articles if there are articles in the paper. Otherwise, an empty list.
+        :return: A list of submitted tasks for scraping outlet articles if there are articles in the newspaper. Otherwise, an empty list.
         :rtype: list[Future]
         """
         if len(paper.articles) > 0:
@@ -163,9 +163,10 @@ class NewsScraper:
         :return:
         """
 
-        current_GMT = time.gmtime()
-        time_stamp = calendar.timegm(current_GMT)
-        data_handler = DataHandler(SysDictionary.storage_path + str(time_stamp) + outletBrand + ".db.json")
+        time_stamp = generate_threshold_timestamp(15)
+        self.session.set_results_staging_file_name(str(time_stamp) + outletBrand + ".db.json")
+        data_handler = DataHandler(sysdictionary.storage_path
+                                   + self.session.results_staging_file_name)
         self.logger.info(f"Processing {len(results)} articles")
         for future in concurrent.futures.as_completed(results):
             try:
@@ -183,14 +184,14 @@ class NewsScraper:
                         # Increment the total article count and add to processed_articles list
                         self.processed_articles.append(record)
                         self.session.increment_successful_articles()
-                        logger.info(f"{record.id} : Article {record.title[0:20]}.. inserted in : {outletBrand}")
+                        self.logger.info(f"{record.id} : Article {record.title[0:20]}.. inserted in : {outletBrand}")
             except Exception as e:
                 # Handle exceptions during processing, log the error, and increment failed_articles count
                 self.session.increment_failed_articles()
-                logger.error(f"Error {e} scraping article from: {outletBrand}")
+                self.logger.error(f"Error {e} scraping article from: {outletBrand}")
         if self.processed_articles:
             # Insert successfully processed articles into the database
-            logger.info(f"saving {len(self.processed_articles)} articles from {outletBrand} to database")
+            self.logger.info(f"saving {len(self.processed_articles)} articles from {outletBrand} to database")
             data_handler.insert_multiple(self.processed_articles)
 
 
@@ -208,11 +209,11 @@ def article_exists(article: Article, data_handler: DataHandler) -> bool:
         existing_articles = data_handler.db.search((_article.id == article.id))
         return bool(existing_articles)
     except ValueError as e:
-        logger.error(f"Error checking if article exists: {e}")
+        logging.getLogger().error(f"Error checking if article exists: {e}")
         return result
 
 
-def process_article(article: newspaper.Article) -> Article:
+def pre_process_article(article: newspaper.Article) -> Article:
     """
     Process an article by downloading and parsing it, handling any errors, and performing NLP on it.
 
@@ -252,7 +253,7 @@ def handle_error_in_article_processing(article: newspaper.Article, error: ValueE
     :param error: The error that occurred during processing.
     :return: None
     """
-    logger.error(f"Error processing article: {str(error)}")
+    logging.getLogger().error(f"Error processing article: {str(error)}")
     _article_html = BeautifulSoup(article.html, 'html.parser')
     article.text = _article_html.get_text()
     article.html = _article_html.prettify()
@@ -275,7 +276,7 @@ def build_newspaper_article(article: newspaper.Article) -> newspaper.Article:
     :return: The built newspaper article.
     :rtype: newspaper.Article
     """
-    article = process_article(article)
+    article = pre_process_article(article)
     # Check if the article was successfully downloaded, parsed, and meets length criteria
     if article.is_parsed and len(article.text) > 10 and article.text:
         return article
@@ -311,7 +312,4 @@ def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str) -> Ar
         if len(newspaperArticle.text) > 10:
             return create_article_record(newspaperArticle, newsPaperBrand)
     except ValueError as e:
-        logger.error(f"Error processing article: {str(e)}")
-
-
-
+        logging.getLogger().error(f"Error processing article: {str(e)}")

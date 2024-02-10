@@ -1,0 +1,620 @@
+2024-02-09 20:24:12,740 - ScraperPool - INFO - Scraping articles from: independent
+2024-02-09 20:24:12,740 - ScraperPool - INFO - Scraping articles from: xapnews
+2024-02-09 20:24:12,769 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:24:12,769 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:24:12,773 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x159377310>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:12,773 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:24:12,839 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feed (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x1593747c0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:12,842 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feeds (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x159374070>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:12,842 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x159374c10>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:12,845 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:24:12,845 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:24:12,851 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x158dca4d0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:12,851 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:24:12,851 - NewsScraper - INFO - Processing 0 articles for independent
+2024-02-09 20:24:12,851 - NewsScraper - INFO - Processing 0 articles
+2024-02-09 20:24:12,851 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:24:14,716 - NewsScraper - INFO - Processing 127 articles for xapnews
+2024-02-09 20:24:14,721 - NewsScraper - INFO - Processing 127 articles
+2024-02-09 20:24:15,497 - NewsScraper - WARNING - 7181aee9-a940-32d8-bc41-981294acb9ff : Article Some of what Putin t already exists: 7181aee9-a940-32d8-bc41-981294acb9ff @ xapnews
+2024-02-09 20:24:15,557 - NewsScraper - WARNING - e9a1154d-7390-348c-97a7-d96bb47d44a6 : Article NCAA College Footbal already exists: e9a1154d-7390-348c-97a7-d96bb47d44a6 @ xapnews
+2024-02-09 20:24:15,947 - NewsScraper - WARNING - 972cba12-90cd-3f54-9025-928cce8e99ea : Article 2 people dead after  already exists: 972cba12-90cd-3f54-9025-928cce8e99ea @ xapnews
+2024-02-09 20:24:16,017 - NewsScraper - WARNING - c383b5d8-e8da-3dfa-9828-6daf82c888f5 : Article Teen accused of shoo already exists: c383b5d8-e8da-3dfa-9828-6daf82c888f5 @ xapnews
+2024-02-09 20:24:16,736 - NewsScraper - WARNING - 17e36847-1967-3b02-a612-8466b8e7a651 : Article What is Lunar New Ye already exists: 17e36847-1967-3b02-a612-8466b8e7a651 @ xapnews
+2024-02-09 20:24:16,811 - NewsScraper - WARNING - 94979ec4-65ab-3cd6-93f6-1f82a07440b8 : Article Here’s what you can  already exists: 94979ec4-65ab-3cd6-93f6-1f82a07440b8 @ xapnews
+2024-02-09 20:24:17,327 - NewsScraper - WARNING - 16bd5196-2558-3fa1-bde8-7e0e81bba25e : Article The Senate is pushin already exists: 16bd5196-2558-3fa1-bde8-7e0e81bba25e @ xapnews
+2024-02-09 20:24:17,536 - NewsScraper - WARNING - c81b3895-c646-3947-96ac-171c29f468cd : Article Ukraine’s new army c already exists: c81b3895-c646-3947-96ac-171c29f468cd @ xapnews
+2024-02-09 20:24:17,751 - NewsScraper - WARNING - a434f657-99a7-395b-9ed1-77084f3351c3 : Article Ocean system that mo already exists: a434f657-99a7-395b-9ed1-77084f3351c3 @ xapnews
+2024-02-09 20:24:17,922 - NewsScraper - WARNING - d0122a55-a80b-3f80-9198-d6ef9351a638 : Article Nearly 200 abused co already exists: d0122a55-a80b-3f80-9198-d6ef9351a638 @ xapnews
+2024-02-09 20:24:18,314 - NewsScraper - WARNING - 70c34b82-8ea0-379d-91b6-80c332d9788e : Article Toby Keith wrote all already exists: 70c34b82-8ea0-379d-91b6-80c332d9788e @ xapnews
+2024-02-09 20:24:18,418 - NewsScraper - WARNING - a967bb32-e00d-3617-8b30-65959f61b60d : Article Trump tells NRA memb already exists: a967bb32-e00d-3617-8b30-65959f61b60d @ xapnews
+2024-02-09 20:24:18,789 - NewsScraper - WARNING - 3af1d8e9-8104-3c85-b320-97ac27603318 : Article Man accused of stalk already exists: 3af1d8e9-8104-3c85-b320-97ac27603318 @ xapnews
+2024-02-09 20:24:18,883 - NewsScraper - WARNING - 8929d363-8855-353e-b3fb-dfd71c01445e : Article An Oklahoma judge wh already exists: 8929d363-8855-353e-b3fb-dfd71c01445e @ xapnews
+2024-02-09 20:24:19,126 - NewsScraper - WARNING - 033659b5-d946-3c82-89be-50b0fae8688e : Article 5 Marines killed in  already exists: 033659b5-d946-3c82-89be-50b0fae8688e @ xapnews
+2024-02-09 20:24:19,731 - NewsScraper - INFO - 0bba5ed7-67bd-36bc-8e9d-aa982e98770f : Article Harris calls special.. inserted in : xapnews
+2024-02-09 20:24:19,794 - NewsScraper - INFO - fc44d927-f0de-324a-b830-e2a16f368e8a : Article At least 2 dead afte.. inserted in : xapnews
+2024-02-09 20:24:20,047 - NewsScraper - WARNING - 67f1655d-40ef-3c6b-a1d7-81ed4549b29f : Article Icelandic volcano er already exists: 67f1655d-40ef-3c6b-a1d7-81ed4549b29f @ xapnews
+2024-02-09 20:24:20,175 - NewsScraper - WARNING - 1af35672-9686-30ca-8941-919197cd8a69 : Article A look at this year’ already exists: 1af35672-9686-30ca-8941-919197cd8a69 @ xapnews
+2024-02-09 20:24:20,584 - NewsScraper - WARNING - 3c3de1ae-5a87-34d8-8211-ebe352f904c6 : Article Never mind the mess, already exists: 3c3de1ae-5a87-34d8-8211-ebe352f904c6 @ xapnews
+2024-02-09 20:24:20,616 - NewsScraper - WARNING - b23d61db-bc0c-305d-b802-adf518e87b86 : Article Dartmouth men’s bask already exists: b23d61db-bc0c-305d-b802-adf518e87b86 @ xapnews
+2024-02-09 20:24:21,091 - NewsScraper - WARNING - c3f0c264-0371-37e1-909f-a45554c80c64 : Article Arizona gallery owne already exists: c3f0c264-0371-37e1-909f-a45554c80c64 @ xapnews
+2024-02-09 20:24:21,265 - NewsScraper - WARNING - 421b7162-c7db-3704-b871-3bda566746f6 : Article Israel’s next target already exists: 421b7162-c7db-3704-b871-3bda566746f6 @ xapnews
+2024-02-09 20:24:21,465 - NewsScraper - WARNING - e17c0870-543d-3a7c-aad8-61374e28721a : Article Today in History: Fe already exists: e17c0870-543d-3a7c-aad8-61374e28721a @ xapnews
+2024-02-09 20:24:21,855 - NewsScraper - WARNING - 2266ee82-80d5-31f2-860f-5772b04afa18 : Article In ‘Dune: Part Two,’ already exists: 2266ee82-80d5-31f2-860f-5772b04afa18 @ xapnews
+2024-02-09 20:24:22,007 - NewsScraper - WARNING - 94268484-01cc-321b-a58b-0e85a2764515 : Article Dressing the high-so already exists: 94268484-01cc-321b-a58b-0e85a2764515 @ xapnews
+2024-02-09 20:24:22,347 - NewsScraper - WARNING - 6db04347-83fc-3540-895e-6fd5d45b12b5 : Article There was no meet cu already exists: 6db04347-83fc-3540-895e-6fd5d45b12b5 @ xapnews
+2024-02-09 20:24:22,552 - NewsScraper - WARNING - ec501dcc-c79d-32c8-8cd5-b22054ae322d : Article Brittany Howard retu already exists: ec501dcc-c79d-32c8-8cd5-b22054ae322d @ xapnews
+2024-02-09 20:24:22,897 - NewsScraper - WARNING - a435de39-b08f-35ee-9ccf-edeb78e2c815 : Article Catering to the food already exists: a435de39-b08f-35ee-9ccf-edeb78e2c815 @ xapnews
+2024-02-09 20:24:22,977 - NewsScraper - WARNING - 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be : Article Anthony Fauci will r already exists: 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be @ xapnews
+2024-02-09 20:24:23,446 - NewsScraper - WARNING - 9abb290e-0bcc-31ee-b206-7fdbdfd7564e : Article Review: ‘Bob Marley: already exists: 9abb290e-0bcc-31ee-b206-7fdbdfd7564e @ xapnews
+2024-02-09 20:24:23,556 - NewsScraper - WARNING - ee047851-b52b-3d21-823c-d183fa900a7d : Article Movie Review: ‘Lisa  already exists: ee047851-b52b-3d21-823c-d183fa900a7d @ xapnews
+2024-02-09 20:24:24,060 - NewsScraper - WARNING - edc7d1e5-9727-317c-9dcd-c90b83c9a32d : Article Movie Review: Food,  already exists: edc7d1e5-9727-317c-9dcd-c90b83c9a32d @ xapnews
+2024-02-09 20:24:24,127 - NewsScraper - WARNING - 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 : Article Movie Review: Wim We already exists: 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 @ xapnews
+2024-02-09 20:24:24,469 - NewsScraper - WARNING - e4f6e8f3-71af-3b21-b208-0d6f4806081c : Article Sneed’s forced fumbl already exists: e4f6e8f3-71af-3b21-b208-0d6f4806081c @ xapnews
+2024-02-09 20:24:24,614 - NewsScraper - WARNING - cfed120a-9ca7-366d-9fdf-15f03cebce7f : Article Analysis: Why will t already exists: cfed120a-9ca7-366d-9fdf-15f03cebce7f @ xapnews
+2024-02-09 20:24:24,910 - NewsScraper - WARNING - 51e6e59d-d70d-3c5c-8610-8c7f93daead7 : Article Analysis: Why will t already exists: 51e6e59d-d70d-3c5c-8610-8c7f93daead7 @ xapnews
+2024-02-09 20:24:25,085 - NewsScraper - WARNING - 73cd0311-4cfc-321b-94b5-058fc924a938 : Article Analysis: McCaffrey  already exists: 73cd0311-4cfc-321b-94b5-058fc924a938 @ xapnews
+2024-02-09 20:24:25,716 - NewsScraper - WARNING - 5f9a1f03-4503-37d3-ae3f-1a97372edd14 : Article What a comeback! Thr already exists: 5f9a1f03-4503-37d3-ae3f-1a97372edd14 @ xapnews
+2024-02-09 20:24:26,099 - NewsScraper - WARNING - cb32f602-ded6-36f2-b3f0-a5e7c41d9907 : Article How the ‘boneless wi already exists: cb32f602-ded6-36f2-b3f0-a5e7c41d9907 @ xapnews
+2024-02-09 20:24:26,217 - NewsScraper - WARNING - 323ec375-863d-3522-acc6-12a2232ddedd : Article Uproar over Biden cl already exists: 323ec375-863d-3522-acc6-12a2232ddedd @ xapnews
+2024-02-09 20:24:26,596 - NewsScraper - WARNING - 6df8326a-403e-3006-a245-6140e7a74295 : Article The race for George  already exists: 6df8326a-403e-3006-a245-6140e7a74295 @ xapnews
+2024-02-09 20:24:27,089 - NewsScraper - WARNING - 56022917-cd4a-3135-88a4-ea6fa5332938 : Article Donald Trump wins Ne already exists: 56022917-cd4a-3135-88a4-ea6fa5332938 @ xapnews
+2024-02-09 20:24:27,142 - NewsScraper - INFO - 7c260c31-07b4-3b51-a030-4e01d7b4fb7a : Article DNC files federal co.. inserted in : xapnews
+2024-02-09 20:24:27,511 - NewsScraper - WARNING - 3d683975-10ff-3cc6-820d-19b03840d32d : Article Why AP called the Ne already exists: 3d683975-10ff-3cc6-820d-19b03840d32d @ xapnews
+2024-02-09 20:24:27,573 - NewsScraper - WARNING - 5b0e94e9-e201-316d-92a8-6f4e820d4721 : Article Donald Trump clinche already exists: 5b0e94e9-e201-316d-92a8-6f4e820d4721 @ xapnews
+2024-02-09 20:24:28,088 - NewsScraper - WARNING - 6f9c37f5-070c-331f-a14e-4946223b1a84 : Article AI-generated voices  already exists: 6f9c37f5-070c-331f-a14e-4946223b1a84 @ xapnews
+2024-02-09 20:24:28,204 - NewsScraper - WARNING - fa785e03-a83b-3681-845e-511f3e7cf506 : Article Ed Dwight was to be  already exists: fa785e03-a83b-3681-845e-511f3e7cf506 @ xapnews
+2024-02-09 20:24:28,616 - NewsScraper - WARNING - be4344f3-222b-3272-b6af-0ec95764cfc8 : Article It’s called ‘cozy ca already exists: be4344f3-222b-3272-b6af-0ec95764cfc8 @ xapnews
+2024-02-09 20:24:29,260 - NewsScraper - WARNING - 2e93c413-582a-3624-a533-2f6021cfea6b : Article Climate change is fu already exists: 2e93c413-582a-3624-a533-2f6021cfea6b @ xapnews
+2024-02-09 20:24:29,852 - NewsScraper - WARNING - fb17bac4-1e4c-3248-89c2-b31057971707 : Article Newspaper heiress Pa already exists: fb17bac4-1e4c-3248-89c2-b31057971707 @ xapnews
+2024-02-09 20:24:29,913 - NewsScraper - WARNING - dfb433dd-cbab-35f4-9978-5933f78b86c6 : Article A record number of A already exists: dfb433dd-cbab-35f4-9978-5933f78b86c6 @ xapnews
+2024-02-09 20:24:30,384 - NewsScraper - WARNING - cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb : Article Countdown begins for already exists: cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb @ xapnews
+2024-02-09 20:24:30,493 - NewsScraper - WARNING - 197d4644-17f6-3215-9a13-414b3ad29e65 : Article How a grieving mothe already exists: 197d4644-17f6-3215-9a13-414b3ad29e65 @ xapnews
+2024-02-09 20:24:30,998 - NewsScraper - WARNING - e6d14244-4980-3443-961f-e4de9f9b2302 : Article Biden and Trump: How already exists: e6d14244-4980-3443-961f-e4de9f9b2302 @ xapnews
+2024-02-09 20:24:31,058 - NewsScraper - WARNING - 6aa04591-dae4-3526-aa26-58f1419de01f : Article Ghana artifacts that already exists: 6aa04591-dae4-3526-aa26-58f1419de01f @ xapnews
+2024-02-09 20:24:31,344 - NewsScraper - WARNING - 631fc0ae-80f0-3796-813f-8e343fad90c6 : Article Biden order attaches already exists: 631fc0ae-80f0-3796-813f-8e343fad90c6 @ xapnews
+2024-02-09 20:24:31,513 - NewsScraper - WARNING - 2fbf426a-0953-35ab-895e-3f2eeeb39d0c : Article What’s inside the Se already exists: 2fbf426a-0953-35ab-895e-3f2eeeb39d0c @ xapnews
+2024-02-09 20:24:31,685 - NewsScraper - WARNING - 380c8447-d40f-360d-ae8f-96664a8e4d69 : Article Scarlett Johansson a already exists: 380c8447-d40f-360d-ae8f-96664a8e4d69 @ xapnews
+2024-02-09 20:24:31,908 - NewsScraper - WARNING - 95a9b5f6-812a-3276-a001-3293fc193e15 : Article Music Review: Swedis already exists: 95a9b5f6-812a-3276-a001-3293fc193e15 @ xapnews
+2024-02-09 20:24:32,250 - NewsScraper - WARNING - 457add7a-2e41-3c5a-9970-8a34096ff0c4 : Article Jury in Young Dolph  already exists: 457add7a-2e41-3c5a-9970-8a34096ff0c4 @ xapnews
+2024-02-09 20:24:32,818 - NewsScraper - WARNING - 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 : Article Former Mets GM Billy already exists: 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 @ xapnews
+2024-02-09 20:24:32,863 - NewsScraper - WARNING - 8abe28b4-3adc-3e59-8888-76678a6f720c : Article Superstar DJ Tiësto  already exists: 8abe28b4-3adc-3e59-8888-76678a6f720c @ xapnews
+2024-02-09 20:24:33,393 - NewsScraper - WARNING - fc8b495d-0644-33db-8383-b9c2779fedbf : Article Chiefs rule out All- already exists: fc8b495d-0644-33db-8383-b9c2779fedbf @ xapnews
+2024-02-09 20:24:33,469 - NewsScraper - WARNING - 90465343-d6e9-3b2b-889c-c348168b4dd8 : Article Taylor Swift’s conne already exists: 90465343-d6e9-3b2b-889c-c348168b4dd8 @ xapnews
+2024-02-09 20:24:34,035 - NewsScraper - WARNING - dab3e80f-86d8-33fe-97a2-01801c31fb4c : Article Magnitude 5.7 earthq already exists: dab3e80f-86d8-33fe-97a2-01801c31fb4c @ xapnews
+2024-02-09 20:24:34,070 - NewsScraper - WARNING - 05590716-6cc2-350a-b307-1e148ae1af6c : Article Shohei Ohtani tries  already exists: 05590716-6cc2-350a-b307-1e148ae1af6c @ xapnews
+2024-02-09 20:24:35,023 - NewsScraper - WARNING - 1f57c218-975d-3741-9731-0d41bb4358ac : Article Mardi Gras 2024: Wha already exists: 1f57c218-975d-3741-9731-0d41bb4358ac @ xapnews
+2024-02-09 20:24:35,151 - NewsScraper - WARNING - e4c8b6ac-706b-38fa-b91a-9351f628813d : Article Summer-like conditio already exists: e4c8b6ac-706b-38fa-b91a-9351f628813d @ xapnews
+2024-02-09 20:24:35,516 - NewsScraper - WARNING - b7e697e6-f588-39ab-8f2c-e28317509aeb : Article Proposed mine outsid already exists: b7e697e6-f588-39ab-8f2c-e28317509aeb @ xapnews
+2024-02-09 20:24:35,748 - NewsScraper - WARNING - 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec : Article Israel seeks to evac already exists: 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec @ xapnews
+2024-02-09 20:24:36,122 - NewsScraper - WARNING - f915e546-212c-3f5a-abb2-b7e162f4e142 : Article Pakistan’s ex-PM Sha already exists: f915e546-212c-3f5a-abb2-b7e162f4e142 @ xapnews
+2024-02-09 20:24:36,262 - NewsScraper - WARNING - 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 : Article Inflation is nearly  already exists: 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 @ xapnews
+2024-02-09 20:24:36,538 - NewsScraper - WARNING - 9378ae14-7cf2-3345-adad-7965415e7e46 : Article Stock market today:  already exists: 9378ae14-7cf2-3345-adad-7965415e7e46 @ xapnews
+2024-02-09 20:24:36,683 - NewsScraper - WARNING - 65c21767-9cd5-38b8-810b-8c3cc18725c2 : Article IRS watchdog: Contra already exists: 65c21767-9cd5-38b8-810b-8c3cc18725c2 @ xapnews
+2024-02-09 20:24:36,850 - NewsScraper - WARNING - 08b7786a-7453-3aae-bf55-3d33b43803cc : Article Biden administration already exists: 08b7786a-7453-3aae-bf55-3d33b43803cc @ xapnews
+2024-02-09 20:24:37,168 - NewsScraper - WARNING - 727c09f0-795e-3ca0-9e29-5b78c8cacff8 : Article Astronauts from Turk already exists: 727c09f0-795e-3ca0-9e29-5b78c8cacff8 @ xapnews
+2024-02-09 20:24:37,281 - NewsScraper - WARNING - db12706f-e4dd-36a2-8d75-17219b0b4b25 : Article Saturn’s Death Star- already exists: db12706f-e4dd-36a2-8d75-17219b0b4b25 @ xapnews
+2024-02-09 20:24:37,708 - NewsScraper - WARNING - 502ce2ea-9a5f-3430-b409-dcd67dc0b604 : Article Jury awards climate  already exists: 502ce2ea-9a5f-3430-b409-dcd67dc0b604 @ xapnews
+2024-02-09 20:24:37,760 - NewsScraper - WARNING - b37fc8fd-5964-30b4-922e-98667d704945 : Article NASA climate satelli already exists: b37fc8fd-5964-30b4-922e-98667d704945 @ xapnews
+2024-02-09 20:24:38,233 - NewsScraper - WARNING - e08e69c0-74df-3b53-9072-b91254538e71 : Article Jon Stewart changed  already exists: e08e69c0-74df-3b53-9072-b91254538e71 @ xapnews
+2024-02-09 20:24:38,327 - NewsScraper - WARNING - 3a814764-caf8-36d0-87b6-0abae5b6c78b : Article How Asian American a already exists: 3a814764-caf8-36d0-87b6-0abae5b6c78b @ xapnews
+2024-02-09 20:24:38,883 - NewsScraper - INFO - 0e3e1974-0881-3efa-8000-fe26ba95b445 : Article Americans left the B.. inserted in : xapnews
+2024-02-09 20:24:39,854 - NewsScraper - WARNING - 3b314946-16e7-3243-97d4-4f752a3d5c58 : Article Christian Siriano ro already exists: 3b314946-16e7-3243-97d4-4f752a3d5c58 @ xapnews
+2024-02-09 20:24:40,017 - NewsScraper - WARNING - 4107b08d-ba5c-3168-8fdf-7e71a46b8369 : Article AP PHOTOS: Lunar New already exists: 4107b08d-ba5c-3168-8fdf-7e71a46b8369 @ xapnews
+2024-02-09 20:24:40,760 - NewsScraper - WARNING - 150292f4-11a6-3048-a69f-203416981e57 : Article AP PHOTOS: Deadly bl already exists: 150292f4-11a6-3048-a69f-203416981e57 @ xapnews
+2024-02-09 20:24:41,047 - NewsScraper - WARNING - 0bf57504-74c5-3be5-9914-62f28f40baf9 : Article The 2014 Sochi Olymp already exists: 0bf57504-74c5-3be5-9914-62f28f40baf9 @ xapnews
+2024-02-09 20:24:41,328 - NewsScraper - WARNING - 5ff12311-a139-3de2-b1f3-54759536ecfe : Article Women dominated the  already exists: 5ff12311-a139-3de2-b1f3-54759536ecfe @ xapnews
+2024-02-09 20:24:41,546 - NewsScraper - WARNING - 3a61c40c-f4af-3120-a05e-023bb1d70011 : Article Mark Zuckerberg’s lo already exists: 3a61c40c-f4af-3120-a05e-023bb1d70011 @ xapnews
+2024-02-09 20:24:41,894 - NewsScraper - WARNING - b533ac88-760a-3f66-953f-cc103258525a : Article Voices from the viol already exists: b533ac88-760a-3f66-953f-cc103258525a @ xapnews
+2024-02-09 20:24:42,140 - NewsScraper - WARNING - b656f464-5d62-386e-8a74-72fa1af2b08e : Article Black Californians h already exists: b656f464-5d62-386e-8a74-72fa1af2b08e @ xapnews
+2024-02-09 20:24:42,396 - NewsScraper - WARNING - aa911ddd-d0c6-3997-90bb-53fa348a0390 : Article Hundreds of black de already exists: aa911ddd-d0c6-3997-90bb-53fa348a0390 @ xapnews
+2024-02-09 20:24:43,036 - NewsScraper - WARNING - 1211cef9-8296-313e-b8c9-d4b9f58335e5 : Article Hip-hop turns 50, re already exists: 1211cef9-8296-313e-b8c9-d4b9f58335e5 @ xapnews
+2024-02-09 20:24:43,249 - NewsScraper - WARNING - 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 : Article Penn Museum buries t already exists: 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 @ xapnews
+2024-02-09 20:24:43,434 - NewsScraper - WARNING - 8dba57fd-827a-3b2c-923d-c1f4f4cc091e : Article Black August uplifte already exists: 8dba57fd-827a-3b2c-923d-c1f4f4cc091e @ xapnews
+2024-02-09 20:24:43,643 - NewsScraper - INFO - fd11bc2d-2f00-38df-82dc-140bff849a3f : Article Texas woman is sente.. inserted in : xapnews
+2024-02-09 20:24:43,730 - NewsScraper - WARNING - 90095cf7-c4ed-3094-aee7-53806a125472 : Article Minnesota man awaiti already exists: 90095cf7-c4ed-3094-aee7-53806a125472 @ xapnews
+2024-02-09 20:24:43,996 - NewsScraper - WARNING - 3a18efb2-5485-3c4d-8cf1-487ad5942b18 : Article Uncertainty surround already exists: 3a18efb2-5485-3c4d-8cf1-487ad5942b18 @ xapnews
+2024-02-09 20:24:44,095 - NewsScraper - WARNING - 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 : Article Three-time Super Bow already exists: 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 @ xapnews
+2024-02-09 20:24:44,287 - NewsScraper - WARNING - 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc : Article Guest lineups for th already exists: 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc @ xapnews
+2024-02-09 20:24:44,528 - NewsScraper - WARNING - e81f49c0-6374-370f-b88e-d502ffedb609 : Article Arkansas police find already exists: e81f49c0-6374-370f-b88e-d502ffedb609 @ xapnews
+2024-02-09 20:24:44,696 - NewsScraper - WARNING - c4132341-dcd1-35ac-ae7b-d258245082b9 : Article Judge blocks Omaha’s already exists: c4132341-dcd1-35ac-ae7b-d258245082b9 @ xapnews
+2024-02-09 20:24:44,910 - NewsScraper - WARNING - ac1e4487-3422-304f-8005-b509fa4f964b : Article Arizona governor sig already exists: ac1e4487-3422-304f-8005-b509fa4f964b @ xapnews
+2024-02-09 20:24:45,079 - NewsScraper - WARNING - 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c : Article Cardoso shines as Re already exists: 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c @ xapnews
+2024-02-09 20:24:45,287 - NewsScraper - WARNING - fb78c297-1a8c-31d1-a5f1-895f34ae8386 : Article Bill to help relocat already exists: fb78c297-1a8c-31d1-a5f1-895f34ae8386 @ xapnews
+2024-02-09 20:24:45,594 - NewsScraper - WARNING - f59148c1-0ad0-3bac-a590-32832091517e : Article Second baseman Jonat already exists: f59148c1-0ad0-3bac-a590-32832091517e @ xapnews
+2024-02-09 20:24:45,765 - NewsScraper - WARNING - c4249c9b-495d-3642-a361-1fe17a9d8d2a : Article Some charges dismiss already exists: c4249c9b-495d-3642-a361-1fe17a9d8d2a @ xapnews
+2024-02-09 20:24:45,947 - NewsScraper - WARNING - d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa : Article Furman football play already exists: d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa @ xapnews
+2024-02-09 20:24:46,175 - NewsScraper - WARNING - 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 : Article Lawsuit claims Natio already exists: 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 @ xapnews
+2024-02-09 20:24:46,306 - NewsScraper - WARNING - 6d587ef0-32db-3ef1-804c-30ee8821fefd : Article Indianapolis man arr already exists: 6d587ef0-32db-3ef1-804c-30ee8821fefd @ xapnews
+2024-02-09 20:24:46,636 - NewsScraper - WARNING - 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 : Article Amazon Prime Video w already exists: 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 @ xapnews
+2024-02-09 20:24:46,702 - NewsScraper - WARNING - 0e1c55b1-3b72-3ad3-8525-e8260548cb5a : Article Vikings add OLB coac already exists: 0e1c55b1-3b72-3ad3-8525-e8260548cb5a @ xapnews
+2024-02-09 20:24:46,925 - NewsScraper - WARNING - dc924faa-728f-3daa-9208-e40c733898a5 : Article Former Brewers pitch already exists: dc924faa-728f-3daa-9208-e40c733898a5 @ xapnews
+2024-02-09 20:24:47,118 - NewsScraper - WARNING - 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce : Article A stepmother says he already exists: 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce @ xapnews
+2024-02-09 20:24:47,389 - NewsScraper - WARNING - 5810d9e1-f862-3382-b2d5-958d6f93571c : Article Police in a Maine ci already exists: 5810d9e1-f862-3382-b2d5-958d6f93571c @ xapnews
+2024-02-09 20:24:47,541 - NewsScraper - WARNING - 72885519-fff8-365f-9d5d-f14abf2110eb : Article No. 16 Virginia Tech already exists: 72885519-fff8-365f-9d5d-f14abf2110eb @ xapnews
+2024-02-09 20:24:47,937 - NewsScraper - WARNING - 79ec5d97-4d84-36c6-865c-da9907eab1b8 : Article Metz ends seven-game already exists: 79ec5d97-4d84-36c6-865c-da9907eab1b8 @ xapnews
+2024-02-09 20:24:48,034 - NewsScraper - WARNING - 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 : Article Congressional age li already exists: 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 @ xapnews
+2024-02-09 20:24:48,291 - NewsScraper - WARNING - 91d5cc9a-8410-3652-862e-e002642c2595 : Article A 4.6-magnitude eart already exists: 91d5cc9a-8410-3652-862e-e002642c2595 @ xapnews
+2024-02-09 20:24:48,537 - NewsScraper - WARNING - dec2e71c-caee-3944-a81c-d557c6316973 : Article Deion Sanders puts f already exists: dec2e71c-caee-3944-a81c-d557c6316973 @ xapnews
+2024-02-09 20:24:48,906 - NewsScraper - WARNING - 07bb70bf-a663-3c60-9993-30cdf3b601da : Article Falcons owner Blank  already exists: 07bb70bf-a663-3c60-9993-30cdf3b601da @ xapnews
+2024-02-09 20:24:48,978 - NewsScraper - WARNING - 3ffa6f1e-875e-36b2-b2da-62625fc352c7 : Article Empoli grabs late do already exists: 3ffa6f1e-875e-36b2-b2da-62625fc352c7 @ xapnews
+2024-02-09 20:24:49,307 - NewsScraper - WARNING - af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe : Article An Ohio city settles already exists: af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe @ xapnews
+2024-02-09 20:24:49,440 - NewsScraper - WARNING - 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 : Article Malen scores twice a already exists: 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 @ xapnews
+2024-02-09 20:24:49,787 - NewsScraper - WARNING - 236648f3-eeb1-3715-97ee-0d567ff7a06e : Article Georgia Republicans  already exists: 236648f3-eeb1-3715-97ee-0d567ff7a06e @ xapnews
+2024-02-09 20:24:49,872 - NewsScraper - WARNING - 4ba372f0-70d0-3ff6-8c19-718548219a23 : Article Astronauts from Turk already exists: 4ba372f0-70d0-3ff6-8c19-718548219a23 @ xapnews
+2024-02-09 20:24:50,185 - NewsScraper - WARNING - 743c16b1-6b29-3610-aeb9-731e8bf2bf72 : Article Victims recall lifet already exists: 743c16b1-6b29-3610-aeb9-731e8bf2bf72 @ xapnews
+2024-02-09 20:24:50,185 - NewsScraper - INFO - saving 5 articles from xapnews to database
+2024-02-09 20:24:50,593 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:24:54,091 - ScraperPool - INFO - Scraping articles from: independent
+2024-02-09 20:24:54,091 - ScraperPool - INFO - Scraping articles from: xapnews
+2024-02-09 20:24:54,098 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:24:54,098 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:24:54,102 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x159884970>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:54,102 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:24:54,110 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feeds (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x1598870a0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:54,111 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feed (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x159885780>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:54,111 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x159887220>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:54,116 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:24:54,116 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:24:54,119 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x15985ac20>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:24:54,119 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:24:54,119 - NewsScraper - INFO - Processing 0 articles for independent
+2024-02-09 20:24:54,120 - NewsScraper - INFO - Processing 0 articles
+2024-02-09 20:24:54,120 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:24:55,984 - NewsScraper - INFO - Processing 129 articles for xapnews
+2024-02-09 20:24:55,989 - NewsScraper - INFO - Processing 129 articles
+2024-02-09 20:24:56,482 - NewsScraper - WARNING - 7181aee9-a940-32d8-bc41-981294acb9ff : Article Some of what Putin t already exists: 7181aee9-a940-32d8-bc41-981294acb9ff @ xapnews
+2024-02-09 20:24:56,623 - NewsScraper - WARNING - e9a1154d-7390-348c-97a7-d96bb47d44a6 : Article NCAA College Footbal already exists: e9a1154d-7390-348c-97a7-d96bb47d44a6 @ xapnews
+2024-02-09 20:24:56,917 - NewsScraper - WARNING - 972cba12-90cd-3f54-9025-928cce8e99ea : Article 2 people dead after  already exists: 972cba12-90cd-3f54-9025-928cce8e99ea @ xapnews
+2024-02-09 20:24:57,060 - NewsScraper - WARNING - c383b5d8-e8da-3dfa-9828-6daf82c888f5 : Article Teen accused of shoo already exists: c383b5d8-e8da-3dfa-9828-6daf82c888f5 @ xapnews
+2024-02-09 20:24:57,589 - NewsScraper - WARNING - 94979ec4-65ab-3cd6-93f6-1f82a07440b8 : Article Here’s what you can  already exists: 94979ec4-65ab-3cd6-93f6-1f82a07440b8 @ xapnews
+2024-02-09 20:24:57,689 - NewsScraper - WARNING - 17e36847-1967-3b02-a612-8466b8e7a651 : Article What is Lunar New Ye already exists: 17e36847-1967-3b02-a612-8466b8e7a651 @ xapnews
+2024-02-09 20:24:58,042 - NewsScraper - WARNING - 16bd5196-2558-3fa1-bde8-7e0e81bba25e : Article The Senate is pushin already exists: 16bd5196-2558-3fa1-bde8-7e0e81bba25e @ xapnews
+2024-02-09 20:24:58,277 - NewsScraper - WARNING - c81b3895-c646-3947-96ac-171c29f468cd : Article Ukraine’s new army c already exists: c81b3895-c646-3947-96ac-171c29f468cd @ xapnews
+2024-02-09 20:24:58,462 - NewsScraper - WARNING - a434f657-99a7-395b-9ed1-77084f3351c3 : Article Ocean system that mo already exists: a434f657-99a7-395b-9ed1-77084f3351c3 @ xapnews
+2024-02-09 20:24:58,706 - NewsScraper - WARNING - d0122a55-a80b-3f80-9198-d6ef9351a638 : Article Nearly 200 abused co already exists: d0122a55-a80b-3f80-9198-d6ef9351a638 @ xapnews
+2024-02-09 20:24:59,084 - NewsScraper - WARNING - 70c34b82-8ea0-379d-91b6-80c332d9788e : Article Toby Keith wrote all already exists: 70c34b82-8ea0-379d-91b6-80c332d9788e @ xapnews
+2024-02-09 20:24:59,177 - NewsScraper - WARNING - a967bb32-e00d-3617-8b30-65959f61b60d : Article Trump tells NRA memb already exists: a967bb32-e00d-3617-8b30-65959f61b60d @ xapnews
+2024-02-09 20:24:59,485 - NewsScraper - WARNING - 3af1d8e9-8104-3c85-b320-97ac27603318 : Article Man accused of stalk already exists: 3af1d8e9-8104-3c85-b320-97ac27603318 @ xapnews
+2024-02-09 20:24:59,603 - NewsScraper - WARNING - 8929d363-8855-353e-b3fb-dfd71c01445e : Article An Oklahoma judge wh already exists: 8929d363-8855-353e-b3fb-dfd71c01445e @ xapnews
+2024-02-09 20:24:59,918 - NewsScraper - WARNING - 033659b5-d946-3c82-89be-50b0fae8688e : Article 5 Marines killed in  already exists: 033659b5-d946-3c82-89be-50b0fae8688e @ xapnews
+2024-02-09 20:24:59,990 - NewsScraper - WARNING - 4ba372f0-70d0-3ff6-8c19-718548219a23 : Article Astronauts from Turk already exists: 4ba372f0-70d0-3ff6-8c19-718548219a23 @ xapnews
+2024-02-09 20:25:00,412 - NewsScraper - WARNING - 67f1655d-40ef-3c6b-a1d7-81ed4549b29f : Article Icelandic volcano er already exists: 67f1655d-40ef-3c6b-a1d7-81ed4549b29f @ xapnews
+2024-02-09 20:25:00,450 - NewsScraper - WARNING - 1af35672-9686-30ca-8941-919197cd8a69 : Article A look at this year’ already exists: 1af35672-9686-30ca-8941-919197cd8a69 @ xapnews
+2024-02-09 20:25:00,823 - NewsScraper - WARNING - 743c16b1-6b29-3610-aeb9-731e8bf2bf72 : Article Victims recall lifet already exists: 743c16b1-6b29-3610-aeb9-731e8bf2bf72 @ xapnews
+2024-02-09 20:25:01,062 - NewsScraper - WARNING - 3c3de1ae-5a87-34d8-8211-ebe352f904c6 : Article Never mind the mess, already exists: 3c3de1ae-5a87-34d8-8211-ebe352f904c6 @ xapnews
+2024-02-09 20:25:01,164 - NewsScraper - WARNING - b23d61db-bc0c-305d-b802-adf518e87b86 : Article Dartmouth men’s bask already exists: b23d61db-bc0c-305d-b802-adf518e87b86 @ xapnews
+2024-02-09 20:25:01,613 - NewsScraper - WARNING - c3f0c264-0371-37e1-909f-a45554c80c64 : Article Arizona gallery owne already exists: c3f0c264-0371-37e1-909f-a45554c80c64 @ xapnews
+2024-02-09 20:25:01,741 - NewsScraper - WARNING - 421b7162-c7db-3704-b871-3bda566746f6 : Article Israel’s next target already exists: 421b7162-c7db-3704-b871-3bda566746f6 @ xapnews
+2024-02-09 20:25:02,057 - NewsScraper - WARNING - e17c0870-543d-3a7c-aad8-61374e28721a : Article Today in History: Fe already exists: e17c0870-543d-3a7c-aad8-61374e28721a @ xapnews
+2024-02-09 20:25:02,266 - NewsScraper - WARNING - 2266ee82-80d5-31f2-860f-5772b04afa18 : Article In ‘Dune: Part Two,’ already exists: 2266ee82-80d5-31f2-860f-5772b04afa18 @ xapnews
+2024-02-09 20:25:02,508 - NewsScraper - WARNING - 94268484-01cc-321b-a58b-0e85a2764515 : Article Dressing the high-so already exists: 94268484-01cc-321b-a58b-0e85a2764515 @ xapnews
+2024-02-09 20:25:02,854 - NewsScraper - WARNING - 6db04347-83fc-3540-895e-6fd5d45b12b5 : Article There was no meet cu already exists: 6db04347-83fc-3540-895e-6fd5d45b12b5 @ xapnews
+2024-02-09 20:25:03,032 - NewsScraper - WARNING - ec501dcc-c79d-32c8-8cd5-b22054ae322d : Article Brittany Howard retu already exists: ec501dcc-c79d-32c8-8cd5-b22054ae322d @ xapnews
+2024-02-09 20:25:03,395 - NewsScraper - WARNING - a435de39-b08f-35ee-9ccf-edeb78e2c815 : Article Catering to the food already exists: a435de39-b08f-35ee-9ccf-edeb78e2c815 @ xapnews
+2024-02-09 20:25:03,812 - NewsScraper - WARNING - 9abb290e-0bcc-31ee-b206-7fdbdfd7564e : Article Review: ‘Bob Marley: already exists: 9abb290e-0bcc-31ee-b206-7fdbdfd7564e @ xapnews
+2024-02-09 20:25:03,909 - NewsScraper - WARNING - 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be : Article Anthony Fauci will r already exists: 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be @ xapnews
+2024-02-09 20:25:04,350 - NewsScraper - WARNING - edc7d1e5-9727-317c-9dcd-c90b83c9a32d : Article Movie Review: Food,  already exists: edc7d1e5-9727-317c-9dcd-c90b83c9a32d @ xapnews
+2024-02-09 20:25:04,506 - NewsScraper - WARNING - ee047851-b52b-3d21-823c-d183fa900a7d : Article Movie Review: ‘Lisa  already exists: ee047851-b52b-3d21-823c-d183fa900a7d @ xapnews
+2024-02-09 20:25:04,735 - NewsScraper - WARNING - 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 : Article Movie Review: Wim We already exists: 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 @ xapnews
+2024-02-09 20:25:04,958 - NewsScraper - WARNING - e4f6e8f3-71af-3b21-b208-0d6f4806081c : Article Sneed’s forced fumbl already exists: e4f6e8f3-71af-3b21-b208-0d6f4806081c @ xapnews
+2024-02-09 20:25:05,167 - NewsScraper - WARNING - cfed120a-9ca7-366d-9fdf-15f03cebce7f : Article Analysis: Why will t already exists: cfed120a-9ca7-366d-9fdf-15f03cebce7f @ xapnews
+2024-02-09 20:25:05,411 - NewsScraper - WARNING - 51e6e59d-d70d-3c5c-8610-8c7f93daead7 : Article Analysis: Why will t already exists: 51e6e59d-d70d-3c5c-8610-8c7f93daead7 @ xapnews
+2024-02-09 20:25:05,560 - NewsScraper - WARNING - 73cd0311-4cfc-321b-94b5-058fc924a938 : Article Analysis: McCaffrey  already exists: 73cd0311-4cfc-321b-94b5-058fc924a938 @ xapnews
+2024-02-09 20:25:05,971 - NewsScraper - WARNING - cb32f602-ded6-36f2-b3f0-a5e7c41d9907 : Article How the ‘boneless wi already exists: cb32f602-ded6-36f2-b3f0-a5e7c41d9907 @ xapnews
+2024-02-09 20:25:06,243 - NewsScraper - WARNING - 5f9a1f03-4503-37d3-ae3f-1a97372edd14 : Article What a comeback! Thr already exists: 5f9a1f03-4503-37d3-ae3f-1a97372edd14 @ xapnews
+2024-02-09 20:25:06,430 - NewsScraper - WARNING - e6d14244-4980-3443-961f-e4de9f9b2302 : Article Biden and Trump: How already exists: e6d14244-4980-3443-961f-e4de9f9b2302 @ xapnews
+2024-02-09 20:25:06,785 - NewsScraper - WARNING - 6df8326a-403e-3006-a245-6140e7a74295 : Article The race for George  already exists: 6df8326a-403e-3006-a245-6140e7a74295 @ xapnews
+2024-02-09 20:25:07,020 - NewsScraper - WARNING - 56022917-cd4a-3135-88a4-ea6fa5332938 : Article Donald Trump wins Ne already exists: 56022917-cd4a-3135-88a4-ea6fa5332938 @ xapnews
+2024-02-09 20:25:07,242 - NewsScraper - WARNING - 3d683975-10ff-3cc6-820d-19b03840d32d : Article Why AP called the Ne already exists: 3d683975-10ff-3cc6-820d-19b03840d32d @ xapnews
+2024-02-09 20:25:07,476 - NewsScraper - WARNING - 5b0e94e9-e201-316d-92a8-6f4e820d4721 : Article Donald Trump clinche already exists: 5b0e94e9-e201-316d-92a8-6f4e820d4721 @ xapnews
+2024-02-09 20:25:07,708 - NewsScraper - WARNING - 6f9c37f5-070c-331f-a14e-4946223b1a84 : Article AI-generated voices  already exists: 6f9c37f5-070c-331f-a14e-4946223b1a84 @ xapnews
+2024-02-09 20:25:07,994 - NewsScraper - WARNING - ffa2db82-5dda-300c-b6b3-b907cf45e74e : Article Biden determined to  already exists: ffa2db82-5dda-300c-b6b3-b907cf45e74e @ xapnews
+2024-02-09 20:25:08,294 - NewsScraper - WARNING - fa785e03-a83b-3681-845e-511f3e7cf506 : Article Ed Dwight was to be  already exists: fa785e03-a83b-3681-845e-511f3e7cf506 @ xapnews
+2024-02-09 20:25:08,795 - NewsScraper - WARNING - be4344f3-222b-3272-b6af-0ec95764cfc8 : Article It’s called ‘cozy ca already exists: be4344f3-222b-3272-b6af-0ec95764cfc8 @ xapnews
+2024-02-09 20:25:09,337 - NewsScraper - WARNING - 2e93c413-582a-3624-a533-2f6021cfea6b : Article Climate change is fu already exists: 2e93c413-582a-3624-a533-2f6021cfea6b @ xapnews
+2024-02-09 20:25:09,465 - NewsScraper - WARNING - dfb433dd-cbab-35f4-9978-5933f78b86c6 : Article A record number of A already exists: dfb433dd-cbab-35f4-9978-5933f78b86c6 @ xapnews
+2024-02-09 20:25:09,943 - NewsScraper - WARNING - cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb : Article Countdown begins for already exists: cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb @ xapnews
+2024-02-09 20:25:10,394 - NewsScraper - WARNING - fb17bac4-1e4c-3248-89c2-b31057971707 : Article Newspaper heiress Pa already exists: fb17bac4-1e4c-3248-89c2-b31057971707 @ xapnews
+2024-02-09 20:25:10,524 - NewsScraper - WARNING - 197d4644-17f6-3215-9a13-414b3ad29e65 : Article How a grieving mothe already exists: 197d4644-17f6-3215-9a13-414b3ad29e65 @ xapnews
+2024-02-09 20:25:11,047 - NewsScraper - WARNING - 323ec375-863d-3522-acc6-12a2232ddedd : Article Uproar over Biden cl already exists: 323ec375-863d-3522-acc6-12a2232ddedd @ xapnews
+2024-02-09 20:25:11,119 - NewsScraper - WARNING - 6aa04591-dae4-3526-aa26-58f1419de01f : Article Ghana artifacts that already exists: 6aa04591-dae4-3526-aa26-58f1419de01f @ xapnews
+2024-02-09 20:25:11,610 - NewsScraper - WARNING - 631fc0ae-80f0-3796-813f-8e343fad90c6 : Article Biden order attaches already exists: 631fc0ae-80f0-3796-813f-8e343fad90c6 @ xapnews
+2024-02-09 20:25:11,626 - NewsScraper - WARNING - 2fbf426a-0953-35ab-895e-3f2eeeb39d0c : Article What’s inside the Se already exists: 2fbf426a-0953-35ab-895e-3f2eeeb39d0c @ xapnews
+2024-02-09 20:25:12,056 - NewsScraper - WARNING - 95a9b5f6-812a-3276-a001-3293fc193e15 : Article Music Review: Swedis already exists: 95a9b5f6-812a-3276-a001-3293fc193e15 @ xapnews
+2024-02-09 20:25:12,123 - NewsScraper - WARNING - 380c8447-d40f-360d-ae8f-96664a8e4d69 : Article Scarlett Johansson a already exists: 380c8447-d40f-360d-ae8f-96664a8e4d69 @ xapnews
+2024-02-09 20:25:12,551 - NewsScraper - WARNING - 8abe28b4-3adc-3e59-8888-76678a6f720c : Article Superstar DJ Tiësto  already exists: 8abe28b4-3adc-3e59-8888-76678a6f720c @ xapnews
+2024-02-09 20:25:12,616 - NewsScraper - WARNING - 457add7a-2e41-3c5a-9970-8a34096ff0c4 : Article Jury in Young Dolph  already exists: 457add7a-2e41-3c5a-9970-8a34096ff0c4 @ xapnews
+2024-02-09 20:25:13,162 - NewsScraper - WARNING - 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 : Article Former Mets GM Billy already exists: 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 @ xapnews
+2024-02-09 20:25:13,195 - NewsScraper - WARNING - fc8b495d-0644-33db-8383-b9c2779fedbf : Article Chiefs rule out All- already exists: fc8b495d-0644-33db-8383-b9c2779fedbf @ xapnews
+2024-02-09 20:25:13,822 - NewsScraper - WARNING - 90465343-d6e9-3b2b-889c-c348168b4dd8 : Article Taylor Swift’s conne already exists: 90465343-d6e9-3b2b-889c-c348168b4dd8 @ xapnews
+2024-02-09 20:25:13,905 - NewsScraper - WARNING - 05590716-6cc2-350a-b307-1e148ae1af6c : Article Shohei Ohtani tries  already exists: 05590716-6cc2-350a-b307-1e148ae1af6c @ xapnews
+2024-02-09 20:25:14,315 - NewsScraper - WARNING - dab3e80f-86d8-33fe-97a2-01801c31fb4c : Article Magnitude 5.7 earthq already exists: dab3e80f-86d8-33fe-97a2-01801c31fb4c @ xapnews
+2024-02-09 20:25:14,728 - NewsScraper - WARNING - e4c8b6ac-706b-38fa-b91a-9351f628813d : Article Summer-like conditio already exists: e4c8b6ac-706b-38fa-b91a-9351f628813d @ xapnews
+2024-02-09 20:25:14,975 - NewsScraper - WARNING - 1f57c218-975d-3741-9731-0d41bb4358ac : Article Mardi Gras 2024: Wha already exists: 1f57c218-975d-3741-9731-0d41bb4358ac @ xapnews
+2024-02-09 20:25:15,238 - NewsScraper - WARNING - b7e697e6-f588-39ab-8f2c-e28317509aeb : Article Proposed mine outsid already exists: b7e697e6-f588-39ab-8f2c-e28317509aeb @ xapnews
+2024-02-09 20:25:15,538 - NewsScraper - WARNING - 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec : Article Israel seeks to evac already exists: 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec @ xapnews
+2024-02-09 20:25:15,784 - NewsScraper - WARNING - f915e546-212c-3f5a-abb2-b7e162f4e142 : Article Pakistan’s ex-PM Sha already exists: f915e546-212c-3f5a-abb2-b7e162f4e142 @ xapnews
+2024-02-09 20:25:16,017 - NewsScraper - WARNING - 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 : Article Inflation is nearly  already exists: 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 @ xapnews
+2024-02-09 20:25:16,142 - NewsScraper - WARNING - 9378ae14-7cf2-3345-adad-7965415e7e46 : Article Stock market today:  already exists: 9378ae14-7cf2-3345-adad-7965415e7e46 @ xapnews
+2024-02-09 20:25:16,375 - NewsScraper - WARNING - 65c21767-9cd5-38b8-810b-8c3cc18725c2 : Article IRS watchdog: Contra already exists: 65c21767-9cd5-38b8-810b-8c3cc18725c2 @ xapnews
+2024-02-09 20:25:16,528 - NewsScraper - WARNING - 08b7786a-7453-3aae-bf55-3d33b43803cc : Article Biden administration already exists: 08b7786a-7453-3aae-bf55-3d33b43803cc @ xapnews
+2024-02-09 20:25:16,893 - NewsScraper - WARNING - 727c09f0-795e-3ca0-9e29-5b78c8cacff8 : Article Astronauts from Turk already exists: 727c09f0-795e-3ca0-9e29-5b78c8cacff8 @ xapnews
+2024-02-09 20:25:16,984 - NewsScraper - WARNING - db12706f-e4dd-36a2-8d75-17219b0b4b25 : Article Saturn’s Death Star- already exists: db12706f-e4dd-36a2-8d75-17219b0b4b25 @ xapnews
+2024-02-09 20:25:17,368 - NewsScraper - WARNING - b37fc8fd-5964-30b4-922e-98667d704945 : Article NASA climate satelli already exists: b37fc8fd-5964-30b4-922e-98667d704945 @ xapnews
+2024-02-09 20:25:17,446 - NewsScraper - WARNING - 502ce2ea-9a5f-3430-b409-dcd67dc0b604 : Article Jury awards climate  already exists: 502ce2ea-9a5f-3430-b409-dcd67dc0b604 @ xapnews
+2024-02-09 20:25:17,705 - NewsScraper - WARNING - e08e69c0-74df-3b53-9072-b91254538e71 : Article Jon Stewart changed  already exists: e08e69c0-74df-3b53-9072-b91254538e71 @ xapnews
+2024-02-09 20:25:17,930 - NewsScraper - WARNING - 3a814764-caf8-36d0-87b6-0abae5b6c78b : Article How Asian American a already exists: 3a814764-caf8-36d0-87b6-0abae5b6c78b @ xapnews
+2024-02-09 20:25:18,779 - NewsScraper - WARNING - 3b314946-16e7-3243-97d4-4f752a3d5c58 : Article Christian Siriano ro already exists: 3b314946-16e7-3243-97d4-4f752a3d5c58 @ xapnews
+2024-02-09 20:25:18,952 - NewsScraper - WARNING - 0e3e1974-0881-3efa-8000-fe26ba95b445 : Article Americans left the B already exists: 0e3e1974-0881-3efa-8000-fe26ba95b445 @ xapnews
+2024-02-09 20:25:19,888 - NewsScraper - WARNING - 4107b08d-ba5c-3168-8fdf-7e71a46b8369 : Article AP PHOTOS: Lunar New already exists: 4107b08d-ba5c-3168-8fdf-7e71a46b8369 @ xapnews
+2024-02-09 20:25:20,019 - NewsScraper - WARNING - 150292f4-11a6-3048-a69f-203416981e57 : Article AP PHOTOS: Deadly bl already exists: 150292f4-11a6-3048-a69f-203416981e57 @ xapnews
+2024-02-09 20:25:20,721 - NewsScraper - WARNING - 0bf57504-74c5-3be5-9914-62f28f40baf9 : Article The 2014 Sochi Olymp already exists: 0bf57504-74c5-3be5-9914-62f28f40baf9 @ xapnews
+2024-02-09 20:25:21,381 - NewsScraper - WARNING - 3a61c40c-f4af-3120-a05e-023bb1d70011 : Article Mark Zuckerberg’s lo already exists: 3a61c40c-f4af-3120-a05e-023bb1d70011 @ xapnews
+2024-02-09 20:25:21,523 - NewsScraper - WARNING - 5ff12311-a139-3de2-b1f3-54759536ecfe : Article Women dominated the  already exists: 5ff12311-a139-3de2-b1f3-54759536ecfe @ xapnews
+2024-02-09 20:25:21,979 - NewsScraper - WARNING - b533ac88-760a-3f66-953f-cc103258525a : Article Voices from the viol already exists: b533ac88-760a-3f66-953f-cc103258525a @ xapnews
+2024-02-09 20:25:22,421 - NewsScraper - WARNING - b656f464-5d62-386e-8a74-72fa1af2b08e : Article Black Californians h already exists: b656f464-5d62-386e-8a74-72fa1af2b08e @ xapnews
+2024-02-09 20:25:23,205 - NewsScraper - WARNING - aa911ddd-d0c6-3997-90bb-53fa348a0390 : Article Hundreds of black de already exists: aa911ddd-d0c6-3997-90bb-53fa348a0390 @ xapnews
+2024-02-09 20:25:23,371 - NewsScraper - WARNING - 1211cef9-8296-313e-b8c9-d4b9f58335e5 : Article Hip-hop turns 50, re already exists: 1211cef9-8296-313e-b8c9-d4b9f58335e5 @ xapnews
+2024-02-09 20:25:23,945 - NewsScraper - WARNING - 8dba57fd-827a-3b2c-923d-c1f4f4cc091e : Article Black August uplifte already exists: 8dba57fd-827a-3b2c-923d-c1f4f4cc091e @ xapnews
+2024-02-09 20:25:24,060 - NewsScraper - WARNING - 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 : Article Penn Museum buries t already exists: 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 @ xapnews
+2024-02-09 20:25:24,261 - NewsScraper - WARNING - 90095cf7-c4ed-3094-aee7-53806a125472 : Article Minnesota man awaiti already exists: 90095cf7-c4ed-3094-aee7-53806a125472 @ xapnews
+2024-02-09 20:25:24,500 - NewsScraper - WARNING - 3a18efb2-5485-3c4d-8cf1-487ad5942b18 : Article Uncertainty surround already exists: 3a18efb2-5485-3c4d-8cf1-487ad5942b18 @ xapnews
+2024-02-09 20:25:24,650 - NewsScraper - WARNING - 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 : Article Three-time Super Bow already exists: 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 @ xapnews
+2024-02-09 20:25:24,819 - NewsScraper - WARNING - 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc : Article Guest lineups for th already exists: 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc @ xapnews
+2024-02-09 20:25:24,956 - NewsScraper - WARNING - e81f49c0-6374-370f-b88e-d502ffedb609 : Article Arkansas police find already exists: e81f49c0-6374-370f-b88e-d502ffedb609 @ xapnews
+2024-02-09 20:25:25,221 - NewsScraper - WARNING - c4132341-dcd1-35ac-ae7b-d258245082b9 : Article Judge blocks Omaha’s already exists: c4132341-dcd1-35ac-ae7b-d258245082b9 @ xapnews
+2024-02-09 20:25:25,418 - NewsScraper - WARNING - ac1e4487-3422-304f-8005-b509fa4f964b : Article Arizona governor sig already exists: ac1e4487-3422-304f-8005-b509fa4f964b @ xapnews
+2024-02-09 20:25:25,623 - NewsScraper - WARNING - 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c : Article Cardoso shines as Re already exists: 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c @ xapnews
+2024-02-09 20:25:25,868 - NewsScraper - WARNING - fb78c297-1a8c-31d1-a5f1-895f34ae8386 : Article Bill to help relocat already exists: fb78c297-1a8c-31d1-a5f1-895f34ae8386 @ xapnews
+2024-02-09 20:25:25,947 - NewsScraper - WARNING - f59148c1-0ad0-3bac-a590-32832091517e : Article Second baseman Jonat already exists: f59148c1-0ad0-3bac-a590-32832091517e @ xapnews
+2024-02-09 20:25:26,206 - NewsScraper - WARNING - c4249c9b-495d-3642-a361-1fe17a9d8d2a : Article Some charges dismiss already exists: c4249c9b-495d-3642-a361-1fe17a9d8d2a @ xapnews
+2024-02-09 20:25:26,347 - NewsScraper - WARNING - d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa : Article Furman football play already exists: d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa @ xapnews
+2024-02-09 20:25:26,576 - NewsScraper - WARNING - 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 : Article Lawsuit claims Natio already exists: 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 @ xapnews
+2024-02-09 20:25:26,795 - NewsScraper - WARNING - 6d587ef0-32db-3ef1-804c-30ee8821fefd : Article Indianapolis man arr already exists: 6d587ef0-32db-3ef1-804c-30ee8821fefd @ xapnews
+2024-02-09 20:25:26,995 - NewsScraper - WARNING - 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 : Article Amazon Prime Video w already exists: 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 @ xapnews
+2024-02-09 20:25:27,148 - NewsScraper - WARNING - 0e1c55b1-3b72-3ad3-8525-e8260548cb5a : Article Vikings add OLB coac already exists: 0e1c55b1-3b72-3ad3-8525-e8260548cb5a @ xapnews
+2024-02-09 20:25:27,300 - NewsScraper - WARNING - dc924faa-728f-3daa-9208-e40c733898a5 : Article Former Brewers pitch already exists: dc924faa-728f-3daa-9208-e40c733898a5 @ xapnews
+2024-02-09 20:25:27,628 - NewsScraper - WARNING - 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce : Article A stepmother says he already exists: 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce @ xapnews
+2024-02-09 20:25:27,750 - NewsScraper - WARNING - 5810d9e1-f862-3382-b2d5-958d6f93571c : Article Police in a Maine ci already exists: 5810d9e1-f862-3382-b2d5-958d6f93571c @ xapnews
+2024-02-09 20:25:28,030 - NewsScraper - WARNING - 72885519-fff8-365f-9d5d-f14abf2110eb : Article No. 16 Virginia Tech already exists: 72885519-fff8-365f-9d5d-f14abf2110eb @ xapnews
+2024-02-09 20:25:28,252 - NewsScraper - WARNING - 79ec5d97-4d84-36c6-865c-da9907eab1b8 : Article Metz ends seven-game already exists: 79ec5d97-4d84-36c6-865c-da9907eab1b8 @ xapnews
+2024-02-09 20:25:28,487 - NewsScraper - WARNING - 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 : Article Congressional age li already exists: 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 @ xapnews
+2024-02-09 20:25:28,653 - NewsScraper - WARNING - 91d5cc9a-8410-3652-862e-e002642c2595 : Article A 4.6-magnitude eart already exists: 91d5cc9a-8410-3652-862e-e002642c2595 @ xapnews
+2024-02-09 20:25:28,959 - NewsScraper - WARNING - dec2e71c-caee-3944-a81c-d557c6316973 : Article Deion Sanders puts f already exists: dec2e71c-caee-3944-a81c-d557c6316973 @ xapnews
+2024-02-09 20:25:29,160 - NewsScraper - WARNING - 07bb70bf-a663-3c60-9993-30cdf3b601da : Article Falcons owner Blank  already exists: 07bb70bf-a663-3c60-9993-30cdf3b601da @ xapnews
+2024-02-09 20:25:29,363 - NewsScraper - WARNING - 3ffa6f1e-875e-36b2-b2da-62625fc352c7 : Article Empoli grabs late do already exists: 3ffa6f1e-875e-36b2-b2da-62625fc352c7 @ xapnews
+2024-02-09 20:25:29,567 - NewsScraper - WARNING - af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe : Article An Ohio city settles already exists: af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe @ xapnews
+2024-02-09 20:25:29,809 - NewsScraper - WARNING - 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 : Article Malen scores twice a already exists: 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 @ xapnews
+2024-02-09 20:25:30,011 - NewsScraper - WARNING - 236648f3-eeb1-3715-97ee-0d567ff7a06e : Article Georgia Republicans  already exists: 236648f3-eeb1-3715-97ee-0d567ff7a06e @ xapnews
+2024-02-09 20:25:30,222 - NewsScraper - INFO - a1ae61a9-fba5-3a60-bcb3-59c222be1ddb : Article Guardians, Twins, Ra.. inserted in : xapnews
+2024-02-09 20:25:30,423 - NewsScraper - WARNING - a4230868-33bb-3dcc-8034-daf2c1b694cc : Article 200-foot radio stati already exists: a4230868-33bb-3dcc-8034-daf2c1b694cc @ xapnews
+2024-02-09 20:25:30,694 - NewsScraper - WARNING - aae9fa6f-0dfe-3766-9fa7-356f8a15453d : Article Bean dips, enchilada already exists: aae9fa6f-0dfe-3766-9fa7-356f8a15453d @ xapnews
+2024-02-09 20:25:30,852 - NewsScraper - WARNING - 959916fd-df77-3973-83a4-0eddcd4aadf7 : Article The Chiefs and 49ers already exists: 959916fd-df77-3973-83a4-0eddcd4aadf7 @ xapnews
+2024-02-09 20:25:31,144 - NewsScraper - WARNING - cd534b26-d620-3e3b-b599-754f50a16f05 : Article Anger over Messi’s a already exists: cd534b26-d620-3e3b-b599-754f50a16f05 @ xapnews
+2024-02-09 20:25:31,144 - NewsScraper - INFO - saving 1 articles from xapnews to database
+2024-02-09 20:25:31,481 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:25:45,285 - ScraperPool - INFO - Scraping articles from: independent
+2024-02-09 20:25:45,286 - ScraperPool - INFO - Scraping articles from: xapnews
+2024-02-09 20:25:45,289 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:25:45,289 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:25:45,294 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x13007cfa0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:25:45,294 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:25:45,299 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x15e3d86a0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:25:45,300 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feeds (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x15e3d9480>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:25:45,301 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feed (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x15e3d8ac0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:25:45,305 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:25:45,305 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:25:45,311 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x15e3d9c30>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:25:45,311 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:25:45,311 - NewsScraper - INFO - Processing 0 articles for independent
+2024-02-09 20:25:45,311 - NewsScraper - INFO - Processing 0 articles
+2024-02-09 20:25:45,311 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:25:46,886 - NewsScraper - INFO - Processing 126 articles for xapnews
+2024-02-09 20:25:46,891 - NewsScraper - INFO - Processing 126 articles
+2024-02-09 20:25:47,273 - NewsScraper - WARNING - 7181aee9-a940-32d8-bc41-981294acb9ff : Article Some of what Putin t already exists: 7181aee9-a940-32d8-bc41-981294acb9ff @ xapnews
+2024-02-09 20:25:47,471 - NewsScraper - WARNING - e9a1154d-7390-348c-97a7-d96bb47d44a6 : Article NCAA College Footbal already exists: e9a1154d-7390-348c-97a7-d96bb47d44a6 @ xapnews
+2024-02-09 20:25:47,604 - NewsScraper - WARNING - 972cba12-90cd-3f54-9025-928cce8e99ea : Article 2 people dead after  already exists: 972cba12-90cd-3f54-9025-928cce8e99ea @ xapnews
+2024-02-09 20:25:47,906 - NewsScraper - WARNING - c383b5d8-e8da-3dfa-9828-6daf82c888f5 : Article Teen accused of shoo already exists: c383b5d8-e8da-3dfa-9828-6daf82c888f5 @ xapnews
+2024-02-09 20:25:48,425 - NewsScraper - WARNING - 17e36847-1967-3b02-a612-8466b8e7a651 : Article What is Lunar New Ye already exists: 17e36847-1967-3b02-a612-8466b8e7a651 @ xapnews
+2024-02-09 20:25:48,821 - NewsScraper - WARNING - 94979ec4-65ab-3cd6-93f6-1f82a07440b8 : Article Here’s what you can  already exists: 94979ec4-65ab-3cd6-93f6-1f82a07440b8 @ xapnews
+2024-02-09 20:25:48,909 - NewsScraper - WARNING - 16bd5196-2558-3fa1-bde8-7e0e81bba25e : Article The Senate is pushin already exists: 16bd5196-2558-3fa1-bde8-7e0e81bba25e @ xapnews
+2024-02-09 20:25:49,367 - NewsScraper - WARNING - a434f657-99a7-395b-9ed1-77084f3351c3 : Article Ocean system that mo already exists: a434f657-99a7-395b-9ed1-77084f3351c3 @ xapnews
+2024-02-09 20:25:49,492 - NewsScraper - WARNING - c81b3895-c646-3947-96ac-171c29f468cd : Article Ukraine’s new army c already exists: c81b3895-c646-3947-96ac-171c29f468cd @ xapnews
+2024-02-09 20:25:49,796 - NewsScraper - WARNING - d0122a55-a80b-3f80-9198-d6ef9351a638 : Article Nearly 200 abused co already exists: d0122a55-a80b-3f80-9198-d6ef9351a638 @ xapnews
+2024-02-09 20:25:50,068 - NewsScraper - WARNING - 70c34b82-8ea0-379d-91b6-80c332d9788e : Article Toby Keith wrote all already exists: 70c34b82-8ea0-379d-91b6-80c332d9788e @ xapnews
+2024-02-09 20:25:50,298 - NewsScraper - WARNING - a967bb32-e00d-3617-8b30-65959f61b60d : Article Trump tells NRA memb already exists: a967bb32-e00d-3617-8b30-65959f61b60d @ xapnews
+2024-02-09 20:25:50,463 - NewsScraper - WARNING - 3af1d8e9-8104-3c85-b320-97ac27603318 : Article Man accused of stalk already exists: 3af1d8e9-8104-3c85-b320-97ac27603318 @ xapnews
+2024-02-09 20:25:50,734 - NewsScraper - WARNING - 8929d363-8855-353e-b3fb-dfd71c01445e : Article An Oklahoma judge wh already exists: 8929d363-8855-353e-b3fb-dfd71c01445e @ xapnews
+2024-02-09 20:25:50,907 - NewsScraper - WARNING - 033659b5-d946-3c82-89be-50b0fae8688e : Article 5 Marines killed in  already exists: 033659b5-d946-3c82-89be-50b0fae8688e @ xapnews
+2024-02-09 20:25:51,488 - NewsScraper - WARNING - 0bba5ed7-67bd-36bc-8e9d-aa982e98770f : Article Harris calls special already exists: 0bba5ed7-67bd-36bc-8e9d-aa982e98770f @ xapnews
+2024-02-09 20:25:51,700 - NewsScraper - WARNING - fc44d927-f0de-324a-b830-e2a16f368e8a : Article At least 2 dead afte already exists: fc44d927-f0de-324a-b830-e2a16f368e8a @ xapnews
+2024-02-09 20:25:51,884 - NewsScraper - WARNING - 67f1655d-40ef-3c6b-a1d7-81ed4549b29f : Article Icelandic volcano er already exists: 67f1655d-40ef-3c6b-a1d7-81ed4549b29f @ xapnews
+2024-02-09 20:25:52,037 - NewsScraper - WARNING - 1af35672-9686-30ca-8941-919197cd8a69 : Article A look at this year’ already exists: 1af35672-9686-30ca-8941-919197cd8a69 @ xapnews
+2024-02-09 20:25:52,444 - NewsScraper - WARNING - 3c3de1ae-5a87-34d8-8211-ebe352f904c6 : Article Never mind the mess, already exists: 3c3de1ae-5a87-34d8-8211-ebe352f904c6 @ xapnews
+2024-02-09 20:25:52,505 - NewsScraper - WARNING - b23d61db-bc0c-305d-b802-adf518e87b86 : Article Dartmouth men’s bask already exists: b23d61db-bc0c-305d-b802-adf518e87b86 @ xapnews
+2024-02-09 20:25:52,827 - NewsScraper - WARNING - c3f0c264-0371-37e1-909f-a45554c80c64 : Article Arizona gallery owne already exists: c3f0c264-0371-37e1-909f-a45554c80c64 @ xapnews
+2024-02-09 20:25:53,039 - NewsScraper - WARNING - 421b7162-c7db-3704-b871-3bda566746f6 : Article Israel’s next target already exists: 421b7162-c7db-3704-b871-3bda566746f6 @ xapnews
+2024-02-09 20:25:53,217 - NewsScraper - WARNING - e17c0870-543d-3a7c-aad8-61374e28721a : Article Today in History: Fe already exists: e17c0870-543d-3a7c-aad8-61374e28721a @ xapnews
+2024-02-09 20:25:53,571 - NewsScraper - WARNING - 2266ee82-80d5-31f2-860f-5772b04afa18 : Article In ‘Dune: Part Two,’ already exists: 2266ee82-80d5-31f2-860f-5772b04afa18 @ xapnews
+2024-02-09 20:25:53,764 - NewsScraper - WARNING - 94268484-01cc-321b-a58b-0e85a2764515 : Article Dressing the high-so already exists: 94268484-01cc-321b-a58b-0e85a2764515 @ xapnews
+2024-02-09 20:25:54,260 - NewsScraper - WARNING - ec501dcc-c79d-32c8-8cd5-b22054ae322d : Article Brittany Howard retu already exists: ec501dcc-c79d-32c8-8cd5-b22054ae322d @ xapnews
+2024-02-09 20:25:54,525 - NewsScraper - WARNING - 6db04347-83fc-3540-895e-6fd5d45b12b5 : Article There was no meet cu already exists: 6db04347-83fc-3540-895e-6fd5d45b12b5 @ xapnews
+2024-02-09 20:25:54,802 - NewsScraper - WARNING - a435de39-b08f-35ee-9ccf-edeb78e2c815 : Article Catering to the food already exists: a435de39-b08f-35ee-9ccf-edeb78e2c815 @ xapnews
+2024-02-09 20:25:54,931 - NewsScraper - WARNING - 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be : Article Anthony Fauci will r already exists: 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be @ xapnews
+2024-02-09 20:25:55,409 - NewsScraper - WARNING - 9abb290e-0bcc-31ee-b206-7fdbdfd7564e : Article Review: ‘Bob Marley: already exists: 9abb290e-0bcc-31ee-b206-7fdbdfd7564e @ xapnews
+2024-02-09 20:25:55,506 - NewsScraper - WARNING - ee047851-b52b-3d21-823c-d183fa900a7d : Article Movie Review: ‘Lisa  already exists: ee047851-b52b-3d21-823c-d183fa900a7d @ xapnews
+2024-02-09 20:25:55,926 - NewsScraper - WARNING - edc7d1e5-9727-317c-9dcd-c90b83c9a32d : Article Movie Review: Food,  already exists: edc7d1e5-9727-317c-9dcd-c90b83c9a32d @ xapnews
+2024-02-09 20:25:56,017 - NewsScraper - WARNING - 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 : Article Movie Review: Wim We already exists: 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 @ xapnews
+2024-02-09 20:25:56,460 - NewsScraper - WARNING - e4f6e8f3-71af-3b21-b208-0d6f4806081c : Article Sneed’s forced fumbl already exists: e4f6e8f3-71af-3b21-b208-0d6f4806081c @ xapnews
+2024-02-09 20:25:56,546 - NewsScraper - WARNING - cfed120a-9ca7-366d-9fdf-15f03cebce7f : Article Analysis: Why will t already exists: cfed120a-9ca7-366d-9fdf-15f03cebce7f @ xapnews
+2024-02-09 20:25:57,044 - NewsScraper - WARNING - 51e6e59d-d70d-3c5c-8610-8c7f93daead7 : Article Analysis: Why will t already exists: 51e6e59d-d70d-3c5c-8610-8c7f93daead7 @ xapnews
+2024-02-09 20:25:57,087 - NewsScraper - WARNING - 73cd0311-4cfc-321b-94b5-058fc924a938 : Article Analysis: McCaffrey  already exists: 73cd0311-4cfc-321b-94b5-058fc924a938 @ xapnews
+2024-02-09 20:25:57,774 - NewsScraper - WARNING - cb32f602-ded6-36f2-b3f0-a5e7c41d9907 : Article How the ‘boneless wi already exists: cb32f602-ded6-36f2-b3f0-a5e7c41d9907 @ xapnews
+2024-02-09 20:25:57,859 - NewsScraper - WARNING - 5f9a1f03-4503-37d3-ae3f-1a97372edd14 : Article What a comeback! Thr already exists: 5f9a1f03-4503-37d3-ae3f-1a97372edd14 @ xapnews
+2024-02-09 20:25:58,154 - NewsScraper - WARNING - 323ec375-863d-3522-acc6-12a2232ddedd : Article Uproar over Biden cl already exists: 323ec375-863d-3522-acc6-12a2232ddedd @ xapnews
+2024-02-09 20:25:58,318 - NewsScraper - WARNING - 6df8326a-403e-3006-a245-6140e7a74295 : Article The race for George  already exists: 6df8326a-403e-3006-a245-6140e7a74295 @ xapnews
+2024-02-09 20:25:58,953 - NewsScraper - WARNING - 56022917-cd4a-3135-88a4-ea6fa5332938 : Article Donald Trump wins Ne already exists: 56022917-cd4a-3135-88a4-ea6fa5332938 @ xapnews
+2024-02-09 20:25:59,051 - NewsScraper - WARNING - 7c260c31-07b4-3b51-a030-4e01d7b4fb7a : Article DNC files federal co already exists: 7c260c31-07b4-3b51-a030-4e01d7b4fb7a @ xapnews
+2024-02-09 20:25:59,413 - NewsScraper - WARNING - 3d683975-10ff-3cc6-820d-19b03840d32d : Article Why AP called the Ne already exists: 3d683975-10ff-3cc6-820d-19b03840d32d @ xapnews
+2024-02-09 20:25:59,503 - NewsScraper - WARNING - 5b0e94e9-e201-316d-92a8-6f4e820d4721 : Article Donald Trump clinche already exists: 5b0e94e9-e201-316d-92a8-6f4e820d4721 @ xapnews
+2024-02-09 20:25:59,892 - NewsScraper - WARNING - 6f9c37f5-070c-331f-a14e-4946223b1a84 : Article AI-generated voices  already exists: 6f9c37f5-070c-331f-a14e-4946223b1a84 @ xapnews
+2024-02-09 20:26:00,051 - NewsScraper - WARNING - fa785e03-a83b-3681-845e-511f3e7cf506 : Article Ed Dwight was to be  already exists: fa785e03-a83b-3681-845e-511f3e7cf506 @ xapnews
+2024-02-09 20:26:00,447 - NewsScraper - WARNING - be4344f3-222b-3272-b6af-0ec95764cfc8 : Article It’s called ‘cozy ca already exists: be4344f3-222b-3272-b6af-0ec95764cfc8 @ xapnews
+2024-02-09 20:26:01,099 - NewsScraper - WARNING - 2e93c413-582a-3624-a533-2f6021cfea6b : Article Climate change is fu already exists: 2e93c413-582a-3624-a533-2f6021cfea6b @ xapnews
+2024-02-09 20:26:01,146 - NewsScraper - WARNING - dfb433dd-cbab-35f4-9978-5933f78b86c6 : Article A record number of A already exists: dfb433dd-cbab-35f4-9978-5933f78b86c6 @ xapnews
+2024-02-09 20:26:01,637 - NewsScraper - WARNING - fb17bac4-1e4c-3248-89c2-b31057971707 : Article Newspaper heiress Pa already exists: fb17bac4-1e4c-3248-89c2-b31057971707 @ xapnews
+2024-02-09 20:26:01,794 - NewsScraper - WARNING - cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb : Article Countdown begins for already exists: cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb @ xapnews
+2024-02-09 20:26:02,042 - NewsScraper - WARNING - 197d4644-17f6-3215-9a13-414b3ad29e65 : Article How a grieving mothe already exists: 197d4644-17f6-3215-9a13-414b3ad29e65 @ xapnews
+2024-02-09 20:26:02,309 - NewsScraper - WARNING - 6aa04591-dae4-3526-aa26-58f1419de01f : Article Ghana artifacts that already exists: 6aa04591-dae4-3526-aa26-58f1419de01f @ xapnews
+2024-02-09 20:26:02,518 - NewsScraper - WARNING - e6d14244-4980-3443-961f-e4de9f9b2302 : Article Biden and Trump: How already exists: e6d14244-4980-3443-961f-e4de9f9b2302 @ xapnews
+2024-02-09 20:26:02,758 - NewsScraper - WARNING - 631fc0ae-80f0-3796-813f-8e343fad90c6 : Article Biden order attaches already exists: 631fc0ae-80f0-3796-813f-8e343fad90c6 @ xapnews
+2024-02-09 20:26:02,976 - NewsScraper - WARNING - 2fbf426a-0953-35ab-895e-3f2eeeb39d0c : Article What’s inside the Se already exists: 2fbf426a-0953-35ab-895e-3f2eeeb39d0c @ xapnews
+2024-02-09 20:26:03,166 - NewsScraper - WARNING - 380c8447-d40f-360d-ae8f-96664a8e4d69 : Article Scarlett Johansson a already exists: 380c8447-d40f-360d-ae8f-96664a8e4d69 @ xapnews
+2024-02-09 20:26:03,372 - NewsScraper - WARNING - 95a9b5f6-812a-3276-a001-3293fc193e15 : Article Music Review: Swedis already exists: 95a9b5f6-812a-3276-a001-3293fc193e15 @ xapnews
+2024-02-09 20:26:03,557 - NewsScraper - WARNING - 8abe28b4-3adc-3e59-8888-76678a6f720c : Article Superstar DJ Tiësto  already exists: 8abe28b4-3adc-3e59-8888-76678a6f720c @ xapnews
+2024-02-09 20:26:03,702 - NewsScraper - WARNING - 457add7a-2e41-3c5a-9970-8a34096ff0c4 : Article Jury in Young Dolph  already exists: 457add7a-2e41-3c5a-9970-8a34096ff0c4 @ xapnews
+2024-02-09 20:26:03,945 - NewsScraper - WARNING - 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 : Article Former Mets GM Billy already exists: 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 @ xapnews
+2024-02-09 20:26:04,131 - NewsScraper - WARNING - fc8b495d-0644-33db-8383-b9c2779fedbf : Article Chiefs rule out All- already exists: fc8b495d-0644-33db-8383-b9c2779fedbf @ xapnews
+2024-02-09 20:26:04,458 - NewsScraper - WARNING - 90465343-d6e9-3b2b-889c-c348168b4dd8 : Article Taylor Swift’s conne already exists: 90465343-d6e9-3b2b-889c-c348168b4dd8 @ xapnews
+2024-02-09 20:26:04,646 - NewsScraper - WARNING - 05590716-6cc2-350a-b307-1e148ae1af6c : Article Shohei Ohtani tries  already exists: 05590716-6cc2-350a-b307-1e148ae1af6c @ xapnews
+2024-02-09 20:26:04,955 - NewsScraper - WARNING - dab3e80f-86d8-33fe-97a2-01801c31fb4c : Article Magnitude 5.7 earthq already exists: dab3e80f-86d8-33fe-97a2-01801c31fb4c @ xapnews
+2024-02-09 20:26:05,075 - NewsScraper - WARNING - e4c8b6ac-706b-38fa-b91a-9351f628813d : Article The first tornado to already exists: e4c8b6ac-706b-38fa-b91a-9351f628813d @ xapnews
+2024-02-09 20:26:05,590 - NewsScraper - WARNING - 1f57c218-975d-3741-9731-0d41bb4358ac : Article Mardi Gras 2024: Wha already exists: 1f57c218-975d-3741-9731-0d41bb4358ac @ xapnews
+2024-02-09 20:26:05,642 - NewsScraper - WARNING - b7e697e6-f588-39ab-8f2c-e28317509aeb : Article Proposed mine outsid already exists: b7e697e6-f588-39ab-8f2c-e28317509aeb @ xapnews
+2024-02-09 20:26:06,119 - NewsScraper - WARNING - 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec : Article Israel seeks to evac already exists: 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec @ xapnews
+2024-02-09 20:26:06,267 - NewsScraper - WARNING - f915e546-212c-3f5a-abb2-b7e162f4e142 : Article Pakistan’s ex-PM Sha already exists: f915e546-212c-3f5a-abb2-b7e162f4e142 @ xapnews
+2024-02-09 20:26:06,617 - NewsScraper - WARNING - 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 : Article Inflation is nearly  already exists: 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 @ xapnews
+2024-02-09 20:26:06,685 - NewsScraper - WARNING - 9378ae14-7cf2-3345-adad-7965415e7e46 : Article Stock market today:  already exists: 9378ae14-7cf2-3345-adad-7965415e7e46 @ xapnews
+2024-02-09 20:26:06,962 - NewsScraper - WARNING - 65c21767-9cd5-38b8-810b-8c3cc18725c2 : Article IRS watchdog: Contra already exists: 65c21767-9cd5-38b8-810b-8c3cc18725c2 @ xapnews
+2024-02-09 20:26:07,089 - NewsScraper - WARNING - 08b7786a-7453-3aae-bf55-3d33b43803cc : Article Biden administration already exists: 08b7786a-7453-3aae-bf55-3d33b43803cc @ xapnews
+2024-02-09 20:26:07,359 - NewsScraper - WARNING - 727c09f0-795e-3ca0-9e29-5b78c8cacff8 : Article Astronauts from Turk already exists: 727c09f0-795e-3ca0-9e29-5b78c8cacff8 @ xapnews
+2024-02-09 20:26:07,446 - NewsScraper - WARNING - db12706f-e4dd-36a2-8d75-17219b0b4b25 : Article Saturn’s Death Star- already exists: db12706f-e4dd-36a2-8d75-17219b0b4b25 @ xapnews
+2024-02-09 20:26:07,916 - NewsScraper - WARNING - 502ce2ea-9a5f-3430-b409-dcd67dc0b604 : Article Jury awards climate  already exists: 502ce2ea-9a5f-3430-b409-dcd67dc0b604 @ xapnews
+2024-02-09 20:26:07,949 - NewsScraper - WARNING - b37fc8fd-5964-30b4-922e-98667d704945 : Article NASA climate satelli already exists: b37fc8fd-5964-30b4-922e-98667d704945 @ xapnews
+2024-02-09 20:26:08,404 - NewsScraper - WARNING - 3a814764-caf8-36d0-87b6-0abae5b6c78b : Article How Asian American a already exists: 3a814764-caf8-36d0-87b6-0abae5b6c78b @ xapnews
+2024-02-09 20:26:08,454 - NewsScraper - WARNING - e08e69c0-74df-3b53-9072-b91254538e71 : Article Jon Stewart changed  already exists: e08e69c0-74df-3b53-9072-b91254538e71 @ xapnews
+2024-02-09 20:26:09,366 - NewsScraper - WARNING - 0e3e1974-0881-3efa-8000-fe26ba95b445 : Article Americans left the B already exists: 0e3e1974-0881-3efa-8000-fe26ba95b445 @ xapnews
+2024-02-09 20:26:09,559 - NewsScraper - WARNING - 3b314946-16e7-3243-97d4-4f752a3d5c58 : Article Christian Siriano ro already exists: 3b314946-16e7-3243-97d4-4f752a3d5c58 @ xapnews
+2024-02-09 20:26:10,462 - NewsScraper - WARNING - 4107b08d-ba5c-3168-8fdf-7e71a46b8369 : Article AP PHOTOS: Lunar New already exists: 4107b08d-ba5c-3168-8fdf-7e71a46b8369 @ xapnews
+2024-02-09 20:26:10,606 - NewsScraper - WARNING - 150292f4-11a6-3048-a69f-203416981e57 : Article AP PHOTOS: Deadly bl already exists: 150292f4-11a6-3048-a69f-203416981e57 @ xapnews
+2024-02-09 20:26:11,366 - NewsScraper - WARNING - 5ff12311-a139-3de2-b1f3-54759536ecfe : Article Women dominated the  already exists: 5ff12311-a139-3de2-b1f3-54759536ecfe @ xapnews
+2024-02-09 20:26:11,478 - NewsScraper - WARNING - 0bf57504-74c5-3be5-9914-62f28f40baf9 : Article The 2014 Sochi Olymp already exists: 0bf57504-74c5-3be5-9914-62f28f40baf9 @ xapnews
+2024-02-09 20:26:11,801 - NewsScraper - WARNING - 3a61c40c-f4af-3120-a05e-023bb1d70011 : Article Mark Zuckerberg’s lo already exists: 3a61c40c-f4af-3120-a05e-023bb1d70011 @ xapnews
+2024-02-09 20:26:12,065 - NewsScraper - WARNING - b533ac88-760a-3f66-953f-cc103258525a : Article Voices from the viol already exists: b533ac88-760a-3f66-953f-cc103258525a @ xapnews
+2024-02-09 20:26:12,641 - NewsScraper - WARNING - aa911ddd-d0c6-3997-90bb-53fa348a0390 : Article Hundreds of black de already exists: aa911ddd-d0c6-3997-90bb-53fa348a0390 @ xapnews
+2024-02-09 20:26:12,950 - NewsScraper - WARNING - b656f464-5d62-386e-8a74-72fa1af2b08e : Article Black Californians h already exists: b656f464-5d62-386e-8a74-72fa1af2b08e @ xapnews
+2024-02-09 20:26:13,358 - NewsScraper - WARNING - 1211cef9-8296-313e-b8c9-d4b9f58335e5 : Article Hip-hop turns 50, re already exists: 1211cef9-8296-313e-b8c9-d4b9f58335e5 @ xapnews
+2024-02-09 20:26:13,701 - NewsScraper - WARNING - 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 : Article Penn Museum buries t already exists: 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 @ xapnews
+2024-02-09 20:26:14,161 - NewsScraper - WARNING - fd11bc2d-2f00-38df-82dc-140bff849a3f : Article Texas woman is sente already exists: fd11bc2d-2f00-38df-82dc-140bff849a3f @ xapnews
+2024-02-09 20:26:14,302 - NewsScraper - WARNING - 8dba57fd-827a-3b2c-923d-c1f4f4cc091e : Article Black August uplifte already exists: 8dba57fd-827a-3b2c-923d-c1f4f4cc091e @ xapnews
+2024-02-09 20:26:14,581 - NewsScraper - WARNING - 90095cf7-c4ed-3094-aee7-53806a125472 : Article Minnesota man awaiti already exists: 90095cf7-c4ed-3094-aee7-53806a125472 @ xapnews
+2024-02-09 20:26:14,674 - NewsScraper - WARNING - 3a18efb2-5485-3c4d-8cf1-487ad5942b18 : Article Uncertainty surround already exists: 3a18efb2-5485-3c4d-8cf1-487ad5942b18 @ xapnews
+2024-02-09 20:26:15,027 - NewsScraper - WARNING - 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 : Article Three-time Super Bow already exists: 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 @ xapnews
+2024-02-09 20:26:15,112 - NewsScraper - WARNING - 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc : Article Guest lineups for th already exists: 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc @ xapnews
+2024-02-09 20:26:15,566 - NewsScraper - WARNING - e81f49c0-6374-370f-b88e-d502ffedb609 : Article Arkansas police find already exists: e81f49c0-6374-370f-b88e-d502ffedb609 @ xapnews
+2024-02-09 20:26:15,581 - NewsScraper - WARNING - c4132341-dcd1-35ac-ae7b-d258245082b9 : Article Judge blocks Omaha’s already exists: c4132341-dcd1-35ac-ae7b-d258245082b9 @ xapnews
+2024-02-09 20:26:15,897 - NewsScraper - WARNING - ac1e4487-3422-304f-8005-b509fa4f964b : Article Arizona governor sig already exists: ac1e4487-3422-304f-8005-b509fa4f964b @ xapnews
+2024-02-09 20:26:16,006 - NewsScraper - WARNING - 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c : Article Cardoso shines as Re already exists: 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c @ xapnews
+2024-02-09 20:26:16,309 - NewsScraper - WARNING - fb78c297-1a8c-31d1-a5f1-895f34ae8386 : Article Bill to help relocat already exists: fb78c297-1a8c-31d1-a5f1-895f34ae8386 @ xapnews
+2024-02-09 20:26:16,420 - NewsScraper - WARNING - f59148c1-0ad0-3bac-a590-32832091517e : Article Second baseman Jonat already exists: f59148c1-0ad0-3bac-a590-32832091517e @ xapnews
+2024-02-09 20:26:16,667 - NewsScraper - WARNING - c4249c9b-495d-3642-a361-1fe17a9d8d2a : Article Some charges dismiss already exists: c4249c9b-495d-3642-a361-1fe17a9d8d2a @ xapnews
+2024-02-09 20:26:16,848 - NewsScraper - WARNING - d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa : Article Furman football play already exists: d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa @ xapnews
+2024-02-09 20:26:17,105 - NewsScraper - WARNING - 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 : Article Lawsuit claims Natio already exists: 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 @ xapnews
+2024-02-09 20:26:17,279 - NewsScraper - WARNING - 6d587ef0-32db-3ef1-804c-30ee8821fefd : Article Indianapolis man arr already exists: 6d587ef0-32db-3ef1-804c-30ee8821fefd @ xapnews
+2024-02-09 20:26:17,439 - NewsScraper - WARNING - 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 : Article Amazon Prime Video w already exists: 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 @ xapnews
+2024-02-09 20:26:17,703 - NewsScraper - WARNING - 0e1c55b1-3b72-3ad3-8525-e8260548cb5a : Article Vikings add OLB coac already exists: 0e1c55b1-3b72-3ad3-8525-e8260548cb5a @ xapnews
+2024-02-09 20:26:17,822 - NewsScraper - WARNING - dc924faa-728f-3daa-9208-e40c733898a5 : Article Former Brewers pitch already exists: dc924faa-728f-3daa-9208-e40c733898a5 @ xapnews
+2024-02-09 20:26:18,118 - NewsScraper - WARNING - 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce : Article A stepmother says he already exists: 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce @ xapnews
+2024-02-09 20:26:18,281 - NewsScraper - WARNING - 5810d9e1-f862-3382-b2d5-958d6f93571c : Article Police in a Maine ci already exists: 5810d9e1-f862-3382-b2d5-958d6f93571c @ xapnews
+2024-02-09 20:26:18,533 - NewsScraper - WARNING - 72885519-fff8-365f-9d5d-f14abf2110eb : Article No. 16 Virginia Tech already exists: 72885519-fff8-365f-9d5d-f14abf2110eb @ xapnews
+2024-02-09 20:26:19,000 - NewsScraper - WARNING - 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 : Article Congressional age li already exists: 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 @ xapnews
+2024-02-09 20:26:19,225 - NewsScraper - WARNING - 79ec5d97-4d84-36c6-865c-da9907eab1b8 : Article Metz ends seven-game already exists: 79ec5d97-4d84-36c6-865c-da9907eab1b8 @ xapnews
+2024-02-09 20:26:19,427 - NewsScraper - WARNING - 91d5cc9a-8410-3652-862e-e002642c2595 : Article A 4.6-magnitude eart already exists: 91d5cc9a-8410-3652-862e-e002642c2595 @ xapnews
+2024-02-09 20:26:19,684 - NewsScraper - WARNING - dec2e71c-caee-3944-a81c-d557c6316973 : Article Deion Sanders puts f already exists: dec2e71c-caee-3944-a81c-d557c6316973 @ xapnews
+2024-02-09 20:26:19,849 - NewsScraper - WARNING - 07bb70bf-a663-3c60-9993-30cdf3b601da : Article Falcons owner Blank  already exists: 07bb70bf-a663-3c60-9993-30cdf3b601da @ xapnews
+2024-02-09 20:26:20,141 - NewsScraper - WARNING - 3ffa6f1e-875e-36b2-b2da-62625fc352c7 : Article Empoli grabs late do already exists: 3ffa6f1e-875e-36b2-b2da-62625fc352c7 @ xapnews
+2024-02-09 20:26:20,214 - NewsScraper - WARNING - af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe : Article An Ohio city settles already exists: af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe @ xapnews
+2024-02-09 20:26:20,644 - NewsScraper - WARNING - 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 : Article Malen scores twice a already exists: 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 @ xapnews
+2024-02-09 20:26:20,748 - NewsScraper - WARNING - 236648f3-eeb1-3715-97ee-0d567ff7a06e : Article Georgia Republicans  already exists: 236648f3-eeb1-3715-97ee-0d567ff7a06e @ xapnews
+2024-02-09 20:26:21,881 - NewsScraper - INFO - 4c82c4b6-24db-3af1-8299-e033cdb42aa8 : Article 76ers team president.. inserted in : xapnews
+2024-02-09 20:26:21,881 - NewsScraper - INFO - saving 1 articles from xapnews to database
+2024-02-09 20:26:22,195 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:26:58,781 - ScraperPool - INFO - Scraping articles from: independent
+2024-02-09 20:26:58,782 - ScraperPool - INFO - Scraping articles from: xapnews
+2024-02-09 20:26:58,804 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:26:58,804 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:26:58,807 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x129eabbe0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:26:58,807 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:26:58,858 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feed (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x12a19f4c0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:26:58,860 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x12a19f130>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:26:58,861 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: /feeds (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x129ea80a0>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:26:58,867 - newspaper.parsers - WARNING - fromstring() returned an invalid string: ...
+2024-02-09 20:26:58,867 - newspaper.source - WARNING - Source https://www.independent.uk parse error.
+2024-02-09 20:26:58,871 - newspaper.network - CRITICAL - [REQUEST FAILED] HTTPSConnectionPool(host='www.independent.uk', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x129cc3880>: Failed to resolve 'www.independent.uk' ([Errno 8] nodename nor servname provided, or not known)"))
+2024-02-09 20:26:58,871 - newspaper.source - WARNING - Deleting category https://www.independent.uk from source https://www.independent.uk due to download error
+2024-02-09 20:26:58,871 - NewsScraper - INFO - Processing 0 articles for independent
+2024-02-09 20:26:58,871 - NewsScraper - INFO - Processing 0 articles
+2024-02-09 20:26:58,872 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:27:00,675 - NewsScraper - INFO - Processing 125 articles for xapnews
+2024-02-09 20:27:00,681 - NewsScraper - INFO - Processing 125 articles
+2024-02-09 20:27:01,417 - NewsScraper - WARNING - 7181aee9-a940-32d8-bc41-981294acb9ff : Article Some of what Putin t already exists: 7181aee9-a940-32d8-bc41-981294acb9ff @ xapnews
+2024-02-09 20:27:01,495 - NewsScraper - WARNING - e9a1154d-7390-348c-97a7-d96bb47d44a6 : Article NCAA College Footbal already exists: e9a1154d-7390-348c-97a7-d96bb47d44a6 @ xapnews
+2024-02-09 20:27:01,960 - NewsScraper - WARNING - 972cba12-90cd-3f54-9025-928cce8e99ea : Article 2 people dead after  already exists: 972cba12-90cd-3f54-9025-928cce8e99ea @ xapnews
+2024-02-09 20:27:01,991 - NewsScraper - WARNING - c383b5d8-e8da-3dfa-9828-6daf82c888f5 : Article Teen accused of shoo already exists: c383b5d8-e8da-3dfa-9828-6daf82c888f5 @ xapnews
+2024-02-09 20:27:02,665 - NewsScraper - WARNING - 17e36847-1967-3b02-a612-8466b8e7a651 : Article What is Lunar New Ye already exists: 17e36847-1967-3b02-a612-8466b8e7a651 @ xapnews
+2024-02-09 20:27:02,729 - NewsScraper - WARNING - 94979ec4-65ab-3cd6-93f6-1f82a07440b8 : Article Here’s what you can  already exists: 94979ec4-65ab-3cd6-93f6-1f82a07440b8 @ xapnews
+2024-02-09 20:27:03,089 - NewsScraper - WARNING - 16bd5196-2558-3fa1-bde8-7e0e81bba25e : Article The Senate is pushin already exists: 16bd5196-2558-3fa1-bde8-7e0e81bba25e @ xapnews
+2024-02-09 20:27:03,321 - NewsScraper - WARNING - c81b3895-c646-3947-96ac-171c29f468cd : Article Ukraine’s new army c already exists: c81b3895-c646-3947-96ac-171c29f468cd @ xapnews
+2024-02-09 20:27:03,445 - NewsScraper - WARNING - a434f657-99a7-395b-9ed1-77084f3351c3 : Article Ocean system that mo already exists: a434f657-99a7-395b-9ed1-77084f3351c3 @ xapnews
+2024-02-09 20:27:03,673 - NewsScraper - WARNING - d0122a55-a80b-3f80-9198-d6ef9351a638 : Article Nearly 200 abused co already exists: d0122a55-a80b-3f80-9198-d6ef9351a638 @ xapnews
+2024-02-09 20:27:04,050 - NewsScraper - WARNING - 70c34b82-8ea0-379d-91b6-80c332d9788e : Article Toby Keith wrote all already exists: 70c34b82-8ea0-379d-91b6-80c332d9788e @ xapnews
+2024-02-09 20:27:04,262 - NewsScraper - WARNING - a967bb32-e00d-3617-8b30-65959f61b60d : Article Trump tells NRA memb already exists: a967bb32-e00d-3617-8b30-65959f61b60d @ xapnews
+2024-02-09 20:27:04,433 - NewsScraper - WARNING - 3af1d8e9-8104-3c85-b320-97ac27603318 : Article Man accused of stalk already exists: 3af1d8e9-8104-3c85-b320-97ac27603318 @ xapnews
+2024-02-09 20:27:04,656 - NewsScraper - WARNING - 8929d363-8855-353e-b3fb-dfd71c01445e : Article An Oklahoma judge wh already exists: 8929d363-8855-353e-b3fb-dfd71c01445e @ xapnews
+2024-02-09 20:27:04,836 - NewsScraper - WARNING - 033659b5-d946-3c82-89be-50b0fae8688e : Article 5 Marines killed in  already exists: 033659b5-d946-3c82-89be-50b0fae8688e @ xapnews
+2024-02-09 20:27:05,325 - NewsScraper - WARNING - 0bba5ed7-67bd-36bc-8e9d-aa982e98770f : Article Harris calls special already exists: 0bba5ed7-67bd-36bc-8e9d-aa982e98770f @ xapnews
+2024-02-09 20:27:05,610 - NewsScraper - WARNING - fc44d927-f0de-324a-b830-e2a16f368e8a : Article At least 2 dead afte already exists: fc44d927-f0de-324a-b830-e2a16f368e8a @ xapnews
+2024-02-09 20:27:05,689 - NewsScraper - WARNING - 67f1655d-40ef-3c6b-a1d7-81ed4549b29f : Article Icelandic volcano er already exists: 67f1655d-40ef-3c6b-a1d7-81ed4549b29f @ xapnews
+2024-02-09 20:27:05,950 - NewsScraper - WARNING - 1af35672-9686-30ca-8941-919197cd8a69 : Article A look at this year’ already exists: 1af35672-9686-30ca-8941-919197cd8a69 @ xapnews
+2024-02-09 20:27:06,319 - NewsScraper - WARNING - 3c3de1ae-5a87-34d8-8211-ebe352f904c6 : Article Never mind the mess, already exists: 3c3de1ae-5a87-34d8-8211-ebe352f904c6 @ xapnews
+2024-02-09 20:27:06,397 - NewsScraper - WARNING - b23d61db-bc0c-305d-b802-adf518e87b86 : Article Dartmouth men’s bask already exists: b23d61db-bc0c-305d-b802-adf518e87b86 @ xapnews
+2024-02-09 20:27:06,849 - NewsScraper - WARNING - 421b7162-c7db-3704-b871-3bda566746f6 : Article Israel’s next target already exists: 421b7162-c7db-3704-b871-3bda566746f6 @ xapnews
+2024-02-09 20:27:06,893 - NewsScraper - WARNING - c3f0c264-0371-37e1-909f-a45554c80c64 : Article Arizona gallery owne already exists: c3f0c264-0371-37e1-909f-a45554c80c64 @ xapnews
+2024-02-09 20:27:07,286 - NewsScraper - WARNING - e17c0870-543d-3a7c-aad8-61374e28721a : Article Today in History: Fe already exists: e17c0870-543d-3a7c-aad8-61374e28721a @ xapnews
+2024-02-09 20:27:07,463 - NewsScraper - WARNING - 2266ee82-80d5-31f2-860f-5772b04afa18 : Article In ‘Dune: Part Two,’ already exists: 2266ee82-80d5-31f2-860f-5772b04afa18 @ xapnews
+2024-02-09 20:27:07,699 - NewsScraper - WARNING - 94268484-01cc-321b-a58b-0e85a2764515 : Article Dressing the high-so already exists: 94268484-01cc-321b-a58b-0e85a2764515 @ xapnews
+2024-02-09 20:27:07,839 - NewsScraper - WARNING - 6db04347-83fc-3540-895e-6fd5d45b12b5 : Article There was no meet cu already exists: 6db04347-83fc-3540-895e-6fd5d45b12b5 @ xapnews
+2024-02-09 20:27:08,504 - NewsScraper - WARNING - ec501dcc-c79d-32c8-8cd5-b22054ae322d : Article Brittany Howard retu already exists: ec501dcc-c79d-32c8-8cd5-b22054ae322d @ xapnews
+2024-02-09 20:27:08,556 - NewsScraper - WARNING - a435de39-b08f-35ee-9ccf-edeb78e2c815 : Article Catering to the food already exists: a435de39-b08f-35ee-9ccf-edeb78e2c815 @ xapnews
+2024-02-09 20:27:08,901 - NewsScraper - WARNING - 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be : Article Anthony Fauci will r already exists: 140353d5-0ea9-3c8b-b4e5-2a1b20b0a8be @ xapnews
+2024-02-09 20:27:09,103 - NewsScraper - WARNING - 9abb290e-0bcc-31ee-b206-7fdbdfd7564e : Article Review: ‘Bob Marley: already exists: 9abb290e-0bcc-31ee-b206-7fdbdfd7564e @ xapnews
+2024-02-09 20:27:09,339 - NewsScraper - WARNING - ee047851-b52b-3d21-823c-d183fa900a7d : Article Movie Review: ‘Lisa  already exists: ee047851-b52b-3d21-823c-d183fa900a7d @ xapnews
+2024-02-09 20:27:09,656 - NewsScraper - WARNING - edc7d1e5-9727-317c-9dcd-c90b83c9a32d : Article Movie Review: Food,  already exists: edc7d1e5-9727-317c-9dcd-c90b83c9a32d @ xapnews
+2024-02-09 20:27:09,779 - NewsScraper - WARNING - 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 : Article Movie Review: Wim We already exists: 4363e2ef-87c8-3a6a-8b82-1650ec37c2d9 @ xapnews
+2024-02-09 20:27:10,062 - NewsScraper - WARNING - e4f6e8f3-71af-3b21-b208-0d6f4806081c : Article Sneed’s forced fumbl already exists: e4f6e8f3-71af-3b21-b208-0d6f4806081c @ xapnews
+2024-02-09 20:27:10,257 - NewsScraper - WARNING - cfed120a-9ca7-366d-9fdf-15f03cebce7f : Article Analysis: Why will t already exists: cfed120a-9ca7-366d-9fdf-15f03cebce7f @ xapnews
+2024-02-09 20:27:10,485 - NewsScraper - WARNING - 51e6e59d-d70d-3c5c-8610-8c7f93daead7 : Article Analysis: Why will t already exists: 51e6e59d-d70d-3c5c-8610-8c7f93daead7 @ xapnews
+2024-02-09 20:27:10,738 - NewsScraper - WARNING - 73cd0311-4cfc-321b-94b5-058fc924a938 : Article Analysis: McCaffrey  already exists: 73cd0311-4cfc-321b-94b5-058fc924a938 @ xapnews
+2024-02-09 20:27:10,976 - NewsScraper - WARNING - cb32f602-ded6-36f2-b3f0-a5e7c41d9907 : Article How the ‘boneless wi already exists: cb32f602-ded6-36f2-b3f0-a5e7c41d9907 @ xapnews
+2024-02-09 20:27:11,277 - NewsScraper - WARNING - 5f9a1f03-4503-37d3-ae3f-1a97372edd14 : Article What a comeback! Thr already exists: 5f9a1f03-4503-37d3-ae3f-1a97372edd14 @ xapnews
+2024-02-09 20:27:11,465 - NewsScraper - WARNING - 323ec375-863d-3522-acc6-12a2232ddedd : Article Uproar over Biden cl already exists: 323ec375-863d-3522-acc6-12a2232ddedd @ xapnews
+2024-02-09 20:27:12,243 - NewsScraper - WARNING - 6df8326a-403e-3006-a245-6140e7a74295 : Article The race for George  already exists: 6df8326a-403e-3006-a245-6140e7a74295 @ xapnews
+2024-02-09 20:27:12,395 - NewsScraper - WARNING - 7c260c31-07b4-3b51-a030-4e01d7b4fb7a : Article DNC files federal co already exists: 7c260c31-07b4-3b51-a030-4e01d7b4fb7a @ xapnews
+2024-02-09 20:27:12,724 - NewsScraper - WARNING - 56022917-cd4a-3135-88a4-ea6fa5332938 : Article Donald Trump wins Ne already exists: 56022917-cd4a-3135-88a4-ea6fa5332938 @ xapnews
+2024-02-09 20:27:12,811 - NewsScraper - WARNING - 3d683975-10ff-3cc6-820d-19b03840d32d : Article Why AP called the Ne already exists: 3d683975-10ff-3cc6-820d-19b03840d32d @ xapnews
+2024-02-09 20:27:13,134 - NewsScraper - WARNING - 5b0e94e9-e201-316d-92a8-6f4e820d4721 : Article Donald Trump clinche already exists: 5b0e94e9-e201-316d-92a8-6f4e820d4721 @ xapnews
+2024-02-09 20:27:13,286 - NewsScraper - WARNING - 6f9c37f5-070c-331f-a14e-4946223b1a84 : Article AI-generated voices  already exists: 6f9c37f5-070c-331f-a14e-4946223b1a84 @ xapnews
+2024-02-09 20:27:13,618 - NewsScraper - WARNING - fa785e03-a83b-3681-845e-511f3e7cf506 : Article Ed Dwight was to be  already exists: fa785e03-a83b-3681-845e-511f3e7cf506 @ xapnews
+2024-02-09 20:27:14,158 - NewsScraper - WARNING - be4344f3-222b-3272-b6af-0ec95764cfc8 : Article It’s called ‘cozy ca already exists: be4344f3-222b-3272-b6af-0ec95764cfc8 @ xapnews
+2024-02-09 20:27:14,561 - NewsScraper - WARNING - 2e93c413-582a-3624-a533-2f6021cfea6b : Article Climate change is fu already exists: 2e93c413-582a-3624-a533-2f6021cfea6b @ xapnews
+2024-02-09 20:27:14,805 - NewsScraper - WARNING - dfb433dd-cbab-35f4-9978-5933f78b86c6 : Article A record number of A already exists: dfb433dd-cbab-35f4-9978-5933f78b86c6 @ xapnews
+2024-02-09 20:27:15,230 - NewsScraper - WARNING - fb17bac4-1e4c-3248-89c2-b31057971707 : Article Newspaper heiress Pa already exists: fb17bac4-1e4c-3248-89c2-b31057971707 @ xapnews
+2024-02-09 20:27:15,351 - NewsScraper - WARNING - cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb : Article Countdown begins for already exists: cf1e3b3f-76c6-37da-86f9-a73eba7ef1bb @ xapnews
+2024-02-09 20:27:15,782 - NewsScraper - WARNING - 197d4644-17f6-3215-9a13-414b3ad29e65 : Article How a grieving mothe already exists: 197d4644-17f6-3215-9a13-414b3ad29e65 @ xapnews
+2024-02-09 20:27:15,893 - NewsScraper - WARNING - 6aa04591-dae4-3526-aa26-58f1419de01f : Article Ghana artifacts that already exists: 6aa04591-dae4-3526-aa26-58f1419de01f @ xapnews
+2024-02-09 20:27:16,158 - NewsScraper - WARNING - e6d14244-4980-3443-961f-e4de9f9b2302 : Article Biden and Trump: How already exists: e6d14244-4980-3443-961f-e4de9f9b2302 @ xapnews
+2024-02-09 20:27:16,332 - NewsScraper - WARNING - 631fc0ae-80f0-3796-813f-8e343fad90c6 : Article Biden order attaches already exists: 631fc0ae-80f0-3796-813f-8e343fad90c6 @ xapnews
+2024-02-09 20:27:16,529 - NewsScraper - WARNING - 2fbf426a-0953-35ab-895e-3f2eeeb39d0c : Article What’s inside the Se already exists: 2fbf426a-0953-35ab-895e-3f2eeeb39d0c @ xapnews
+2024-02-09 20:27:16,702 - NewsScraper - WARNING - 380c8447-d40f-360d-ae8f-96664a8e4d69 : Article Scarlett Johansson a already exists: 380c8447-d40f-360d-ae8f-96664a8e4d69 @ xapnews
+2024-02-09 20:27:16,946 - NewsScraper - WARNING - 95a9b5f6-812a-3276-a001-3293fc193e15 : Article Music Review: Swedis already exists: 95a9b5f6-812a-3276-a001-3293fc193e15 @ xapnews
+2024-02-09 20:27:17,153 - NewsScraper - WARNING - 8abe28b4-3adc-3e59-8888-76678a6f720c : Article Superstar DJ Tiësto  already exists: 8abe28b4-3adc-3e59-8888-76678a6f720c @ xapnews
+2024-02-09 20:27:17,359 - NewsScraper - WARNING - 457add7a-2e41-3c5a-9970-8a34096ff0c4 : Article Jury in Young Dolph  already exists: 457add7a-2e41-3c5a-9970-8a34096ff0c4 @ xapnews
+2024-02-09 20:27:17,621 - NewsScraper - WARNING - 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 : Article Former Mets GM Billy already exists: 71f8c6c5-2030-3e8e-a0c2-b7ca2dcb3a40 @ xapnews
+2024-02-09 20:27:17,764 - NewsScraper - WARNING - fc8b495d-0644-33db-8383-b9c2779fedbf : Article Chiefs rule out All- already exists: fc8b495d-0644-33db-8383-b9c2779fedbf @ xapnews
+2024-02-09 20:27:18,135 - NewsScraper - WARNING - 90465343-d6e9-3b2b-889c-c348168b4dd8 : Article Taylor Swift’s conne already exists: 90465343-d6e9-3b2b-889c-c348168b4dd8 @ xapnews
+2024-02-09 20:27:18,295 - NewsScraper - WARNING - 05590716-6cc2-350a-b307-1e148ae1af6c : Article Shohei Ohtani tries  already exists: 05590716-6cc2-350a-b307-1e148ae1af6c @ xapnews
+2024-02-09 20:27:18,594 - NewsScraper - WARNING - dab3e80f-86d8-33fe-97a2-01801c31fb4c : Article Magnitude 5.7 earthq already exists: dab3e80f-86d8-33fe-97a2-01801c31fb4c @ xapnews
+2024-02-09 20:27:19,118 - NewsScraper - WARNING - e4c8b6ac-706b-38fa-b91a-9351f628813d : Article Summer-like conditio already exists: e4c8b6ac-706b-38fa-b91a-9351f628813d @ xapnews
+2024-02-09 20:27:19,195 - NewsScraper - WARNING - 1f57c218-975d-3741-9731-0d41bb4358ac : Article Mardi Gras 2024: Wha already exists: 1f57c218-975d-3741-9731-0d41bb4358ac @ xapnews
+2024-02-09 20:27:19,614 - NewsScraper - WARNING - b7e697e6-f588-39ab-8f2c-e28317509aeb : Article Proposed mine outsid already exists: b7e697e6-f588-39ab-8f2c-e28317509aeb @ xapnews
+2024-02-09 20:27:19,819 - NewsScraper - WARNING - 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec : Article Israel seeks to evac already exists: 4b6bc5d5-07ac-356e-aa4d-1a088f4f0eec @ xapnews
+2024-02-09 20:27:20,206 - NewsScraper - WARNING - f915e546-212c-3f5a-abb2-b7e162f4e142 : Article Pakistan’s ex-PM Sha already exists: f915e546-212c-3f5a-abb2-b7e162f4e142 @ xapnews
+2024-02-09 20:27:20,353 - NewsScraper - WARNING - 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 : Article Inflation is nearly  already exists: 8f14a22f-fdeb-3185-8290-6a78cea8f9e1 @ xapnews
+2024-02-09 20:27:20,622 - NewsScraper - WARNING - 9378ae14-7cf2-3345-adad-7965415e7e46 : Article Stock market today:  already exists: 9378ae14-7cf2-3345-adad-7965415e7e46 @ xapnews
+2024-02-09 20:27:20,761 - NewsScraper - WARNING - 65c21767-9cd5-38b8-810b-8c3cc18725c2 : Article IRS watchdog: Contra already exists: 65c21767-9cd5-38b8-810b-8c3cc18725c2 @ xapnews
+2024-02-09 20:27:20,934 - NewsScraper - WARNING - 08b7786a-7453-3aae-bf55-3d33b43803cc : Article Biden administration already exists: 08b7786a-7453-3aae-bf55-3d33b43803cc @ xapnews
+2024-02-09 20:27:21,126 - NewsScraper - WARNING - 727c09f0-795e-3ca0-9e29-5b78c8cacff8 : Article Astronauts from Turk already exists: 727c09f0-795e-3ca0-9e29-5b78c8cacff8 @ xapnews
+2024-02-09 20:27:21,482 - NewsScraper - WARNING - b37fc8fd-5964-30b4-922e-98667d704945 : Article NASA climate satelli already exists: b37fc8fd-5964-30b4-922e-98667d704945 @ xapnews
+2024-02-09 20:27:21,786 - NewsScraper - WARNING - db12706f-e4dd-36a2-8d75-17219b0b4b25 : Article Saturn’s Death Star- already exists: db12706f-e4dd-36a2-8d75-17219b0b4b25 @ xapnews
+2024-02-09 20:27:21,920 - NewsScraper - WARNING - 502ce2ea-9a5f-3430-b409-dcd67dc0b604 : Article Jury awards climate  already exists: 502ce2ea-9a5f-3430-b409-dcd67dc0b604 @ xapnews
+2024-02-09 20:27:22,200 - NewsScraper - WARNING - e08e69c0-74df-3b53-9072-b91254538e71 : Article Jon Stewart changed  already exists: e08e69c0-74df-3b53-9072-b91254538e71 @ xapnews
+2024-02-09 20:27:22,438 - NewsScraper - WARNING - 3a814764-caf8-36d0-87b6-0abae5b6c78b : Article How Asian American a already exists: 3a814764-caf8-36d0-87b6-0abae5b6c78b @ xapnews
+2024-02-09 20:27:23,092 - NewsScraper - WARNING - 3b314946-16e7-3243-97d4-4f752a3d5c58 : Article Christian Siriano ro already exists: 3b314946-16e7-3243-97d4-4f752a3d5c58 @ xapnews
+2024-02-09 20:27:23,182 - NewsScraper - WARNING - 0e3e1974-0881-3efa-8000-fe26ba95b445 : Article Americans left the B already exists: 0e3e1974-0881-3efa-8000-fe26ba95b445 @ xapnews
+2024-02-09 20:27:24,349 - NewsScraper - WARNING - 150292f4-11a6-3048-a69f-203416981e57 : Article AP PHOTOS: Deadly bl already exists: 150292f4-11a6-3048-a69f-203416981e57 @ xapnews
+2024-02-09 20:27:24,450 - NewsScraper - WARNING - 4107b08d-ba5c-3168-8fdf-7e71a46b8369 : Article AP PHOTOS: Lunar New already exists: 4107b08d-ba5c-3168-8fdf-7e71a46b8369 @ xapnews
+2024-02-09 20:27:25,252 - NewsScraper - WARNING - 5ff12311-a139-3de2-b1f3-54759536ecfe : Article Women dominated the  already exists: 5ff12311-a139-3de2-b1f3-54759536ecfe @ xapnews
+2024-02-09 20:27:25,486 - NewsScraper - WARNING - 0bf57504-74c5-3be5-9914-62f28f40baf9 : Article The 2014 Sochi Olymp already exists: 0bf57504-74c5-3be5-9914-62f28f40baf9 @ xapnews
+2024-02-09 20:27:26,068 - NewsScraper - WARNING - b533ac88-760a-3f66-953f-cc103258525a : Article Voices from the viol already exists: b533ac88-760a-3f66-953f-cc103258525a @ xapnews
+2024-02-09 20:27:26,793 - NewsScraper - WARNING - 3a61c40c-f4af-3120-a05e-023bb1d70011 : Article Mark Zuckerberg’s lo already exists: 3a61c40c-f4af-3120-a05e-023bb1d70011 @ xapnews
+2024-02-09 20:27:27,114 - NewsScraper - WARNING - b656f464-5d62-386e-8a74-72fa1af2b08e : Article Black Californians h already exists: b656f464-5d62-386e-8a74-72fa1af2b08e @ xapnews
+2024-02-09 20:27:27,339 - NewsScraper - WARNING - aa911ddd-d0c6-3997-90bb-53fa348a0390 : Article Hundreds of black de already exists: aa911ddd-d0c6-3997-90bb-53fa348a0390 @ xapnews
+2024-02-09 20:27:27,753 - NewsScraper - WARNING - 1211cef9-8296-313e-b8c9-d4b9f58335e5 : Article Hip-hop turns 50, re already exists: 1211cef9-8296-313e-b8c9-d4b9f58335e5 @ xapnews
+2024-02-09 20:27:28,069 - NewsScraper - WARNING - 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 : Article Penn Museum buries t already exists: 96fa4d49-34d5-38ec-9923-ffbe5c5cb804 @ xapnews
+2024-02-09 20:27:28,244 - NewsScraper - WARNING - 8dba57fd-827a-3b2c-923d-c1f4f4cc091e : Article Black August uplifte already exists: 8dba57fd-827a-3b2c-923d-c1f4f4cc091e @ xapnews
+2024-02-09 20:27:28,492 - NewsScraper - WARNING - 4c82c4b6-24db-3af1-8299-e033cdb42aa8 : Article 76ers team president already exists: 4c82c4b6-24db-3af1-8299-e033cdb42aa8 @ xapnews
+2024-02-09 20:27:28,667 - NewsScraper - WARNING - fd11bc2d-2f00-38df-82dc-140bff849a3f : Article Texas woman is sente already exists: fd11bc2d-2f00-38df-82dc-140bff849a3f @ xapnews
+2024-02-09 20:27:28,807 - NewsScraper - WARNING - 90095cf7-c4ed-3094-aee7-53806a125472 : Article Minnesota man awaiti already exists: 90095cf7-c4ed-3094-aee7-53806a125472 @ xapnews
+2024-02-09 20:27:28,994 - NewsScraper - WARNING - 3a18efb2-5485-3c4d-8cf1-487ad5942b18 : Article Uncertainty surround already exists: 3a18efb2-5485-3c4d-8cf1-487ad5942b18 @ xapnews
+2024-02-09 20:27:29,184 - NewsScraper - WARNING - 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 : Article Three-time Super Bow already exists: 8b720ec5-8cf9-3fad-a1e1-eef10f61d299 @ xapnews
+2024-02-09 20:27:29,311 - NewsScraper - WARNING - 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc : Article Guest lineups for th already exists: 3e27ad3d-3f2b-3530-b38a-07ce5fdd49bc @ xapnews
+2024-02-09 20:27:29,635 - NewsScraper - WARNING - e81f49c0-6374-370f-b88e-d502ffedb609 : Article Arkansas police find already exists: e81f49c0-6374-370f-b88e-d502ffedb609 @ xapnews
+2024-02-09 20:27:29,692 - NewsScraper - WARNING - c4132341-dcd1-35ac-ae7b-d258245082b9 : Article Judge blocks Omaha’s already exists: c4132341-dcd1-35ac-ae7b-d258245082b9 @ xapnews
+2024-02-09 20:27:29,979 - NewsScraper - WARNING - ac1e4487-3422-304f-8005-b509fa4f964b : Article Arizona governor sig already exists: ac1e4487-3422-304f-8005-b509fa4f964b @ xapnews
+2024-02-09 20:27:30,126 - NewsScraper - WARNING - 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c : Article Cardoso shines as Re already exists: 18fd2e1d-ac97-3ecf-a2b4-b8df27e3d58c @ xapnews
+2024-02-09 20:27:30,421 - NewsScraper - WARNING - fb78c297-1a8c-31d1-a5f1-895f34ae8386 : Article Bill to help relocat already exists: fb78c297-1a8c-31d1-a5f1-895f34ae8386 @ xapnews
+2024-02-09 20:27:30,584 - NewsScraper - WARNING - f59148c1-0ad0-3bac-a590-32832091517e : Article Second baseman Jonat already exists: f59148c1-0ad0-3bac-a590-32832091517e @ xapnews
+2024-02-09 20:27:30,881 - NewsScraper - WARNING - c4249c9b-495d-3642-a361-1fe17a9d8d2a : Article Some charges dismiss already exists: c4249c9b-495d-3642-a361-1fe17a9d8d2a @ xapnews
+2024-02-09 20:27:31,019 - NewsScraper - WARNING - d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa : Article Furman football play already exists: d3d2ddea-f0b0-3032-b31d-54b22d1e5cfa @ xapnews
+2024-02-09 20:27:31,311 - NewsScraper - WARNING - 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 : Article Lawsuit claims Natio already exists: 8c7a7c0f-0ac2-37fb-8cc2-d335285e6a77 @ xapnews
+2024-02-09 20:27:31,387 - NewsScraper - WARNING - 6d587ef0-32db-3ef1-804c-30ee8821fefd : Article Indianapolis man arr already exists: 6d587ef0-32db-3ef1-804c-30ee8821fefd @ xapnews
+2024-02-09 20:27:31,642 - NewsScraper - WARNING - 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 : Article Amazon Prime Video w already exists: 389f55b9-2e16-3a37-b5bd-e6e4c22e9bb0 @ xapnews
+2024-02-09 20:27:31,936 - NewsScraper - WARNING - dc924faa-728f-3daa-9208-e40c733898a5 : Article Former Brewers pitch already exists: dc924faa-728f-3daa-9208-e40c733898a5 @ xapnews
+2024-02-09 20:27:32,132 - NewsScraper - WARNING - 0e1c55b1-3b72-3ad3-8525-e8260548cb5a : Article Vikings add OLB coac already exists: 0e1c55b1-3b72-3ad3-8525-e8260548cb5a @ xapnews
+2024-02-09 20:27:32,408 - NewsScraper - WARNING - 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce : Article A stepmother says he already exists: 9fdedda8-c9dc-3dd5-8db3-6f5191ec91ce @ xapnews
+2024-02-09 20:27:32,513 - NewsScraper - WARNING - 5810d9e1-f862-3382-b2d5-958d6f93571c : Article Police in a Maine ci already exists: 5810d9e1-f862-3382-b2d5-958d6f93571c @ xapnews
+2024-02-09 20:27:32,817 - NewsScraper - WARNING - 72885519-fff8-365f-9d5d-f14abf2110eb : Article No. 16 Virginia Tech already exists: 72885519-fff8-365f-9d5d-f14abf2110eb @ xapnews
+2024-02-09 20:27:33,019 - NewsScraper - WARNING - 79ec5d97-4d84-36c6-865c-da9907eab1b8 : Article Metz ends seven-game already exists: 79ec5d97-4d84-36c6-865c-da9907eab1b8 @ xapnews
+2024-02-09 20:27:33,231 - NewsScraper - WARNING - 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 : Article Congressional age li already exists: 248650aa-9fd5-3da6-8e59-d2611f0ea1f2 @ xapnews
+2024-02-09 20:27:33,557 - NewsScraper - WARNING - 91d5cc9a-8410-3652-862e-e002642c2595 : Article A 4.6-magnitude eart already exists: 91d5cc9a-8410-3652-862e-e002642c2595 @ xapnews
+2024-02-09 20:27:33,684 - NewsScraper - WARNING - dec2e71c-caee-3944-a81c-d557c6316973 : Article Deion Sanders puts f already exists: dec2e71c-caee-3944-a81c-d557c6316973 @ xapnews
+2024-02-09 20:27:34,054 - NewsScraper - WARNING - 07bb70bf-a663-3c60-9993-30cdf3b601da : Article Falcons owner Blank  already exists: 07bb70bf-a663-3c60-9993-30cdf3b601da @ xapnews
+2024-02-09 20:27:34,162 - NewsScraper - WARNING - 3ffa6f1e-875e-36b2-b2da-62625fc352c7 : Article Empoli grabs late do already exists: 3ffa6f1e-875e-36b2-b2da-62625fc352c7 @ xapnews
+2024-02-09 20:27:34,476 - NewsScraper - WARNING - af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe : Article An Ohio city settles already exists: af0fa9af-1ad5-322f-9bb2-7fb02eafa9fe @ xapnews
+2024-02-09 20:27:34,615 - NewsScraper - WARNING - 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 : Article Malen scores twice a already exists: 4b4e7e3c-a31e-39ff-9adb-821e888dcc23 @ xapnews
+2024-02-09 20:27:34,907 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:29:24,070 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:30:01,766 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:30:19,982 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:30:56,049 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:31:10,096 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:31:47,096 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:32:49,742 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:33:27,117 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:33:49,068 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:34:26,120 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:35:30,554 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:36:08,172 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:36:55,233 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:37:36,153 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:37:38,513 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:38:17,159 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:38:24,406 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:39:00,537 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:39:49,028 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:40:25,341 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:45:10,768 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:45:49,165 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:45:55,056 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:46:31,946 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:46:45,177 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:47:20,124 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:48:34,925 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:49:10,157 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:49:23,505 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:49:59,248 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:50:43,050 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:51:19,961 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''
+2024-02-09 20:51:28,555 - InkBytes Messor - INFO - Scraping articles from 'name='independent' url='https://www.independent.uk''
+2024-02-09 20:52:05,112 - InkBytes Messor - INFO - Scraping articles from 'name='xapnews' url='https://apnews.com/''

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "inkbytes messor"
+version = "0.1.0"
+description = "Inkbytes main scraping/harvest module"
+authors = ["Julian De La Rosa <julian.delarosa.suncar@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+articles = "0.1.0"
+beautifulsoup4 = "4.12.3"
+logger = "1.4"
+newspaper3k = "0.2.8"
+pydantic = "2.5.3"
+pytz = "2023.3"
+requests = "2.31.0"
+tinydb = "4.8.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
