@@ -16,7 +16,7 @@ async def websocket_scrape(websocket: WebSocket):
         data = await websocket.receive_text()
         if data == "start_scrape":
             scrape_task = asyncio.create_task(scrape())
-            async for message in file_log_reader(10):
+            async for message in file_log_reader(60):
                 await websocket.send_text(message)
                 if scrape_task.done():
                         break

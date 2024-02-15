@@ -14,67 +14,89 @@ import asyncio
 import concurrent
 import json
 import logging
-import sys
+import os
 import threading
 import time
-import nltk
 
 
-nltk.download('punkt')
 from contextlib import contextmanager
 from datetime import datetime, date
 from typing import List
 import pytz
 import sys
-sys.path.append('/Users/juliandelarosa/Projects/InkBytes/src')
+
+from inkbytes.common.system.log_formatters import log_function_activity, CEFLogFormatter, EnhancedSyslogFormatter
+from inkbytes.common.system.rabbit_log_handler import RabbitMQLoggingHandler
 from inkbytes.common import sysdictionary
 from inkbytes.common.rest import RestClient
 from inkbytes.common.mq import RabbitMQHandler
 from inkbytes.models.articles import ArticleCollection
 from inkbytes.models.outlets import OutletsSource, OutletsHandler, OutletsDataSource
+from inkbytes.common.system.module_handler import get_module_name
 from scraping.newsscraper import ScraperPool
 from scraping.scraper import SessionSavingMode
 from collections import deque
 from uvicorn import run as uvicornRun
 
-# This will be our local queue to store messages when RabbitMQ is not connected
-local_message_queue = deque()
-#log_queue = asyncio.Queue()
-#queue_handler = AsyncioQueueHandler(log_queue)
 LOG_LEVEL = sysdictionary.LOGGING_CONF.get("LOG_LEVEL", logging.INFO)
 API_URL = sysdictionary.BACKOFFICE_API_URL
-MODULE_NAME = "InkBytes Messor"
+LOCAL_QUEUE_FILE_NAME = "./data/local_queue.json"
+LOGS_FOLDER = "logs"
+LOG_FILE_NAME = os.path.join(LOGS_FOLDER, "messor.log")
+QUEUE_NAME = "messor@scrapes@"
+RABBIT_HOST_NAME = "kloudsix.io"
+MODULE_NAME = get_module_name(2)
 logging.basicConfig(level=LOG_LEVEL)
+root_logger = logging.getLogger()
+# This will be our local queue to store messages when RabbitMQ is not connected
+local_message_queue = deque()
+exit_event = threading.Event()
 
 
+# Usage example:
+# LoggerFactory.setup_logging()
+# logger = LoggerFactory().create_logger(MODULE_NAME, 'Inkbytes', 'detailed')
+# logger.info('This is an informational message.')
+
+@log_function_activity(root_logger)
 def initialize_backoffice_client():
     backoffice_client = RestClient(API_URL)
-    rabbitmq_client = RabbitMQHandler(local_queue_filename="./data/local_queue.json", host="kloudsix.io",
-                                      queue_name="messor@scrapes@" + str(date.today().strftime('%Y%m%d')))
+    rabbitmq_client = RabbitMQHandler(local_queue_filename=LOCAL_QUEUE_FILE_NAME, host=RABBIT_HOST_NAME,
+                                      queue_name=QUEUE_NAME + str(date.today().strftime('%Y%m%d')))
     syslogger = logging.getLogger(MODULE_NAME)
     return backoffice_client, syslogger, rabbitmq_client
 
 
-        
-
 if __name__ == "__main__":
     restclient, logger, rabbitmq_handler = initialize_backoffice_client()
-    file_handler = logging.FileHandler("messor.log")
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler = logging.FileHandler(LOG_FILE_NAME)
+    # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = CEFLogFormatter(vendor="InkBytes", product="Messor", version="1.0", signature="EventID",
+                                name="EventName", severity="5")
     file_handler.setFormatter(formatter)
-    #logger.addHandler(file_handler) 
-    logger.addHandler(file_handler)
-    
+
+    # Create and configure RabbitMQ handler
+    rabbit_handler = RabbitMQLoggingHandler("hermes")
+    rabbit_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    syslog_formatter = EnhancedSyslogFormatter(app_name="Messor")
+    rabbit_handler.setFormatter(syslog_formatter)
+    # Add the handler to the logger
+    logger.root.addHandler(file_handler)
+    root_logger.root.addHandler(rabbit_handler)
+    # logger.addHandler(rabbit_handler)
+    # logger.addHandler(file_handler)
+
 
 def do_exit():
     """
     This method is used to exit the program gracefully.
-
     :return: None
     """
     sys.exit()
 
 
+@log_function_activity(root_logger)
 def extract_articles_from_outlet(outlet: OutletsSource) -> ArticleCollection:
     """
     Extract articles from a given outlet.
@@ -95,7 +117,7 @@ def extract_articles_from_outlet(outlet: OutletsSource) -> ArticleCollection:
         return None
 
 
-            
+@log_function_activity(root_logger)
 def get_outlets(source=OutletsDataSource.REST_API) -> List[OutletsSource]:
     """
     Retrieves the list of news outlets from the server or a .json file.
@@ -125,6 +147,7 @@ def get_outlets(source=OutletsDataSource.REST_API) -> List[OutletsSource]:
         raise RuntimeError(f"Error getting outlets, reason: {error}") from error
 
 
+@log_function_activity(root_logger)
 def save_scraping_session(scraping_session):
     """
     :param scraping_session: The scraping session to be saved.
@@ -156,6 +179,7 @@ def save_scraping_session(scraping_session):
         return False
 
 
+@log_function_activity(root_logger)
 def execute_scraping_process() -> List[ArticleCollection]:
     """
     Executes the scrape process to extract articles from outlets.
@@ -198,7 +222,6 @@ def await_command(parser):
     """
     :param parser: The argument parser object used to parse the command entered by the user.
     :return: The mode specified by the user's command.
-
     """
     while True:
         try:
@@ -234,7 +257,6 @@ def perform_action(mode):
 def log_execution_time():
     """
     Logs the start and end time of code execution.
-
     :return: None
     """
     start_time = datetime.now(pytz.timezone(sysdictionary.TIME_ZONE))
@@ -244,16 +266,7 @@ def log_execution_time():
     logger.info(f"End time: {end_time}")
 
 
-'''def main():
-
-
-    parser = argparse.ArgumentParser(description="Choose the mode to run the project.")
-    parser.add_argument("mode", type=str.upper, choices=["SCRAPE", "DETOX", "EXIT"], help="Mode: SCRAPE, EXIT, DETOX")
-    mode = await_command(parser)
-    with log_execution_time():  # logging start_time
-        perform_action(mode)'''
-
-exit_event = threading.Event()  # Event to signal the threads to exit
+# Event to signal the threads to exit
 
 
 def command_input_thread(parser, exit_event):
@@ -265,6 +278,7 @@ def command_input_thread(parser, exit_event):
             break
         with log_execution_time():
             perform_action(mode)
+
 
 @asyncio.coroutine
 def scrape():
@@ -305,5 +319,4 @@ def run():
 
 
 if __name__ == "__main__":
-   
     run()

@@ -18,6 +18,7 @@ from tinydb import Query
 import newspaper
 
 from inkbytes.common import sysdictionary
+from inkbytes.common.system.module_handler import get_module_name
 from inkbytes.common.utils import generate_threshold_timestamp
 from inkbytes.database.tinydb.DataHandler import DataHandler
 from inkbytes.models.articles import Article, ArticleBuilder, ArticleCollection
@@ -25,7 +26,7 @@ from inkbytes.models.newspaperbase import NewsPaper
 from inkbytes.models.outlets import OutletsSource
 from scraping.scraper import ScrapingSession, ScrapingStats
 
-MODULE_NAME = "inkbytes.messor.scraping.newsscrapper"
+MODULE_NAME = get_module_name(2)
 
 
 class ScraperPool:

@@ -1,12 +1,11 @@
 import asyncio
-
-import asyncio
 import os
 
-async def file_log_reader(duration, file_name="messor.log", n=10):
+
+async def file_log_reader(duration, file_name="logs/messor.log", n=100):
     log_file_path = file_name  # Path to your log file
     last_position = 0
-    
+
     for _ in range(duration):
         log_lines = []
         try:
@@ -36,6 +35,5 @@ async def file_log_reader(duration, file_name="messor.log", n=10):
             yield f'<span class="text-red-500">File not found: {os.path.abspath(log_file_path)}</span><br/>'
         except Exception as e:
             yield f'<span class="text-red-500">Error reading file: {str(e)}</span><br/>'
-        
-        await asyncio.sleep(1)  # Check for new log messages every second
 
+        await asyncio.sleep(1)  # Check for new log messages every second
