@@ -1,0 +1,80 @@
+# Stage 1: Build environment
+FROM python:3.10 as builder
+LABEL name="inkbytes-messor-harvester-builder2"
+LABEL version="0.1"
+LABEL author="juliandelarosa@icloud.com"
+
+# Install system dependencies required for build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nano \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+
+
+# Copy your application code and requirements
+COPY . /app
+
+RUN mkdir -p /app/data/scrapes_staging_storage/
+
+# Make the custom script executable
+RUN chmod +x /app/scripts/install_inkbytes_libraries.sh
+RUN rm -iRf /app/venv
+RUN python3 -m venv /app/venv
+COPY ./env.yaml /app/env.yaml
+# Install your application's dependencies
+# Here, you would run the script to install from GitLab or other sources
+# For demonstration, assuming these scripts successfully install packages to the virtual environment
+# Custom script to install the inkbytes libraries from gitlab instead of pypi
+# Ok, this is a bit of a hack, but it works for now. This system must be improved in the future.
+# The main problem with pypi or pypi-like repositories is that they are not private, and we need to keep the libraries private.
+# also we need to keep the libraries in sync with the models and the database, so we need to keep them in the same repository.
+#regards Julián De La Rosa
+RUN /app/scripts/install_inkbytes_libraries.sh https://gitlab.com/inkbytes/common.git develop inkbytes
+RUN /app/scripts/install_inkbytes_libraries.sh https://gitlab.com/inkbytes/models.git develop inkbytes
+RUN /app/scripts/install_inkbytes_libraries.sh https://gitlab.com/inkbytes/database.git develop inkbytes
+
+# Install other Python dependencies
+COPY ./requirements.txt /app/
+# Create a virtual environment and upgrade pip
+RUN /app/venv/bin/pip install --upgrade pip
+RUN /app/venv/bin/pip install -r /app/requirements.txt
+RUN /app/venv/bin/pip install pytz nltk
+RUN /app/venv/bin/pip install 'uvicorn[standard]'
+# Stage 2: Runtime environment
+FROM python:3.10-slim
+LABEL name="inkbytes-messor-harvester-runner"
+LABEL version="0.1"
+LABEL author="juliandelarosa@icloud.com"
+
+WORKDIR /app
+
+# Copy the virtual environment from the builder stage
+COPY --from=builder /app/venv /app/venv
+
+# Copy your application code (and any other necessary files) from the builder stage
+COPY --from=builder /app /app
+
+# Optional: If you have a static storage directory, you can include it directly
+# Assuming it's pre-populated in the build context
+COPY --from=builder /app/data/scrapes_staging_storage /app/data/scrapes_staging_storage
+
+# Prepare the environment and set paths
+ENV PATH="/app/venv/bin:$PATH"
+RUN echo "source /app/venv/bin/activate" > /app/activate_venv.sh
+# Make sure scripts are executable if not already
+RUN chmod +x /app/scripts/install_inkbytes_libraries.sh
+RUN chmod +x /app/activate_venv.sh
+RUN echo "source /app/venv/bin/activate" > /app/activate_venv.sh
+RUN chmod +x /app/activate_venv.sh
+RUN echo "source /app/activate_venv.sh" >> /root/.bashrc
+# Expose the port your app runs on
+EXPOSE 8585
+
+# Define the entry point or command to run your application
+# For example, you can use a shell script that activates the venv and starts your app
+# CMD ["/app/your-startup-script.sh"]
+# Or simply run Python application
+# CMD ["python3", "."]

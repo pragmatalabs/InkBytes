@@ -1,25 +1,25 @@
 """
-Author: Julian Delarosa (juliandelarosa@icloud.com)
+---
+Author: Julian Delarosa
+Email: juliandelarosa@icloud.com
 Date: 2023-07-14
 Version: 1.0
-Description:
-    This is the main file of the URI Harvest program. It is used to scrape news from various sources, including local files,
-    shared files, URIs, URLs, and Agent Mode.
-System: Messor News Harvest v1.0
+Description: >
+    This is the main file of the URI Harvest program. It is used to scrape news from various sources,
+    including local files, shared files, URIs, URLs, and Agent Mode.
 Language: Python 3.10
-License: MIT License
+---
 """
 import concurrent
 import logging
+import os
+import newspaper
 from bs4 import BeautifulSoup
 from tinydb import Query
 
-
-import newspaper
-
-from inkbytes.common import sysdictionary
+#from inkbytes.common import sysdictionary
 from inkbytes.common.system.module_handler import get_module_name
-from inkbytes.common.utils import generate_threshold_timestamp
+from inkbytes.common.system.utils import generate_threshold_timestamp
 from inkbytes.database.tinydb.DataHandler import DataHandler
 from inkbytes.models.articles import Article, ArticleBuilder, ArticleCollection
 from inkbytes.models.newspaperbase import NewsPaper
@@ -52,11 +52,13 @@ class ScraperPool:
         >>> scrapper_pool.scrape_outlet()
     """
 
-    def __init__(self, outlet: OutletsSource, num_workers: int = 4):
+    def __init__(self, outlet: OutletsSource, agent: str = "", headers: str = "", num_workers: int = 4):
         self.num_workers = num_workers
         self.logger = logging.getLogger(self.__class__.__name__)
         self.outlet = outlet
         self.session = None
+        self.agent=agent
+        self.headers=headers
         self.scrape_outlet()
 
     def scrape_outlet(self):
@@ -64,11 +66,41 @@ class ScraperPool:
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             self.logger.info(f"Scraping articles from: {self.outlet.name}")
             try:
-                newsPaper = NewsPaper(agent=sysdictionary.DEFAULT_AGENT, headers=sysdictionary.DEFAULT_HEADER)
+                newsPaper = NewsPaper(agent=self.agent, headers=self.headers)
                 NewsScraper(self.outlet, newsPaper, executor, session=self.session)
             except ValueError as e:
                 self.logger.error(f"Loading articles from: {self.outlet.name} failed with error: {e}")
                 return
+
+
+def validate_outlet_url(outlet):
+    """
+    :param outlet: The Outlet object containing the URL to be validated.
+    :return: True if the URL is valid and not empty after removing any leading/trailing whitespace, False otherwise.
+    """
+    return outlet.url and outlet.url.strip()
+
+
+def process_found_articles(executor, outlet, paper):
+    """
+    Process articles from a newspaper.
+
+    :param executor: The executor to submit tasks to.
+    :type executor: Executor
+
+    :param outlet: The outlet to scrape articles from.
+    :type outlet: Outlet
+
+    :param paper: The newspaper containing the articles to be processed.
+    :type paper: Paper
+
+    :return: A list of submitted tasks for scraping outlet articles if there are articles in the newspaper. Otherwise, an empty list.
+    :rtype: list[Future]
+    """
+    if len(paper.articles) > 0:
+        return [executor.submit(scrape_outlet_article, article, outlet.name) for article in paper.articles]
+    else:
+        return []
 
 
 class NewsScraper:
@@ -98,10 +130,9 @@ class NewsScraper:
         """
         try:
             self.session.outlet_name = outlet.name
-            if self.validate_outlet_url(outlet):
+            if validate_outlet_url(outlet):
                 paper = self.build_paper_from_outlet(outlet)
-                # self.log_foundarticles_count(len(newspaper.articles), outlet)
-                results = self.process_found_articles(executor, outlet, paper)
+                results = process_found_articles(executor, outlet, paper)
                 self.logger.info(f"Processing {len(results)} articles for {outlet.name}")
                 self.session.total_articles = len(results)
                 self.process_outlet_articles(outlet.name, results)
@@ -109,13 +140,6 @@ class NewsScraper:
             self.logger.error(f"Error {e} scraping article from: {outlet}")
         finally:
             self.session.complete_session()
-
-    def validate_outlet_url(self, outlet):
-        """
-        :param outlet: The Outlet object containing the URL to be validated.
-        :return: True if the URL is valid and not empty after removing any leading/trailing whitespace, False otherwise.
-        """
-        return outlet.url and outlet.url.strip()
 
     def build_paper_from_outlet(self, outlet):
         """
@@ -135,38 +159,25 @@ class NewsScraper:
         """
         self.logger.info(f"Processing {count} articles for {outlet.name}")
 
-    def process_found_articles(self, executor, outlet, paper):
-        """
-        Process articles from a newspaper.
-
-        :param executor: The executor to submit tasks to.
-        :type executor: Executor
-
-        :param outlet: The outlet to scrape articles from.
-        :type outlet: Outlet
-
-        :param paper: The newspaper containing the articles to be processed.
-        :type paper: Paper
-
-        :return: A list of submitted tasks for scraping outlet articles if there are articles in the newspaper. Otherwise, an empty list.
-        :rtype: list[Future]
-        """
-        if len(paper.articles) > 0:
-            return [executor.submit(scrape_outlet_article, article, outlet.name) for article in paper.articles]
-        else:
-            return []
-
     def process_outlet_articles(self, outletBrand: str, results):
-        """
+        """Process outlet articles.
 
-        :param outletBrand:
-        :param results:
-        :return:
+        This method processes a list of outlet articles and inserts them into the database if they do not already exist.
+
+        Args:
+            outletBrand (str): The brand of the outlet.
+            results (list): A list of futures representing the articles to be processed.
+
+        Returns:
+            None
+
+        Raises:
+            None
         """
 
         time_stamp = generate_threshold_timestamp(15)
         self.session.set_results_staging_file_name(str(time_stamp) + outletBrand + ".db.json")
-        data_handler = DataHandler(sysdictionary.storage_path
+        data_handler = DataHandler(os.getenv("STAGING_STORAGE_LOCAL")
                                    + self.session.results_staging_file_name)
         self.logger.info(f"Processing {len(results)} articles")
         for future in concurrent.futures.as_completed(results):
@@ -283,6 +294,55 @@ def build_newspaper_article(article: newspaper.Article) -> newspaper.Article:
         return article
 
 
+def extract_metadata_category(data, fields=['tag', 'section', 'category']):
+    """
+    Extracts the value of the first existing field from a list of possible field names
+    within the 'article' or 'metadata' sections of a JSON structure.
+
+    Args:
+    - data (dict): The JSON data as a Python dictionary.
+    - fields (list): A list of strings representing the possible field names to search for.
+
+    Returns:
+    - str: The value of the first existing field found; otherwise, returns an empty string if none are found.
+    """
+    # Attempt to find and return the value for the first field that exists
+    for section in ['og', 'article', 'metadata', 'fb', 'twitter']:
+        metadata = data.get(section, {})
+        for field in fields:
+            if field in metadata:
+                return metadata[field]
+
+    # Return an empty string if none of the fields are found
+    return ""
+
+
+def unify_keywords(article: Article) -> list[str]:
+    """
+    Extracts and unifies keywords from the root and metadata sections of a JSON object.
+
+    Args:
+    - data (dict): The JSON data as a Python dictionary.
+
+    Returns:
+    - List[str]: A list of combined and deduplicated keywords.
+    """
+    # Extract keywords from the root and metadata
+    root_keywords = article.keywords
+    meta_keywords = article.metadata.get('keywords', '')
+
+    # Convert meta_keywords string to list, assuming keywords are separated by commas
+    meta_keywords_list = [keyword.strip() for keyword in meta_keywords.split(',')]
+
+    # Merge and deduplicate keywords
+    combined_keywords = list(set(root_keywords + meta_keywords_list))
+
+    # Optionally, process the keywords (e.g., lowercase, remove special characters)
+    # This example will just return the combined list
+    article.keywords = combined_keywords
+    return article
+
+
 def create_article_record(article: newspaper.Article, newsPaperBrand: str) -> Article:
     """
     Creates an article record from the given article and newspaper brand.
@@ -294,9 +354,13 @@ def create_article_record(article: newspaper.Article, newsPaperBrand: str) -> Ar
     articleBuilder = ArticleBuilder()
     articleRecord = articleBuilder.buildFromNewspaper3K(article, newsPaperBrand)
     if articleRecord:
-        processedArticle = articleRecord
-        processedArticle.extract_category()
-        processedArticle.article_source = newsPaperBrand
+        articleRecord.extract_category()
+        articleRecord.article_source = newsPaperBrand
+        processedArticle = unify_keywords(articleRecord)
+        additional_categories = extract_metadata_category(processedArticle.metadata)
+        if len(additional_categories) > 0:
+            processedArticle.category = f"{processedArticle.category},{additional_categories.split(', ')}"
+            print(f"Adding additional categories {processedArticle.category} ")
     return processedArticle
 
 

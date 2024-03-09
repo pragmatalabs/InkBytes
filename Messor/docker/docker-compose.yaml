@@ -6,7 +6,7 @@ services:
     build:
       network: host
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: ./docker/Dockerfile
     volumes:
     - ./data:/app/data
     - ./logs:/app/logs

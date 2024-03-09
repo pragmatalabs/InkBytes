@@ -10,59 +10,77 @@ Language: Python 3.10
 License: MIT License
 """
 import argparse
-import asyncio
 import concurrent
 import json
 import logging
 import os
 import threading
 import time
-
-
 from contextlib import contextmanager
 from datetime import datetime, date
 from typing import List
 import pytz
 import sys
+import nltk
+from dotenv import load_dotenv
 
-from inkbytes.common.system.log_formatters import log_function_activity, CEFLogFormatter, EnhancedSyslogFormatter
+from inkbytes.common.system.digital_ocean_spaces import DigitalOceanSpacesHandler
+from inkbytes.common.system.log_formatters import (log_function_activity,
+                                                   CEFLogFormatter,
+                                                   EnhancedSyslogFormatter)
 from inkbytes.common.system.rabbit_log_handler import RabbitMQLoggingHandler
 from inkbytes.common import sysdictionary
-from inkbytes.common.rest import RestClient
-from inkbytes.common.mq import RabbitMQHandler
+from inkbytes.common.api.rest import RestClient
+from inkbytes.common.api.ampq_mq import RabbitMQHandler
 from inkbytes.models.articles import ArticleCollection
-from inkbytes.models.outlets import OutletsSource, OutletsHandler, OutletsDataSource
+from inkbytes.models.outlets import (OutletsSource,
+                                     OutletsHandler,
+                                     OutletsDataSource)
 from inkbytes.common.system.module_handler import get_module_name
+from inkbytes.common.system.config_loader import ConfigLoader
 from scraping.newsscraper import ScraperPool
 from scraping.scraper import SessionSavingMode
 from collections import deque
+from spaces.staging_area_handler import upload_directory
 from uvicorn import run as uvicornRun
 
-LOG_LEVEL = sysdictionary.LOGGING_CONF.get("LOG_LEVEL", logging.INFO)
-API_URL = sysdictionary.BACKOFFICE_API_URL
-LOCAL_QUEUE_FILE_NAME = "./data/local_queue.json"
-LOGS_FOLDER = "logs"
-LOG_FILE_NAME = os.path.join(LOGS_FOLDER, "messor.log")
-QUEUE_NAME = "messor@scrapes@"
-RABBIT_HOST_NAME = "kloudsix.io"
-MODULE_NAME = get_module_name(2)
+# Load environment variables from .env file
+load_dotenv()
+nltk.download('punkt')
+sysdictionary = ConfigLoader('./env.yaml')
+
+# Access the environment variables
+LOG_LEVEL = sysdictionary.__('logging.level')
 logging.basicConfig(level=LOG_LEVEL)
+
+# LOG_LEVEL = getattr(logging, LOG_LEVEL.upper(), logging.INFO)
+API_URL = sysdictionary.__('strapi_cms.base_url')
+LOCAL_QUEUE_FILE_NAME = sysdictionary.__('storage.offline.local.queue.file')
+LOGS_FOLDER = sysdictionary.__('logging.folder')
+LOG_FILE_NAME = os.path.join(LOGS_FOLDER, sysdictionary.__('logging.file_name'))
+RABBIT_HOST_NAME = sysdictionary.__('rabbitmq.host')
+RABBIT_HOST_PORT = int(sysdictionary.__('rabbitmq.port'))
+RABBIT_USERNAME = sysdictionary.__('rabbitmq.username')
+RABBIT_PASSWORD = sysdictionary.__('rabbitmq.password')
+SCRAPE_QUEUE_NAME = sysdictionary.__('rabbitmq.queues.scraping.name')
+LOG_EXCHANGE_NAME = sysdictionary.__('rabbitmq.exchanges.logging.name')
+LOG_QUEUE_NAME = sysdictionary.__('rabbitmq.queues.logging.name')
+SCRAPE_AGENT = sysdictionary.__('scraping.agent.default')
+SCRAPE_HEADERS = sysdictionary.__('scraping.headers.default')
+MODULE_NAME = get_module_name(2)
 root_logger = logging.getLogger()
 # This will be our local queue to store messages when RabbitMQ is not connected
 local_message_queue = deque()
 exit_event = threading.Event()
 
 
-# Usage example:
-# LoggerFactory.setup_logging()
-# logger = LoggerFactory().create_logger(MODULE_NAME, 'Inkbytes', 'detailed')
-# logger.info('This is an informational message.')
-
 @log_function_activity(root_logger)
 def initialize_backoffice_client():
     backoffice_client = RestClient(API_URL)
-    rabbitmq_client = RabbitMQHandler(local_queue_filename=LOCAL_QUEUE_FILE_NAME, host=RABBIT_HOST_NAME,
-                                      queue_name=QUEUE_NAME + str(date.today().strftime('%Y%m%d')))
+    rabbitmq_client = RabbitMQHandler(local_queue_filename=LOCAL_QUEUE_FILE_NAME,
+                                      exchange_name='inkbytes@',
+                                      host=RABBIT_HOST_NAME,
+                                      queue_name=SCRAPE_QUEUE_NAME + str(date.today().strftime('%Y%m%d')))
     syslogger = logging.getLogger(MODULE_NAME)
     return backoffice_client, syslogger, rabbitmq_client
 
@@ -76,7 +94,15 @@ if __name__ == "__main__":
     file_handler.setFormatter(formatter)
 
     # Create and configure RabbitMQ handler
-    rabbit_handler = RabbitMQLoggingHandler("hermes")
+    rabbit_handler = RabbitMQLoggingHandler(host=RABBIT_HOST_NAME,
+                                            local_queue_filename=LOCAL_QUEUE_FILE_NAME,
+                                            queue_name=LOG_QUEUE_NAME,
+                                            exchange_name=LOG_EXCHANGE_NAME,
+                                            routing_key="logs",
+                                            port=RABBIT_HOST_PORT,
+                                            user_name=RABBIT_USERNAME,
+                                            password=RABBIT_PASSWORD
+                                            )
     rabbit_handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     syslog_formatter = EnhancedSyslogFormatter(app_name="Messor")
@@ -104,11 +130,11 @@ def extract_articles_from_outlet(outlet: OutletsSource) -> ArticleCollection:
     :return: An ArticleCollection object containing the scraped articles.
     """
     try:
-        scraper = ScraperPool(outlet, num_workers=2)
+        scraper = ScraperPool(outlet, agent=SCRAPE_AGENT, headers=SCRAPE_HEADERS, num_workers=2)
         session = scraper.session.to_json()
         logger.info(f"Scraping articles from '{outlet}'")
         save_scraping_session(session)
-        rabbitmq_handler.try_reconnect()
+        # rabbitmq_handler.connect_to_rabbitmq()
         rabbitmq_handler.publish_message_to_exchange(exchange='inkbytes@', routing_key='hello',
                                                      message=json.dumps(session))
 
@@ -131,8 +157,11 @@ def get_outlets(source=OutletsDataSource.REST_API) -> List[OutletsSource]:
 
     try:
         if source == OutletsDataSource.REST_API:
-            response = restclient.send_api_request("GET", f"{sysdictionary.STRAPI_API_ENDPOINTS.get('OUTLETS')}"
-                                                          f"?filters[active]=true")
+            response = (
+                restclient.
+                send_api_request
+                ("GET", f"{sysdictionary.__('strapi_cms.endpoints.outlets')}"f"?filters[active]=true"))
+
             if response:
                 payload = response['data']
         elif source == OutletsDataSource.JSON_FILE:
@@ -148,6 +177,22 @@ def get_outlets(source=OutletsDataSource.REST_API) -> List[OutletsSource]:
 
 
 @log_function_activity(root_logger)
+def move_scrapes_to_digitalocean(space: str = ''):
+    # Specify your local directory, Space name, and optional target prefix
+    LOCAL_DIRECTORY = sysdictionary.__('storage.staging.local.scraping')
+    SPACE_NAME = sysdictionary.__('digitalocean.spaces.buckets.' + space)
+    TARGET_PREFIX = str(date.today().strftime('%Y%m%d'))
+    # Execute the upload
+    spaces_handler = DigitalOceanSpacesHandler(
+        access_id=sysdictionary.__('digitalocean.access_id'),
+        secret_key=sysdictionary.__('digitalocean.secret_key'),
+        region_name=sysdictionary.__('digitalocean.region'),
+        endpoint_url=sysdictionary.__('digitalocean.endpoint_url'))
+
+    upload_directory(LOCAL_DIRECTORY, SPACE_NAME, TARGET_PREFIX, spaces_handler)
+
+
+@log_function_activity(root_logger)
 def save_scraping_session(scraping_session):
     """
     :param scraping_session: The scraping session to be saved.
@@ -156,7 +201,7 @@ def save_scraping_session(scraping_session):
     try:
 
         # Check the value of the SESSION_SAVING_MODE in your .env file
-        session_saving_mode = sysdictionary.SCRAPE_SESSION_SAVE_MODE
+        session_saving_mode = sysdictionary.__('scraping.save_mode')
 
         if session_saving_mode == SessionSavingMode.SAVE_TO_FILE.value:
             file_path = "path/to/your/scraping_session.json"
@@ -165,10 +210,12 @@ def save_scraping_session(scraping_session):
                 json.dump(scraping_session, file)
             return True
         elif session_saving_mode == SessionSavingMode.SEND_TO_API.value:
-
-            response = restclient.send_api_request("POST", f"{sysdictionary.STRAPI_API_ENDPOINTS.get('SESSIONS')}/",
+            post_headers = {
+                "Authorization": 'Bearer ' + sysdictionary.__('strapi_cms.token'),
+                'Content-Type': sysdictionary.__('strapi_cms.post_headers.content_type'), }
+            response = restclient.send_api_request("POST", f"{sysdictionary.__('strapi_cms.endpoints.session')}/",
                                                    data=scraping_session,
-                                                   headers=sysdictionary.STRAPI_API_POST_HEADER)
+                                                   headers=post_headers)
             return response is not None
         else:
             logger.error("Invalid value for SESSION_SAVING_MODE in .env file.")
@@ -236,6 +283,7 @@ def await_command(parser):
             return None
 
 
+@log_function_activity(root_logger)
 def perform_action(mode):
     """
     Perform an action based on the given mode.
@@ -247,6 +295,8 @@ def perform_action(mode):
     """
     if mode == "SCRAPE":
         execute_scraping_process()
+    elif mode == "MOVE":
+        move_scrapes_to_digitalocean('scraping')
     elif mode == "EXIT":
         do_exit()
     else:
@@ -259,10 +309,11 @@ def log_execution_time():
     Logs the start and end time of code execution.
     :return: None
     """
-    start_time = datetime.now(pytz.timezone(sysdictionary.TIME_ZONE))
+    time_zone = sysdictionary.__('application.time_zone')
+    start_time = datetime.now(pytz.timezone(time_zone))
     logger.info(f"Start time: {start_time}")
     yield
-    end_time = datetime.now(pytz.timezone(sysdictionary.TIME_ZONE))
+    end_time = datetime.now(pytz.timezone(time_zone))
     logger.info(f"End time: {end_time}")
 
 
@@ -280,9 +331,14 @@ def command_input_thread(parser, exit_event):
             perform_action(mode)
 
 
-@asyncio.coroutine
-def scrape():
+@log_function_activity(root_logger)
+async def scrape():
     perform_action('SCRAPE')
+
+
+@log_function_activity(root_logger)
+async def move():
+    perform_action('MOVE')
 
 
 def main():
@@ -292,17 +348,19 @@ def main():
     :return: None
     """
     parser = argparse.ArgumentParser(description="Choose the mode to run the project.")
-    parser.add_argument("mode", type=str.upper, choices=["SCRAPE", "DETOX", "EXIT"], help="Mode: SCRAPE, EXIT, DETOX")
+    parser.add_argument("mode", type=str.upper, choices=["SCRAPE", "MOVE", "DETOX", "EXIT"],
+                        help="Mode: SCRAPE, EXIT, DETOX")
 
     # Start the command input thread
     command_thread = threading.Thread(target=command_input_thread, args=(parser, exit_event))
     command_thread.start()
-    uvicornRun("api.main:app", host="0.0.0.0", port=8580)
+    uvicornRun("api.main:app", host="0.0.0.0", port=8585, log_level="info")
+
     # The main thread continues to run the connection monitoring loop
     try:
         while not exit_event.is_set():
             if not rabbitmq_handler.connected:
-                rabbitmq_handler.try_reconnect()
+                rabbitmq_handler.connect_to_rabbitmq()
             time.sleep(100)  # Check connection status every 10 seconds
     finally:
         # When exiting, make sure to join the thread and clean up resources

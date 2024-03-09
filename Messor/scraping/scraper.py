@@ -2,21 +2,24 @@ import json
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+
+from inkbytes.common.system.module_handler import get_module_name
 from pydantic import BaseModel, Field
 
 from inkbytes.models.articles import ArticleCollection
 
+MODULE_NAME = get_module_name(2)
 
 class SessionSavingMode(Enum):
     SAVE_TO_FILE = "save_to_file"
     SEND_TO_API = "send_to_api"
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
+class JsonEncoderForDateTime(json.JSONEncoder):
+    def encodeDatetimeObject(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
-        return super().default(obj)
+        return super().encodeDatetimeObject(obj)
 
 
 class ScrapingStats(BaseModel):

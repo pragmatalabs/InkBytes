@@ -10,9 +10,14 @@
     .idea/,
     DS_Store
 venv
+**/.env*
+**/.db.json*
 .idea
 .vscode
+**/__pycache__
+**/.DS_Store
 .DS_Store/
 logs/
 .idea/
+data/scrapes_staging_storage/
 
