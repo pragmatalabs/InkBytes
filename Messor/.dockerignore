@@ -31,3 +31,19 @@
 **/values.dev.yaml
 LICENSE
 README.md
+**/docker/*.*
+.claude
+.forget
+.vscode
+.gitignore
+.gitlab-ci.yml
+CLAUDE.md
+.forget/env.example.yaml
+
+# Monorepo Docker baseline (explicitly include build files)
+!infra/docker/docker-compose.yml
+!infra/docker/.env.example
+!infra/docker/platform/php-fpm.Dockerfile
+!infra/docker/platform/node.Dockerfile
+!infra/docker/platform/nginx/default.conf
+!infra/docker/scraper.Dockerfile

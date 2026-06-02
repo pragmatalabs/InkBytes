@@ -1,0 +1,12 @@
+{
+  "name": "messor-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/platform",
+    "packages/*"
+  ],
+  "scripts": {
+    "platform:dev": "npm --prefix apps/platform run dev",
+    "platform:build": "npm --prefix apps/platform run build"
+  }
+}

@@ -1,0 +1,275 @@
+import ApplicationLogo from '@/Components/ApplicationLogo';
+import { Link, usePage } from '@inertiajs/react';
+import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
+import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded';
+import {
+    AppBar,
+    Avatar,
+    Box,
+    Button,
+    Divider,
+    Drawer,
+    IconButton,
+    List,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Stack,
+    Toolbar,
+    Typography,
+} from '@mui/material';
+import { useMemo, useState } from 'react';
+
+const drawerWidth = 272;
+
+const navigationItems = [
+    {
+        label: 'Dashboard',
+        routeName: 'dashboard',
+        match: 'dashboard',
+        icon: DashboardRoundedIcon,
+    },
+    {
+        label: 'Sources',
+        routeName: 'sources.index',
+        match: 'sources.*',
+        icon: NewspaperRoundedIcon,
+    },
+    {
+        label: 'Runs',
+        routeName: 'runs.index',
+        match: 'runs.*',
+        icon: HistoryRoundedIcon,
+    },
+    {
+        label: 'Scraping',
+        routeName: 'scraping.index',
+        match: 'scraping.*',
+        icon: PlayCircleOutlineRoundedIcon,
+    },
+    {
+        label: 'Articles',
+        routeName: 'articles.index',
+        match: 'articles.*',
+        icon: ArticleRoundedIcon,
+    },
+    {
+        label: 'Runtime',
+        routeName: 'runtime.index',
+        match: 'runtime.*',
+        icon: MemoryRoundedIcon,
+    },
+    {
+        label: 'Profile',
+        routeName: 'profile.edit',
+        match: 'profile.*',
+        icon: PersonRoundedIcon,
+    },
+];
+
+const getUserInitials = (name) => {
+    if (!name) {
+        return 'U';
+    }
+
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('');
+};
+
+export default function AppLayout({
+    title = 'Platform',
+    subtitle = '',
+    children,
+}) {
+    const { auth } = usePage().props;
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const user = auth?.user;
+
+    const userInitials = useMemo(() => getUserInitials(user?.name), [user]);
+
+    const drawer = (
+        <Box sx={{ height: '100%', backgroundColor: 'background.paper' }}>
+            <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1.5}
+                sx={{ px: 2.5, py: 2 }}
+            >
+                <ApplicationLogo style={{ height: 28, width: 28, fill: '#0f5fd7' }} />
+                <Box>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                        Messor
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        Laravel Platform
+                    </Typography>
+                </Box>
+            </Stack>
+
+            <Divider />
+
+            <List sx={{ px: 1.25, py: 1.5 }}>
+                {navigationItems.map((item) => {
+                    const Icon = item.icon;
+                    const selected = route().current(item.match);
+
+                    return (
+                        <ListItemButton
+                            key={item.routeName}
+                            component={Link}
+                            href={route(item.routeName)}
+                            selected={selected}
+                            onClick={() => setMobileOpen(false)}
+                            sx={{
+                                borderRadius: 2,
+                                mb: 0.5,
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 36 }}>
+                                <Icon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText primary={item.label} />
+                        </ListItemButton>
+                    );
+                })}
+            </List>
+        </Box>
+    );
+
+    return (
+        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+            <AppBar
+                position="fixed"
+                color="inherit"
+                elevation={0}
+                sx={{
+                    width: { lg: `calc(100% - ${drawerWidth}px)` },
+                    ml: { lg: `${drawerWidth}px` },
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    backgroundColor: 'background.paper',
+                }}
+            >
+                <Toolbar sx={{ minHeight: '72px !important', px: { xs: 2, sm: 3 } }}>
+                    <IconButton
+                        color="inherit"
+                        edge="start"
+                        onClick={() => setMobileOpen((value) => !value)}
+                        sx={{ mr: 1, display: { lg: 'none' } }}
+                    >
+                        <MenuRoundedIcon />
+                    </IconButton>
+
+                    <Box sx={{ flexGrow: 1 }} />
+
+                    <Stack direction="row" alignItems="center" spacing={1.25}>
+                        <Avatar
+                            sx={{
+                                width: 34,
+                                height: 34,
+                                bgcolor: 'primary.main',
+                                color: 'primary.contrastText',
+                                fontSize: 13,
+                                fontWeight: 700,
+                            }}
+                        >
+                            {userInitials}
+                        </Avatar>
+
+                        <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                            <Typography variant="body2" fontWeight={600}>
+                                {user?.name ?? 'Unknown User'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {user?.email ?? ''}
+                            </Typography>
+                        </Box>
+
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            component={Link}
+                            href={route('logout')}
+                            method="post"
+                        >
+                            Log Out
+                        </Button>
+                    </Stack>
+                </Toolbar>
+            </AppBar>
+
+            <Box
+                component="nav"
+                sx={{ width: { lg: drawerWidth }, flexShrink: { lg: 0 } }}
+            >
+                <Drawer
+                    variant="temporary"
+                    open={mobileOpen}
+                    onClose={() => setMobileOpen(false)}
+                    ModalProps={{ keepMounted: true }}
+                    sx={{
+                        display: { xs: 'block', lg: 'none' },
+                        '& .MuiDrawer-paper': {
+                            boxSizing: 'border-box',
+                            width: drawerWidth,
+                        },
+                    }}
+                >
+                    {drawer}
+                </Drawer>
+
+                <Drawer
+                    variant="permanent"
+                    open
+                    sx={{
+                        display: { xs: 'none', lg: 'block' },
+                        '& .MuiDrawer-paper': {
+                            boxSizing: 'border-box',
+                            width: drawerWidth,
+                            borderRight: '1px solid',
+                            borderColor: 'divider',
+                        },
+                    }}
+                >
+                    {drawer}
+                </Drawer>
+            </Box>
+
+            <Box
+                component="main"
+                sx={{
+                    flexGrow: 1,
+                    width: { lg: `calc(100% - ${drawerWidth}px)` },
+                    ml: { lg: `${drawerWidth}px` },
+                    mt: '72px',
+                    px: { xs: 2, sm: 3, md: 4 },
+                    py: { xs: 2.5, sm: 3 },
+                }}
+            >
+                <Box sx={{ mx: 'auto', maxWidth: 1200 }}>
+                    <Typography variant="h4">{title}</Typography>
+                    {subtitle ? (
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ mt: 0.75 }}
+                        >
+                            {subtitle}
+                        </Typography>
+                    ) : null}
+                    <Box sx={{ mt: 3 }}>{children}</Box>
+                </Box>
+            </Box>
+        </Box>
+    );
+}

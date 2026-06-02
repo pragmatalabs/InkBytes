@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Messor Postgres",
+      "Group": "Messor",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "messor",
+      "Username": "messor",
+      "SSLMode": "prefer",
+      "ConnectNow": false
+    }
+  }
+}

@@ -1,8 +1,8 @@
 # Stage 1: Build environment
-FROM python:3.10 as builder
+FROM python:3.11 as builder
 LABEL name="inkbytes-messor-harvester-builder2" \
-      version="0.1" \
-      author="juliandelarosa@icloud.com"
+    version="0.1" \
+    author="juliandelarosa@icloud.com"
 
 # Install system dependencies for build
 RUN apt-get update && apt-get install -y nano git && rm -rf /var/lib/apt/lists/*
@@ -10,16 +10,16 @@ RUN apt-get update && apt-get install -y nano git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy application code and requirements
-COPY . /app
+COPY ./ /app
 
 # Prepare necessary directories and scripts
-RUN mkdir -p /app/data/scrapes_staging_storage/ && \
-    chmod +x /app/scripts/install_inkbytes_libraries.sh && \
+RUN chmod +x /app/scripts/install_inkbytes_libraries.sh && \
     rm -rf /app/venv && \
-    python3 -m venv /app/venv
+    python -m venv /app/venv
 
-COPY ./env.do.yaml /app/env.yaml
-COPY ./requirements.txt /app/
+# Copy configuration and requirements
+#COPY ./env.do.yaml /app/env.yaml
+#COPY ../requirements.txt /app
 
 # Install application's dependencies
 RUN /app/venv/bin/pip install --upgrade pip && \
@@ -27,11 +27,14 @@ RUN /app/venv/bin/pip install --upgrade pip && \
 
 # Install libraries from gitlab
 RUN for repo in common models database; do \
-    /app/scripts/install_inkbytes_libraries.sh https://gitlab.com/inkbytes/${repo}.git develop inkbytes \
-    ; done
+    /app/scripts/install_inkbytes_libraries.sh https://gitlab.com/inkbytes/${repo}.git develop inkbytes; \
+    done
 
+# Clean up any Python cache files (optional)
+RUN find /app -type d -name "__pycache__" -exec rm -r {} +
+RUN ls -la /app
 # Stage 2: Runtime environment
-FROM python:3.10-slim as runner
+FROM python:3.11 as runner
 LABEL name="inkbytes-messor-harvester-runner"
 
 WORKDIR /app
@@ -45,5 +48,11 @@ RUN echo "source /app/venv/bin/activate" > /app/activate_venv.sh && \
     chmod +x /app/scripts/install_inkbytes_libraries.sh /app/activate_venv.sh && \
     echo "source /app/activate_venv.sh" >> /root/.bashrc
 
-# Expose the port your app runs on
-EXPOSE 8585
+# Note: data and logs directories will be mounted as volumes from host
+# No need to create them - they will be bound from project root
+
+# Expose the port your app runs on (adjust if needed)
+EXPOSE 8080
+
+# Set default command for scheduled mode in Docker
+CMD ["python", "main.py", "--schedule"]

@@ -5,14 +5,24 @@ services:
     tty: true
     build:
       network: host
-      context: .
-      dockerfile: ./docker/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     volumes:
-    - ./data:/app/data
-    - ./logs:/app/logs
+      # Mount project root data directory to container - bind to existing project structure
+      - ../data:/app/data:rw
+      # Mount project root logs directory to container - bind to existing project structure
+      - ../logs:/app/logs:rw
+      # Mount config file from project root
+      - ../env.yaml:/app/env.yaml:ro
     ports:
-      - 8585:8585
+      - 8585:8080
     restart: always
+    environment:
+      # Set Docker environment variable for detection
+      - DOCKER_CONTAINER=true
+      # Ensure proper permissions for data directory
+      - DATA_DIR=/app/data
+      - LOGS_DIR=/app/logs
     networks:
       - portainer_default
       - messor

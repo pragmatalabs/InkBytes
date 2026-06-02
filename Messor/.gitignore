@@ -1,23 +1,86 @@
- *.pyc,
- __pycache__/,
-    venv/,
-    .idea/,
-    .vscode/,
-    my_secret_file.txt,
-    .ipynb_checkpoints,
-    *.ipynb,
-    .log,
-    .idea/,
-    DS_Store
-venv
-**/.env*
-**/.db.json*
-.idea
-.vscode
-**/__pycache__
-**/.DS_Store
-.DS_Store/
-logs/
-.idea/
-data/scrapes_staging_storage/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.forget/.env/
+env.yaml
+env.do.yaml
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+data/local/logs/
+data/history/
+logs/*.log*
+logs/
+
+# IDE/Editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Environment variables and secrets
+.forget/.env
+.db.json*
+my_secret_file.txt
+secrets/
+**/credentials.*
+
+# Project specific
+Storage/
+data/scrapes/
+inkbytes/
+apps/platform/node_modules/
+apps/platform/vendor/
+apps/platform/public/build/
+apps/platform/public/hot
+apps/platform/storage/*.key
+apps/platform/database/database.sqlite
+apps/platform/.env
+infra/docker/.env
+
+# Forget plugin
+.forget/
+docker/.forget/docker-compose.old.yaml
+passwd-s3fs
