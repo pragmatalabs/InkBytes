@@ -42,8 +42,10 @@ class Application:
     async def startup(self, *, with_db: bool = True) -> None:
         if with_db:
             await self.db.connect()
-            # Seed outlets from canonical config on every startup so changes
-            # to outlets.json propagate without manual DB edits.
+            # Bootstrap the outlets catalogue on a fresh/empty DB only.
+            # seed_outlets() is seed-if-empty (ADR-0003): once the table has
+            # rows, the Laravel Backoffice owns outlet data and a Curator
+            # restart must not overwrite admin edits.
             outlets_cfg = Path(__file__).resolve().parents[4] / \
                 "Messor" / "apps" / "scraper" / "data" / "outlets" / "outlets.json"
             if not outlets_cfg.exists():

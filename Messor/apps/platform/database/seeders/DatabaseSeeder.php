@@ -24,9 +24,7 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('password'),
         ]);
 
-        $this->call([
-            SourceSeeder::class,
-            ScrapeRunSeeder::class,
-        ]);
+        // Outlets are seeded by Curator into public.outlets (seed-if-empty);
+        // the Backoffice does not seed them. See ADR-0003.
     }
 }

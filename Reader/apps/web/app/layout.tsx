@@ -19,7 +19,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="flex gap-5 text-sm text-white/70">
               <Link href="/" className="hover:text-white transition-colors">News</Link>
               <Link href="/about" className="hover:text-white transition-colors">About</Link>
-              <Link href="/admin" className="hover:text-white transition-colors">Admin</Link>
             </nav>
           </div>
         </header>

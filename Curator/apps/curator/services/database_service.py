@@ -85,16 +85,28 @@ class DatabaseService:
 
     # ─────────────────────────────────────────── outlets ──────────
     async def seed_outlets(self, config_path: Path) -> int:
-        """Upsert outlets from outlets.json into the outlets table.
+        """Seed outlets from outlets.json into the outlets table — only if empty.
 
-        Safe to call on every startup — uses ON CONFLICT DO UPDATE so
-        config changes (toggling active, changing priority) propagate
-        automatically without manual DB edits.
-        Returns the number of rows upserted.
+        Seed-if-empty (ADR-0003): the Backoffice owns outlet *data* operations
+        (create/update/delete via the Laravel admin), while Curator owns the
+        table DDL and bootstraps the catalogue on a fresh/empty DB. A Curator
+        restart must NOT overwrite admin edits, so when the `outlets` table
+        already has rows we skip seeding entirely.
+
+        Returns the number of rows seeded (0 if skipped or config missing).
         """
         import json as _json
         if not config_path.exists():
             logger.warning("outlets config not found at %s — skipping seed", config_path)
+            return 0
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            existing = await conn.fetchval("SELECT count(*) FROM outlets")
+        if existing and existing > 0:
+            logger.info(
+                "outlets table already has %d rows — skipping seed "
+                "(Backoffice owns outlet data; ADR-0003)",
+                existing,
+            )
             return 0
         records = _json.loads(config_path.read_text(encoding="utf-8"))
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]

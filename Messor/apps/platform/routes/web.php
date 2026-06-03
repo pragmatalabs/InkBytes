@@ -1,12 +1,10 @@
 <?php
 
-use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RuntimeController;
 use App\Http\Controllers\ScrapingJobController;
-use App\Http\Controllers\ScrapeRunController;
-use App\Http\Controllers\SourceController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -20,13 +18,17 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    Route::get('/sources', [SourceController::class, 'index'])->name('sources.index');
-    Route::get('/runs', [ScrapeRunController::class, 'index'])->name('runs.index');
+    // Outlets CRUD — bound to the shared public.outlets catalogue (Curator owns
+    // the DDL, the Backoffice owns the row operations). See ADR-0003.
+    Route::get('/outlets', [OutletController::class, 'index'])->name('outlets.index');
+    Route::post('/outlets', [OutletController::class, 'store'])->name('outlets.store');
+    Route::put('/outlets/{outlet}', [OutletController::class, 'update'])->name('outlets.update');
+    Route::delete('/outlets/{outlet}', [OutletController::class, 'destroy'])->name('outlets.destroy');
+
     Route::get('/scraping', [ScrapingJobController::class, 'index'])->name('scraping.index');
     Route::post('/scraping/trigger', [ScrapingJobController::class, 'trigger'])->name('scraping.trigger');
     Route::get('/scraping/status', [ScrapingJobController::class, 'status'])->name('scraping.status');
     Route::get('/scraping/{id}/stream', [ScrapingJobController::class, 'stream'])->name('scraping.stream');
-    Route::get('/articles', [ArticleController::class, 'index'])->name('articles.index');
     Route::get('/runtime', [RuntimeController::class, 'index'])->name('runtime.index');
     Route::get('/runtime/snapshot', [RuntimeController::class, 'snapshot'])->name('runtime.snapshot');
 });

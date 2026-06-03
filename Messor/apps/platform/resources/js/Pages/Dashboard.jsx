@@ -1,5 +1,6 @@
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link } from '@inertiajs/react';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import {
     Box,
     Button,
@@ -9,33 +10,34 @@ import {
     Stack,
     Typography,
 } from '@mui/material';
-import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 
 const numberFormatter = new Intl.NumberFormat();
 
 export default function Dashboard({ metrics = {} }) {
+    const regions = metrics.regions ?? [];
+
     const cards = [
         {
-            label: 'Sources',
-            value: numberFormatter.format(metrics.total_sources ?? 0),
-            description: `${numberFormatter.format(metrics.active_sources ?? 0)} active sources`,
+            label: 'Outlets',
+            value: numberFormatter.format(metrics.total_outlets ?? 0),
+            description: `${numberFormatter.format(metrics.active_outlets ?? 0)} active`,
         },
         {
-            label: 'Runs',
-            value: numberFormatter.format(metrics.total_runs ?? 0),
-            description: `${numberFormatter.format(metrics.running_runs ?? 0)} running / ${numberFormatter.format(metrics.failed_runs ?? 0)} failed`,
+            label: 'Active Outlets',
+            value: numberFormatter.format(metrics.active_outlets ?? 0),
+            description: 'Currently harvested by Messor + Curator.',
         },
         {
-            label: 'Articles (24h)',
-            value: numberFormatter.format(metrics.articles_last_24h ?? 0),
-            description: 'Throughput from recent scraper sessions.',
+            label: 'High Priority',
+            value: numberFormatter.format(metrics.high_priority_outlets ?? 0),
+            description: 'Priority 1 outlets.',
         },
     ];
 
     return (
         <AppLayout
             title="Control Center"
-            subtitle="Monitor ingestion, data sources, and execution runs from one place."
+            subtitle="Monitor the outlet catalogue feeding the ingestion pipeline."
         >
             <Head title="Dashboard" />
 
@@ -68,26 +70,35 @@ export default function Dashboard({ metrics = {} }) {
             <Card sx={{ mt: 2.5 }}>
                 <CardContent>
                     <Typography variant="h6">Quick Actions</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                        Navigate directly to ingestion sources or latest execution runs.
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 0.75 }}
+                    >
+                        Manage the canonical outlet catalogue that Curator and
+                        Messor read from.
                     </Typography>
 
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2.5 }}>
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1.5}
+                        sx={{ mt: 2.5 }}
+                    >
                         <Button
                             component={Link}
-                            href={route('sources.index')}
+                            href={route('outlets.index')}
                             variant="contained"
                             endIcon={<ArrowForwardRoundedIcon />}
                         >
-                            View Sources
+                            Manage Outlets
                         </Button>
                         <Button
                             component={Link}
-                            href={route('runs.index')}
+                            href={route('scraping.index')}
                             variant="outlined"
                             endIcon={<ArrowForwardRoundedIcon />}
                         >
-                            View Runs
+                            Scraping
                         </Button>
                     </Stack>
                 </CardContent>
@@ -105,13 +116,38 @@ export default function Dashboard({ metrics = {} }) {
                 }}
             >
                 <Typography variant="subtitle1" fontWeight={700}>
-                    Latest Execution Snapshot
+                    Coverage by Region
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                    {metrics.latest_run
-                        ? `Run ${metrics.latest_run.id} from ${metrics.latest_run.source} is ${metrics.latest_run.status} with ${numberFormatter.format(metrics.latest_run.articles)} articles processed.`
-                        : 'No scraper runs found yet. Trigger a scrape to populate execution data.'}
-                </Typography>
+                {regions.length === 0 ? (
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 0.75 }}
+                    >
+                        No outlets configured yet. Add one to populate coverage.
+                    </Typography>
+                ) : (
+                    <Stack
+                        direction="row"
+                        flexWrap="wrap"
+                        spacing={2}
+                        sx={{ mt: 1.5 }}
+                    >
+                        {regions.map((row) => (
+                            <Box key={row.region}>
+                                <Typography variant="h6">
+                                    {numberFormatter.format(row.count)}
+                                </Typography>
+                                <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                >
+                                    {row.region}
+                                </Typography>
+                            </Box>
+                        ))}
+                    </Stack>
+                )}
             </Box>
         </AppLayout>
     );

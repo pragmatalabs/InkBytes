@@ -1,8 +1,6 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
-import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
@@ -36,28 +34,16 @@ const navigationItems = [
         icon: DashboardRoundedIcon,
     },
     {
-        label: 'Sources',
-        routeName: 'sources.index',
-        match: 'sources.*',
+        label: 'Outlets',
+        routeName: 'outlets.index',
+        match: 'outlets.*',
         icon: NewspaperRoundedIcon,
-    },
-    {
-        label: 'Runs',
-        routeName: 'runs.index',
-        match: 'runs.*',
-        icon: HistoryRoundedIcon,
     },
     {
         label: 'Scraping',
         routeName: 'scraping.index',
         match: 'scraping.*',
         icon: PlayCircleOutlineRoundedIcon,
-    },
-    {
-        label: 'Articles',
-        routeName: 'articles.index',
-        match: 'articles.*',
-        icon: ArticleRoundedIcon,
     },
     {
         label: 'Runtime',
