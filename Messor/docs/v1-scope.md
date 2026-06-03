@@ -29,7 +29,7 @@ else.
 | Artifact store | DO Spaces, one bucket, two prefixes (`messor/staging/`, `messor/history/`) |
 | Event bus | RabbitMQ, one exchange `messor`, one queue `articles-scraped` |
 | Health | FastAPI `/healthz` + `/status` on `:8050`, internal-only |
-| Logs | stdout (DO captures) + RabbitMQ exchange `hermes` for fan-out |
+| Logs | stdout (DO captures) + RabbitMQ exchange `messor.logs` for fan-out |
 | Secrets | Env vars only (`DO_SPACES_KEY`, `DO_SPACES_SECRET`, `RABBITMQ_URL`) |
 | Deploy | DO App Platform autodeploy from `master` |
 

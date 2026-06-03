@@ -14,7 +14,7 @@ work of keeping it healthy.
 | Mode | Scheduled (`python main.py --schedule`) |
 | Default cycle | 60 minutes (`scraping.schedule_interval_minutes`) |
 | Surface | FastAPI on `:8050` (internal) |
-| Logs | console + file + RabbitMQ exchange `hermes` |
+| Logs | console + file + RabbitMQ exchange `messor.logs` |
 | Storage | `data/` (local staging) + DO Spaces (`inkbytes/messor/...`) |
 | Events out | RabbitMQ queue `articles-scraped` |
 | Tier | T1 — outage stops the product pipeline |
@@ -49,7 +49,7 @@ Expected per-cycle output (steady state):
 - 1 session JSON per outlet under `data/scrapes/`
 - 1 object per session under `s3://inkbytes/messor/staging/`
 - 1 RabbitMQ message per article on `articles-scraped`
-- Log entries on `hermes` exchange
+- Log entries on `messor.logs` exchange
 
 ## 4. Routine checks
 

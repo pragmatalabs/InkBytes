@@ -28,7 +28,7 @@ s3://inkbytes/
 │   ├── staging/        # per-cycle session JSONs awaiting downstream consumption
 │   ├── history/        # rotated session JSONs, kept ≥ 90 days
 │   └── raw/            # (future) raw HTML snapshots per article
-├── hermes/             # log archives
+├── messor/logs/        # log archives
 └── data/               # ad-hoc shared data drops
 ```
 

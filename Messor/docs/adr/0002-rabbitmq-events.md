@@ -24,7 +24,7 @@ Concrete queues / exchanges (matches today's `env.yaml`):
 | Exchange `messor` | Messor → pipeline | Article events |
 | Queue `articles-scraped` | Consumed by Entopics | One message per article |
 | Queue `topics-extracted` | Entopics → Synochi | NER + topics |
-| Exchange `hermes` | All services | Structured logs |
+| Exchange `messor.logs` | All services | Structured logs |
 
 Conventions:
 
@@ -62,7 +62,7 @@ Conventions:
 - **Kafka** — rejected for v1: heavier ops, the event volume doesn't justify
   it yet. Revisit at M3 (scale-out).
 - **Redis Streams / NATS** — viable, but the codebase already invests in pika
-  + a running RabbitMQ broker, and `hermes` log fan-out depends on it.
+  + a running RabbitMQ broker, and `messor.logs` fan-out depends on it.
 
 ## Follow-ups
 

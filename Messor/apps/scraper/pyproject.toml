@@ -1,22 +1,37 @@
-[tool.poetry]
-name = "inkbytes messor"
-version = "0.1.0"
-description = "Inkbytes main scraping/harvest module"
-authors = ["Julian De La Rosa <julian.delarosa.suncar@gmail.com>"]
+[project]
+name = "inkbytes-messor"
+version = "1.0.0"
+description = "Messor — the InkBytes harvester agent."
 readme = "README.md"
+requires-python = ">=3.10,<3.13"
+authors = [
+  { name = "Julian De La Rosa", email = "julian.delarosa.suncar@gmail.com" },
+]
+license = { text = "Proprietary" }
 
-[tool.poetry.dependencies]
-python = "^3.10"
-articles = "0.1.0"
-beautifulsoup4 = "4.12.3"
-logger = "1.4"
-newspaper3k = "0.2.8"
-pydantic = "2.5.3"
-pytz = "2023.3"
-requests = "2.31.0"
-tinydb = "4.8.0"
-
+# Runtime deps are tracked in requirements.txt to keep the install path
+# pip-native and CI-friendly. Don't duplicate them here.
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "services*", "api*"]
+exclude = ["tests*", "data*", "logs*", "scripts*"]
+
+# --- Dev tooling --------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]   # handled by formatter
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"

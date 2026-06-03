@@ -1,0 +1,80 @@
+# Messor — local development infrastructure.
+#
+# Spins up the broker (RabbitMQ) and an S3-compatible object store
+# (MinIO, used as a DO Spaces stand-in) so a developer can run Messor
+# end-to-end against real services without touching production accounts.
+#
+# Usage:
+#   docker compose -f infra/docker/dev-compose.yaml up -d
+#   docker compose -f infra/docker/dev-compose.yaml down
+#
+# Endpoints:
+#   RabbitMQ:        amqp://messor:messor@localhost:5672/
+#   RabbitMQ UI:     http://localhost:15672  (messor / messor)
+#   MinIO S3 API:    http://localhost:9000   (key=messor secret=messormessor)
+#   MinIO console:   http://localhost:9001
+
+name: messor-dev
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: messor-dev-rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"        # AMQP
+      - "15672:15672"      # management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: messor
+      RABBITMQ_DEFAULT_PASS: messor
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # DO Spaces is S3-compatible. MinIO with the same protocol lets us point
+  # boto3 at localhost during dev. Bucket `inkbytes` is auto-created on boot.
+  minio:
+    image: minio/minio:latest
+    container_name: messor-dev-minio
+    ports:
+      - "9000:9000"        # S3 API
+      - "9001:9001"        # console
+    environment:
+      MINIO_ROOT_USER: messor
+      MINIO_ROOT_PASSWORD: messormessor
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot bucket creator. Runs once, creates inkbytes/messor*.
+  minio-bootstrap:
+    image: minio/mc:latest
+    container_name: messor-dev-minio-bootstrap
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 messor messormessor &&
+        mc mb --ignore-existing local/inkbytes &&
+        mc mb --ignore-existing local/inkbytes/messor &&
+        mc mb --ignore-existing local/inkbytes/messor/staging &&
+        mc mb --ignore-existing local/inkbytes/messor/history &&
+        mc mb --ignore-existing local/inkbytes/messor/logs &&
+        echo 'MinIO buckets ready.';
+      "
+    restart: "no"
+
+volumes:
+  rabbitmq-data:
+  minio-data:

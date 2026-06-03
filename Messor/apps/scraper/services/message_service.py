@@ -28,9 +28,11 @@ class MessageService:
         self.logger = logger
         self.connection = None
         self.channel = None
-        # Store queue names with reasonable defaults
+        # Store queue names with reasonable defaults.
+        # Messor only owns articles-scraped. Curator owns topics-extracted
+        # (and everything downstream). See ADR-0005.
         self._articles_scraped_queue = "articles-scraped"
-        self._topics_extracted_queue = "topics-extracted"
+        self._article_exchange = "messor"  # topic exchange; Curator consumes from here
         self._last_heartbeat = time.time()
         self._heartbeat_interval = 30  # Check connection every 30 seconds
 
@@ -59,13 +61,10 @@ class MessageService:
                 self.logger.warning("Channel is closed, creating new channel")
                 self.channel = self.connection.channel()
                 
-                # Re-declare queues to ensure they exist
+                # Re-declare queues to ensure they exist (Messor only owns
+                # articles-scraped; topics-extracted is Curator's — ADR-0005)
                 self.channel.queue_declare(
                     queue=self._articles_scraped_queue,
-                    durable=True
-                )
-                self.channel.queue_declare(
-                    queue=self._topics_extracted_queue,
                     durable=True
                 )
             
@@ -144,31 +143,32 @@ class MessageService:
                 self._articles_scraped_queue = articles_scraped_queue
             except AttributeError:
                 self.logger.info(f"Using default articles_scraped queue name: {self._articles_scraped_queue}")
-            
-            try:
-                topics_extracted_queue = self.config.rabbitmq.queues.topics_extracted()
-                self._topics_extracted_queue = topics_extracted_queue
-            except AttributeError:
-                self.logger.info(f"Using default topics_extracted queue name: {self._topics_extracted_queue}")
-            
+
             # Set message TTL (24 hours)
             queue_arguments = {
                 'x-message-ttl': 86400000  # 24 hours in milliseconds
             }
-            
-            # Declare queues with TTL
+
+            # Declare Messor's only output queue. topics-extracted lives in
+            # Curator now (ADR-0005); Messor neither produces nor consumes it.
             self.channel.queue_declare(
                 queue=self._articles_scraped_queue,
                 durable=True,
                 arguments=queue_arguments
             )
-            
-            self.channel.queue_declare(
-                queue=self._topics_extracted_queue,
+
+            # Declare the topic exchange Curator subscribes to.
+            # Routing key: event.article.scraped (one message per article).
+            try:
+                self._article_exchange = self.config.rabbitmq.exchanges.scraping.name()
+            except AttributeError:
+                pass  # keep default "messor"
+            self.channel.exchange_declare(
+                exchange=self._article_exchange,
+                exchange_type='topic',
                 durable=True,
-                arguments=queue_arguments
             )
-            
+
             self.logger.info("Successfully connected to RabbitMQ")
             return True
         except Exception as e:
@@ -286,19 +286,80 @@ class MessageService:
         }
         
         return self.publish_message(self._articles_scraped_queue, message)
-        
-    def publish_topics_extracted_event(self, file_info: Dict[str, Any]) -> bool:
-        """Publish an event indicating topics have been extracted from articles."""
-        message = {
-            "event_type": "topics_extracted",
-            "timestamp": file_info.get("processed_time", datetime.utcnow().isoformat()),
-            "data": {
-                "bucket": file_info.get("bucket"),
-                "input_file_path": file_info.get("input_file_path"),
-                "output_file_path": file_info.get("output_file_path"),
-                "article_count": file_info.get("article_count", 0),
-                "topic_count": file_info.get("topic_count", 0)
-            }
+
+    def publish_article_event(self, article_dict: Dict[str, Any], session_id: str, spaces_key: str = "") -> bool:
+        """Publish one inkbytes.article.v1 event per article to the messor topic exchange.
+
+        Curator's --consume mode subscribes to this exchange on routing key
+        event.article.scraped.  Maps Messor's Article fields to ArticleV1.
+        """
+        outlet_name = article_dict.get("article_source") or "unknown"
+
+        def _safe_list(value) -> list:
+            if isinstance(value, list):
+                return value
+            return []
+
+        # Truncate body to ~8 000 chars — Curator only uses text[:4000] for
+        # embedding and the prompt. Capping here keeps RabbitMQ messages small
+        # (~30–50 KB vs potentially 200 KB for long-form articles).
+        body_text = (article_dict.get("text") or "")[:8000]
+
+        payload = {
+            "schema": "inkbytes.article.v1",
+            "session_id": session_id,
+            "spaces_key": spaces_key,
+            "article": {
+                "id": article_dict.get("id", ""),
+                "outlet": {
+                    "id": outlet_name.lower().replace(" ", "-"),
+                    "name": outlet_name,
+                },
+                "url": article_dict.get("article_url", ""),
+                "canonical_url": article_dict.get("source_url") or article_dict.get("article_url") or "",
+                "title": article_dict.get("title", ""),
+                "text": body_text,
+                "language": article_dict.get("language", "en"),
+                "published_at": article_dict.get("publish_date"),
+                "scraped_at": article_dict.get("fetched_on") or datetime.utcnow().isoformat(),
+                "word_count": len((article_dict.get("text") or "").split()),  # original length
+                "authors": _safe_list(article_dict.get("authors")),
+                "meta_categories": _safe_list(article_dict.get("meta_categories")),
+                "category": article_dict.get("category"),
+                "keywords": _safe_list(article_dict.get("keywords")),
+                "metadata": article_dict.get("metadata") or {},
+            },
         }
-        
-        return self.publish_message(self._topics_extracted_queue, message)
+
+        if not self._check_connection_health():
+            self.logger.error("RabbitMQ unavailable; skipping article event publish")
+            return False
+
+        body = json.dumps(payload, default=str)
+        props = pika.BasicProperties(delivery_mode=2, content_type='application/json')
+        try:
+            self.channel.basic_publish(
+                exchange=self._article_exchange,
+                routing_key="event.article.scraped",
+                body=body,
+                properties=props,
+            )
+            self.logger.info("Published article event: %s @ %s", article_dict.get("id"), outlet_name)
+            return True
+        except Exception as exc:
+            self.logger.error("Error publishing article event: %s", exc)
+            if self.connect():
+                try:
+                    self.channel.basic_publish(
+                        exchange=self._article_exchange,
+                        routing_key="event.article.scraped",
+                        body=body,
+                        properties=props,
+                    )
+                    return True
+                except Exception as exc2:
+                    self.logger.error("Error publishing article event after reconnect: %s", exc2)
+            return False
+
+    # Note: publish_topics_extracted_event() lived here in pre-ADR-0005
+    # Messor. Removed — that's Curator's responsibility now.

@@ -84,3 +84,16 @@ infra/docker/.env
 .forget/
 docker/.forget/docker-compose.old.yaml
 passwd-s3fs
+env.local.yaml
+
+# Node (client + any app deps)
+node_modules/
+
+# Local-only Claude Code settings (machine-specific permissions)
+.claude/settings.local.json
+
+# Symlink into the shared kernel (resolved at install time, not vendored)
+/inkbytes
+
+# Runtime scrape artifact
+/scraping_session.json

@@ -199,21 +199,13 @@ class Application:
         """
         self.logger.info("Starting main")
         try:
-            should_connect_rabbitmq = True
-            try:
-                should_connect_rabbitmq = bool(self.config.logging.log_to_broker())
-            except Exception:
-                should_connect_rabbitmq = True
-
-            # Connect to RabbitMQ only when broker logging is enabled
-            if should_connect_rabbitmq:
-                if self.message_service.connect():
-                    # Start the background health check thread
-                    self.message_service.start_health_check_thread()
-                else:
-                    self.logger.warning("Failed to connect to RabbitMQ, continuing without messaging")
+            # Always attempt RabbitMQ connection — needed for publishing
+            # articles-scraped events, not just broker logging.
+            # Failures are non-fatal; scraping continues without messaging.
+            if self.message_service.connect():
+                self.message_service.start_health_check_thread()
             else:
-                self.logger.info("RabbitMQ messaging disabled by configuration")
+                self.logger.warning("RabbitMQ unavailable; scraping will run without event publishing")
             
             # Start the API server
             self.api_server.start()

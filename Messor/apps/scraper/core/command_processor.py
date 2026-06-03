@@ -177,20 +177,15 @@ class CommandProcessor:
                     print("Failed to connect to RabbitMQ")
                     return
                     
-            # Get queue status
+            # Get queue status — Messor only owns articles-scraped.
+            # topics-extracted is Curator's output queue (see ADR-0005).
             articles_queue = self.message_service.channel.queue_declare(
                 queue=self.message_service._articles_scraped_queue,
                 passive=True
             )
-            
-            topics_queue = self.message_service.channel.queue_declare(
-                queue=self.message_service._topics_extracted_queue,
-                passive=True
-            )
-            
+
             print("\n=== RABBITMQ QUEUE STATUS ===")
             print(f"Articles scraped queue: {articles_queue.method.message_count} messages")
-            print(f"Topics extracted queue: {topics_queue.method.message_count} messages")
             print("=============================\n")
         except Exception as e:
             self.logger.error(f"Error getting queue status: {e}")
@@ -203,26 +198,20 @@ class CommandProcessor:
             return
             
         try:
-            queue = input("Enter queue name (articles_scraped/topics_extracted): ").strip()
-            if queue not in ["articles_scraped", "topics_extracted"]:
-                print("Invalid queue name")
-                return
-                
+            # Messor only publishes to articles-scraped. ADR-0005.
+            queue_name = self.message_service._articles_scraped_queue
             message = {
-                "event_type": f"test_{queue}",
+                "event_type": "test_articles_scraped",
                 "timestamp": datetime.utcnow().isoformat(),
                 "data": {
                     "test": True,
                     "message": "This is a test message"
                 }
             }
-            
-            queue_name = self.message_service._articles_scraped_queue if queue == "articles_scraped" else self.message_service._topics_extracted_queue
-            
             if self.message_service.publish_message(queue_name, message):
-                print(f"Test message published to {queue}")
+                print(f"Test message published to {queue_name}")
             else:
-                print(f"Failed to publish test message to {queue}")
+                print(f"Failed to publish test message to {queue_name}")
         except Exception as e:
             self.logger.error(f"Error publishing test message: {e}")
             print(f"Error publishing test message: {e}")

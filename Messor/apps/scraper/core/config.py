@@ -21,18 +21,8 @@ class Config:
     
     @property
     def platform_api(self):
-        """Access the primary platform API configuration.
-
-        Backward compatible with older configs that still use `strapi_cms`.
-        """
-        if hasattr(self._config, "platform_api"):
-            return self._config.platform_api
-        return self._config.strapi_cms
-
-    @property
-    def strapi_cms(self):
-        """Backward-compatible alias for legacy callers."""
-        return self.platform_api
+        """Access the platform API configuration."""
+        return self._config.platform_api
     
     @property
     def digitalocean(self):

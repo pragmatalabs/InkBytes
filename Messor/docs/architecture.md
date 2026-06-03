@@ -190,7 +190,7 @@ Outlet → HTML/RSS ─► newspaper3k ─► Article{title, text, lang, url, ha
 |---|---|---|
 | Configuration | YAML (`env.yaml`) with defaults | YAML + env-var overlay; **no secrets in repo** |
 | Secrets | ⚠️ Committed in `env.yaml` (must rotate) | DO env vars / Doppler / 1Password |
-| Logging | console + file + RabbitMQ exchange `hermes` | Add Better Stack / Axiom shipper |
+| Logging | console + file + RabbitMQ exchange `messor.logs` | Add Better Stack / Axiom shipper |
 | Metrics | AnalyticsService in-memory + session JSON | Prometheus exporter on FastAPI |
 | Tracing | None | OpenTelemetry SDK around session + HTTP calls |
 | Health | FastAPI `/status` (to confirm/add) | `/healthz` + `/readyz` for DO |

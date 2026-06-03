@@ -1,0 +1,30 @@
+version: "3"
+services:
+  messor:
+    container_name: ${CONTAINER_NAME}
+    tty: true
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 3512M
+        reservations:
+          memory: 512M
+    volumes:
+      # Mount project root data directory to container - bind to existing project structure
+      - ../data:/app/data:rw
+      # Mount project root logs directory to container - bind to existing project structure
+      - ../logs:/app/logs:rw
+      # Mount config file from project root
+      - ../env.yaml:/app/env.yaml:ro
+    ports:
+      - 8585:8080
+    restart: always
+    environment:
+      # Set Docker environment variable for detection
+      - DOCKER_CONTAINER=true
+      # Ensure proper permissions for data directory
+      - DATA_DIR=/app/data
+      - LOGS_DIR=/app/logs

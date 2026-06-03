@@ -30,11 +30,12 @@ from inkbytes.common.system.logger.advanced_logger import LogDestination, Advanc
 from inkbytes.common.system.config.config_loader import ConfigLoader
 from inkbytes.common.system.module_handler import get_module_name
 from inkbytes.common.system.utils import generate_threshold_timestamp, generate_today_timestamp
-from inkbytes.database.tinydb.DataHandler import DataHandler
 from inkbytes.models.articles import Article, ArticleBuilder, ArticleCollection
 from inkbytes.models.newspaperbase import NewsPaper
 from inkbytes.models.outlets import OutletsSource
-from tinydb import Query
+
+# v1: TinyDB was retired (INK-5). Per-cycle staging now uses a plain JSON store.
+from core.staging_store import StagingStore, article_id_exists_in_file
 
 # Module setup
 MODULE_NAME = get_module_name(2)
@@ -247,22 +248,20 @@ def process_found_articles(executor, outlet, paper) -> list:
         return []
 
 
-def article_exists(article: Article, data_handler: DataHandler) -> bool:
+def article_exists(article: Article, store: StagingStore) -> bool:
     """
-    Check if an article already exists in the database.
+    Check if an article already exists in the current cycle's staging store.
 
     Args:
         article: The article to check.
-        data_handler: The database handler.
+        store: The per-cycle staging store.
 
     Returns:
         bool: True if the article exists, False otherwise.
     """
     try:
-        _article = Query()
-        existing_articles = data_handler.db.search((_article.id == article.id))
-        return bool(existing_articles)
-    except ValueError as e:
+        return bool(article.id) and store.contains(article.id)
+    except Exception as e:
         logging.getLogger().error(f"Error checking if article exists: {e}")
         return False
 
@@ -310,10 +309,7 @@ def check_article_exists_in_all_scrapes(article: Article, outlet_name: str) -> b
                 logger.debug(f"Checking file {idx}/{len(outlet_scrape_files)}: {os.path.basename(file_path)}")
                 
             try:
-                data_handler = DataHandler(file_path)
-                _article = Query()
-                existing_articles = data_handler.db.search((_article.id == article_id))
-                if existing_articles:
+                if article_id_exists_in_file(file_path, article_id):
                     logger.info(f"Article '{article_title}' (ID: {article_id}) already exists in {os.path.basename(file_path)}")
                     return True
             except Exception as e:
@@ -340,10 +336,11 @@ def pre_process_article(article: newspaper.Article) -> newspaper.Article:
     try:
         article.download()
         article.parse()
-        if article.is_parsed:
-            article.nlp()
-            if article.text and article.meta_lang:
-                return article
+        # INK-11: do NOT call article.nlp() here. newspaper3k's .nlp() does
+        # heuristic keyword extraction + summary — that's enrichment, which
+        # belongs to Curator (Skill 1: ENRICH). Messor stays a pure harvester.
+        if article.is_parsed and article.text and article.meta_lang:
+            return article
     except ValueError as e:
         handle_error_in_article_processing(article, e)
 
@@ -654,30 +651,31 @@ def extract_url_categories(url: str) -> List[str]:
     return categories
 
 
-def unify_keywords(article: Article) -> List[str]:
+def extract_meta_keywords(article: Article) -> List[str]:
     """
-    Combine keywords from article and its metadata.
+    Return raw meta_keywords pulled from the article's HTML metadata.
 
-    Args:
-        article: The article object.
-
-    Returns:
-        list: Combined and deduplicated keywords.
+    INK-11: this used to be `unify_keywords`, which mixed in newspaper3k's
+    `.nlp()`-derived keywords. That blended raw harvest data with heuristic
+    NLP and is now Curator's job. Messor only forwards the keywords it
+    literally saw in the page's `<meta>` tags.
     """
-    root_keywords = article.keywords or []
-    meta_keywords = article.metadata.get('keywords', '')
+    meta_keywords = article.metadata.get('keywords', '') if article.metadata else ''
 
     if isinstance(meta_keywords, str):
-        meta_keywords_list = [keyword.strip() for keyword in meta_keywords.split(',')]
+        items = [k.strip() for k in meta_keywords.split(',')]
     elif isinstance(meta_keywords, list):
-        meta_keywords_list = meta_keywords
+        items = meta_keywords
     else:
-        meta_keywords_list = []
+        items = []
 
-    combined_keywords = list(set(root_keywords + meta_keywords_list))
-    combined_keywords = [keyword for keyword in combined_keywords if keyword]
-
-    return combined_keywords
+    # Dedup + drop empties, preserve order.
+    seen, ordered = set(), []
+    for k in items:
+        if k and k not in seen:
+            seen.add(k)
+            ordered.append(k)
+    return ordered
 
 
 def get_comprehensive_categories(article: newspaper.Article, articleRecord: Article) -> List[str]:
@@ -708,9 +706,10 @@ def get_comprehensive_categories(article: newspaper.Article, articleRecord: Arti
         url_categories = extract_url_categories(articleRecord.article_url)
         all_categories.extend(url_categories)
 
-    # 4. Get keywords as potential categories (often overlap with categories)
-    if hasattr(article, 'keywords') and article.keywords:
-        all_categories.extend(article.keywords)
+    # INK-11: removed "extend with article.keywords" — those keywords come
+    # from newspaper3k's .nlp() heuristic. Curator computes canonical
+    # keywords from the LLM call; Messor only forwards what it literally
+    # saw in HTML/meta/URL.
 
     # De-duplicate categories
     unique_categories = []
@@ -740,8 +739,9 @@ def create_article_record(article: newspaper.Article, newsPaperBrand: str) -> Ar
         # Set the article source
         articleRecord.article_source = newsPaperBrand
 
-        # Process keywords
-        articleRecord.keywords = unify_keywords(articleRecord)
+        # INK-11: keep raw meta keywords only. Canonical keyword list is
+        # Curator's job (Skill 1: ENRICH).
+        articleRecord.keywords = extract_meta_keywords(articleRecord)
 
         # Get comprehensive categories from all available sources
         comprehensive_categories = get_comprehensive_categories(article, articleRecord)
@@ -891,7 +891,7 @@ class NewsScraper:
         staging_path = config.storage.staging.local.scraping()
         file_path = os.path.join(staging_path, self.session.results_staging_file_name)
         self.logger.info(f"Saving articles to: {file_path}")
-        data_handler = DataHandler(file_path)
+        data_handler = StagingStore(file_path)
 
         total_articles = len(results)
         processed_count = 0

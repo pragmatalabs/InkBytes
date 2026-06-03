@@ -108,7 +108,7 @@ Keeping Messor narrow is the whole point of the separation of concerns.
 - **Secrets**: DO App Platform env vars / Doppler / 1Password — **never** the
   committed `env.yaml`. See [security.md](./security.md).
 - **Observability**: ship logs to a managed log service (Better Stack / Axiom /
-  Datadog); RabbitMQ exchange `hermes` is the existing log fan-out.
+  Datadog); RabbitMQ exchange `messor.logs` is the log fan-out.
 
 ## 9. Inspiration vs. differentiation
 

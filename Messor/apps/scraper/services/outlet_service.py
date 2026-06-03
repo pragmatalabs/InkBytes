@@ -136,52 +136,72 @@ class OutletService:
             return self._get_outlets_from_local_file()
 
     def _get_outlets_from_local_file(self) -> List[OutletsSource]:
-        """Load outlets from local JSON file as fallback."""
+        """Load outlets from the canonical outlets.json file.
+
+        Search order (first match wins):
+          1. Config's offline.local.outlets.file value
+          2. outlets.json  (rich format, canonical)
+          3. news_outlets_local.json  (legacy)
+          4. news_outlets_sources.json (legacy)
+          5. /app/data/outlets/outlets.json (Docker path)
+        Only active=True outlets are returned.
+        """
         try:
-            # Try multiple possible paths for the outlets file
-            possible_paths = [
-                os.path.join(os.path.dirname(__file__), '..', 'data', 'outlets', 'news_outlets_sources.json'),
-                os.path.join(os.getcwd(), 'data', 'outlets', 'news_outlets_sources.json'),
-                '/app/data/outlets/news_outlets_sources.json',  # Docker path
-                'data/outlets/news_outlets_sources.json'  # Relative path
+            config_path = None
+            try:
+                config_path = self.config.storage.offline.local.outlets.file()
+            except AttributeError:
+                pass
+
+            data_dir = os.path.join(os.path.dirname(__file__), '..', 'data', 'outlets')
+            possible_paths = []
+            if config_path:
+                possible_paths.append(config_path)
+            possible_paths += [
+                os.path.join(data_dir, 'outlets.json'),
+                os.path.join(os.getcwd(), 'data', 'outlets', 'outlets.json'),
+                os.path.join(data_dir, 'news_outlets_local.json'),
+                os.path.join(data_dir, 'news_outlets_sources.json'),
+                '/app/data/outlets/outlets.json',
             ]
-            
+
             local_file_path = None
             for path in possible_paths:
                 abs_path = os.path.abspath(path)
                 if os.path.exists(abs_path):
                     local_file_path = abs_path
                     break
-            
-            # If no file found, create a default one
+
             if not local_file_path:
-                # Use the first path as default location
-                local_file_path = os.path.abspath(possible_paths[0])
-                os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
-                
-                # Create default outlets file with some common sources
-                default_outlets = [
-                    {"name": "bbc", "url": "https://www.bbc.com/"},
-                    {"name": "reuters", "url": "https://www.reuters.com/"},
-                    {"name": "cnn", "url": "https://www.cnn.com/"}
-                ]
-                
-                with open(local_file_path, 'w') as file:
-                    json.dump(default_outlets, file, indent=2)
-                
-                self.logger.info(f"Created default outlets file at: {local_file_path}")
-            
+                self.logger.error("No outlets config file found; scraping will be empty")
+                return []
+
             self.logger.info(f"Loading outlets from: {local_file_path}")
-            with open(local_file_path, 'r') as file:
-                outlets_handler_payload = json.load(file)
-            
-            # organize outlets by name field ascending
-            outlets_handler_payload.sort(key=lambda x: x['name'])
-            
-            self.logger.info(f"Got local payload: {outlets_handler_payload}")
+            with open(local_file_path, 'r', encoding='utf-8') as fh:
+                payload = json.load(fh)
+
+            # Filter to active outlets only, sort by priority then name
+            is_rich_format = payload and isinstance(payload[0], dict) and 'display_name' in payload[0]
+            if is_rich_format:
+                payload = [o for o in payload if o.get('active', True)]
+                payload.sort(key=lambda o: (o.get('priority', 99), o.get('name', '')))
+            else:
+                payload.sort(key=lambda o: o.get('name', ''))
+
+            # OutletsSource.id is a Strapi integer ID — not used in our outlets.json
+            # (where "id" is a string slug like "bbc"). Strip fields that would fail
+            # Pydantic v1 type coercion so the model only sees what it understands.
+            SCRAPER_FIELDS = {'name', 'url', 'active', 'description', 'slug', 'logo'}
+            def _to_scraper_record(o: dict) -> dict:
+                return {k: v for k, v in o.items() if k in SCRAPER_FIELDS}
+
+            scraper_payload = [_to_scraper_record(o) for o in payload]
+
             outlets_handler = OutletsHandler()
-            outlets_handler.add_outlets_from_payload(outlets_handler_payload)
-            self.logger.info(f"Completed get_outlets from local file, found {len(outlets_handler.news_outlets)} outlets")
+            outlets_handler.add_outlets_from_payload(scraper_payload)
+            self.logger.info(
+                f"Loaded {len(outlets_handler.news_outlets)} active outlets from {local_file_path}"
+            )
             return outlets_handler.news_outlets
         except Exception as error:
             self.logger.error(f"Error loading outlets from local file: {error}")

@@ -33,6 +33,7 @@
 
 ### Operations
 
+- [Dev Bring-Up Handoff](./dev-handoff.md) — ticketed plan to bring Messor up locally end-to-end
 - [Operations Runbook](./operations.md) — 24/7 daily/weekly checks, alerts, incident playbook
 - [Security & Secrets](./security.md) — ⚠️ includes immediate rotation actions
 - [DigitalOcean Deployment](./deployment-digitalocean.md) — App Platform / Droplet topologies, CI/CD
@@ -41,10 +42,14 @@
 
 - [Installation](./installation.md)
 - [User Guide](./user-guide.md)
+- [Output Contract](./contracts.md) — what Messor produces; what Curator can rely on
 - [Decision Records (ADRs)](./adr/)
   - [ADR-0001 — Monorepo migration](./adr/0001-monorepo-migration.md)
   - [ADR-0002 — RabbitMQ event spine](./adr/0002-rabbitmq-events.md)
   - [ADR-0003 — DO Spaces artifact store](./adr/0003-do-spaces-artifact-store.md)
+  - [ADR-0004 — Retire `hermes` namespace](./adr/0004-retire-hermes-namespace.md)
+  - [ADR-0005 — Messor ↔ Curator responsibility split](./adr/0005-messor-curator-responsibility-split.md)
+  - [ADR-0006 — Inline per-article events; S3 becomes archival-only](./adr/0006-inline-events-s3-archival-only.md)
 
 ## 🎯 Documentation standards
 

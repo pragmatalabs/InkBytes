@@ -1,138 +1,46 @@
-aiofiles==24.1.0
-annotated-types==0.6.0
-anyio==4.6.0
-beautifulsoup4==4.12.3
-boto3==1.34.44
-botocore==1.34.44
-certifi==2023.11.17
-charset-normalizer==3.3.2
-click==8.1.7
-common==0.1.2
-cssselect==1.2.0
-distlib==0.3.8
-exceptiongroup==1.2.0
-fastapi==0.109.2
-feedfinder2==0.0.4
-feedparser==6.0.11
-filelock==3.13.1
-h11==0.14.0
-httplib2==0.22.0
-httptools==0.6.1
-idna==3.6
-jieba==0.42.1
-jieba3k==0.35.1
-jmespath==1.0.1
-joblib==1.3.2
-langdetect==1.0.9
-logger==1.4
-lxml==5.1.0
+# Messor scraper — top-level runtime dependencies.
+# Transitives are resolved by pip. For reproducible builds use requirements-lock.txt.
+#
+# Edited 2026-06-02 (INK-2):
+#   + added lxml_html_clean (required by newspaper3k on lxml>=5.2)
+#   - dropped fake deps: common, logger, restclient
+#   - dropped pydantic_core (v2-internal; conflicts with pydantic v1)
+#   - dropped system tools: virtualenv*, virtualenvwrapper
+#   - dropped unused: pandas, numpy, pythainlp, jieba (let newspaper3k pull what it needs)
+#   - deduplicated (file was duplicated end-to-end)
+
+# --- Shared kernel (real Python package, see packages/inkbytes) ---
+# Installed via `pip install -e ../../packages/inkbytes` (INK-1).
+# Replaces the old fake `common==0.1.2` and the inkbytes symlink.
+-e ../../packages/inkbytes
+
+# --- Web scraping ---
 newspaper3k==0.2.8
-nltk==3.8.1
-numpy==1.26.3
-pandas==2.2.0
-pbr==6.0.0
-pika==1.3.2
-pillow==10.2.0
-platformdirs==4.2.0
-pydantic==1.10.14
-pydantic_core==2.14.6
-pyparsing==3.1.1
-pythainlp==5.0.1
-python-dateutil==2.8.2
-python-dotenv==1.0.0
-pytz==2023.3.post1
-PyYAML==6.0.1
-regex==2023.12.25
-requests==2.31.0
-requests-file==1.5.1
-restclient==0.11.0
-s3transfer==0.10.0
-sgmllib3k==1.0.0
-six==1.16.0
-sniffio==1.3.0
-soupsieve==2.5
-starlette==0.36.3
-stevedore==5.1.0
-tinydb==4.8.0
-tinysegmenter==0.3
-tldextract==5.1.1
-tqdm==4.66.1
-typing_extensions==4.9.0
-tzdata==2023.4
-urllib3==2.0.7
-uvicorn==0.27.0.post1
-uvloop==0.19.0
-virtualenv==20.25.0
-virtualenv-clone==0.5.7
-virtualenvwrapper==6.1.0
-watchfiles==0.21.0
-websockets==12.0
-aiofiles==24.1.0
-annotated-types==0.6.0
-anyio==4.6.0
-beautifulsoup4==4.12.3
-boto3==1.34.44
-botocore==1.34.44
-certifi==2023.11.17
-charset-normalizer==3.3.2
-click==8.1.7
-common==0.1.2
-cssselect==1.2.0
-distlib==0.3.8
-exceptiongroup==1.2.0
-fastapi==0.109.2
-feedfinder2==0.0.4
-feedparser==6.0.11
-filelock==3.13.1
-h11==0.14.0
-httplib2==0.22.0
-httptools==0.6.1
-idna==3.6
-jieba==0.42.1
-jieba3k==0.35.1
-jmespath==1.0.1
-joblib==1.3.2
-langdetect==1.0.9
-logger==1.4
-lxml==5.1.0
-newspaper3k==0.2.8
-nltk==3.8.1
-numpy==1.26.3
-pandas==2.2.0
-pbr==6.0.0
-pika==1.3.2
-pillow==10.2.0
-platformdirs==4.2.0
-pydantic==1.10.14
-pydantic_core==2.14.6
-pyparsing==3.1.1
-pythainlp==5.0.1
-python-dateutil==2.8.2
-python-dotenv==1.0.0
-pytz==2023.3.post1
-PyYAML==6.0.1
-regex==2023.12.25
-requests==2.31.0
-requests-file==1.5.1
-restclient==0.11.0
-s3transfer==0.10.0
-sgmllib3k==1.0.0
-six==1.16.0
-sniffio==1.3.0
-soupsieve==2.5
-starlette==0.36.3
-stevedore==5.1.0
-tinydb==4.8.0
-tinysegmenter==0.3
-tldextract==5.1.1
-tqdm==4.66.1
-typing_extensions==4.9.0
-tzdata==2023.4
-urllib3==2.0.7
-uvicorn==0.27.0.post1
-uvloop==0.19.0
-virtualenv==20.25.0
-virtualenv-clone==0.5.7
-virtualenvwrapper==6.1.0
-watchfiles==0.21.0
-websockets==12.0
+lxml_html_clean>=0.4.1           # newspaper3k requirement on lxml>=5.2
+beautifulsoup4>=4.12.3
+requests>=2.31.0
+feedparser>=6.0.11
+feedfinder2>=0.0.4
+tldextract>=5.1.1
+langdetect>=1.0.9
+nltk>=3.8.1
+
+# --- API / config / messaging ---
+# fastapi pinned to last release compatible with pydantic v1 (we're on v1
+# until INK / Sprint-2 migrates the BaseModels). Bump together when ready.
+fastapi==0.99.1
+uvicorn[standard]>=0.27.0
+pydantic>=1.10.14,<2            # v1.x; migration to v2 is Sprint-2 work
+PyYAML>=6.0.1
+python-dotenv>=1.0.0
+pika>=1.3.2
+
+# --- Cloud / object store ---
+boto3>=1.34.44
+
+# --- Data processing (required by packages/inkbytes shared lib) ---
+numpy>=1.26.0
+pandas>=2.2.0
+
+# --- Dev convenience ---
+aiofiles>=24.1.0

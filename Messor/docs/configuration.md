@@ -72,7 +72,7 @@ python main.py --schedule              # scheduled mode (Docker)
 | `logger_name` | str | `messor` | Root logger name |
 | `folder` / `file_name` | str | `logs` / `messor.log` | File destination |
 | `destinations` | list | `[console, file, rabbit]` | Active sinks |
-| `exchange_name` | str | `hermes` | RabbitMQ log exchange |
+| `exchange_name` | str | `messor.logs` | RabbitMQ log exchange |
 
 ### 3.4 `scraper`
 
@@ -102,7 +102,7 @@ python main.py --schedule              # scheduled mode (Docker)
 | `region_name` | e.g. `nyc3` |
 | `endpoint_url` | e.g. `https://nyc3.digitaloceanspaces.com` |
 | `spaces.buckets.main.name` | Bucket name (e.g. `inkbytes`) |
-| `spaces.buckets.main.folders` | Per-domain prefixes (`messor`, `hermes`, `data`) |
+| `spaces.buckets.main.folders` | Per-domain prefixes (`messor`, `messor/logs`, `data`) |
 
 ### 3.7 `rabbitmq`
 
@@ -113,7 +113,7 @@ python main.py --schedule              # scheduled mode (Docker)
 | `heartbeat` | Heartbeat seconds |
 | `connection_attempts` | Retry count |
 | `exchanges.scraping.name` | Article event exchange (`messor`) |
-| `exchanges.logging.name` | Log fan-out (`hermes`) |
+| `exchanges.logging.name` | Log fan-out (`messor.logs`) |
 | `queues.articles_scraped` | Output queue consumed by Entopics |
 | `queues.topics_extracted` | Input queue from Entopics |
 | `username` / `password` | Broker creds (**env var only**) |

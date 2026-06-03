@@ -1,0 +1,6 @@
+# Docker environment files
+.env*
+!.forget/.env.example
+
+# Logs
+*.log
