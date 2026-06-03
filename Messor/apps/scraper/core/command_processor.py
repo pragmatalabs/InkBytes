@@ -309,13 +309,26 @@ class CommandProcessor:
                 print(f"\nExecuting auto command: {auto_command}")
                 self._execute_command(auto_command)
 
-        # One-shot mode: when stdin is not an interactive terminal (Docker, CI,
-        # `< /dev/null`, piped input), there is no user to prompt. Reading from a
-        # closed stdin makes input() raise EOFError immediately and repeatedly,
-        # so we must NOT enter the interactive loop — otherwise it spins at full
-        # speed, flooding the logs. Exit cleanly after the queued commands.
+        # Non-interactive stdin (Docker, CI, `< /dev/null`, piped, or launched in
+        # the background): there is no user to prompt, and reading from closed
+        # stdin makes input() raise EOFError immediately and forever. So never run
+        # the interactive loop here — it would spin at full speed and flood the logs.
         if not sys.stdin.isatty():
-            self.logger.info("Non-interactive stdin detected; skipping interactive command loop")
+            if auto_command_queue:
+                # One-shot invocation (e.g. `--scrape ... < /dev/null`): the queued
+                # commands already ran above; nothing left to do — exit cleanly.
+                self.logger.info("Non-interactive one-shot run; exiting after queued commands")
+                self.logger.info("Completed process_commands")
+                return
+            # Serve mode (e.g. running the API for the admin client in the
+            # background): keep the process alive so the FastAPI server keeps
+            # serving, blocking quietly on the exit event until a shutdown signal
+            # rather than spinning on EOF.
+            self.logger.info("Non-interactive serve mode; API server running on :8050, waiting for shutdown signal")
+            try:
+                self.exit_event.wait()
+            except KeyboardInterrupt:
+                self.do_exit()
             self.logger.info("Completed process_commands")
             return
 
