@@ -51,12 +51,25 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/proxy/status").then(r => r.json()),
-      fetch("/api/proxy/outlets").then(r => r.json()),
-    ])
-      .then(([s, o]) => { setStatus(s); setOutlets(o); setLoading(false); })
-      .catch(() => { setError("Curator API unreachable — is it running on port 8060?"); setLoading(false); });
+    // fetch() only rejects on network errors, not HTTP error status — and the
+    // proxy returns {error} with a 502 when Curator is down. Treat any non-2xx
+    // as a failure so the error banner shows instead of an error object flowing
+    // into setOutlets() and crashing outlets.map().
+    const getJSON = async (url: string) => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${url} → ${r.status}`);
+      return r.json();
+    };
+    Promise.all([getJSON("/api/proxy/status"), getJSON("/api/proxy/outlets")])
+      .then(([s, o]) => {
+        setStatus(s);
+        setOutlets(Array.isArray(o) ? o : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Curator API unreachable — is it running on port 8060?");
+        setLoading(false);
+      });
   }, []);
 
   const regions = ["all", ...Array.from(new Set(outlets.map(o => o.region))).sort()];
