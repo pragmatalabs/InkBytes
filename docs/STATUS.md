@@ -60,13 +60,18 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
 
 ## Open items / next steps
 
-0. **Backend consolidation (in planning):** Laravel Backoffice is the single admin
+0. **Backend consolidation (in progress):** Laravel Backoffice is the single admin
    ([root ADR-0001](./adr/0001-consolidate-backend-into-laravel-backoffice.md)). The
    build handoff ([backend-handoff.md](./backend-handoff.md)) was **audited + patched
    for DB safety** ([review](./backend-handoff-review.md),
-   [ADR-0003 schema isolation](./adr/0003-backoffice-schema-isolation.md)) — the
-   original Phase 1.1 `migrate:fresh` would have wiped Curator's data. Safe to start
-   Phase 1.1 now.
+   [ADR-0003 schema isolation](./adr/0003-backoffice-schema-isolation.md)).
+   - **Phase 1.1 DONE** (branch `backend/phase-1.1-laravel-postgres`): Laravel moved off
+     SQLite onto the shared Postgres+pgvector, isolated in a `backoffice` schema
+     (`search_path=backoffice,public`). 10 Laravel tables migrated into `backoffice`;
+     Curator's `public` data untouched (articles=309, events=220, pages=29, outlets=31).
+     Legacy `sources`/`articles` migrations deleted; `scrape_runs` + its `add_view_tracking`
+     alter also deleted (FK-depended on the dropped `sources`); `scraping_jobs` kept.
+     Breeze auth boots against Postgres. **Next: Phase 1.2** (single `public.outlets` CRUD).
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.

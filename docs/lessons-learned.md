@@ -91,3 +91,24 @@ that *creates* enriched articles and pages.
 > Backoffice consolidation) calls for deleting it and moving admin into the
 > Backoffice. Fixing its crash + serving it via Curator was about unblocking
 > the immediate "it's broken" state, not endorsing it as the long-term admin.
+
+### Laravel + Curator in one Postgres: schema isolation, not `migrate:fresh` (Phase 1.1)
+Moving the Laravel Backoffice off SQLite onto Curator's shared Postgres required
+isolating it in a `backoffice` schema (`'search_path' => 'backoffice,public'` in
+the `pgsql` connection). With `backoffice` first in the search_path, Laravel's
+`migrations` table and every Laravel-owned table land there automatically — no
+per-migration schema annotations needed — while cross-schema reads of Curator's
+`public` tables still resolve. The schema must be created out-of-band first
+(`CREATE SCHEMA IF NOT EXISTS backoffice;`); Laravel won't create it. Run a
+**scoped `php artisan migrate`**, never `migrate:fresh` (it would drop Curator's
+live `public` data). See ADR-0003.
+
+When dropping the legacy Laravel `sources`/`articles` migrations, also drop
+anything that FK-references them: `scrape_runs` pointed a `foreignIdFor(Source)`
+at the deleted `sources` table, and `add_view_tracking` only altered
+`scrape_runs` — both had to go for the set to migrate cleanly. `scraping_jobs`
+was standalone (no FK to the dropped tables) and was kept. The orphaned
+`Source`/`ScrapeRun`/`Article` models + their controllers/routes still exist and
+will 500 at request time; per the handoff those Sources/Runs/Articles views are
+reworked in Phase 1.2, so they were left in place (they don't break boot or
+migrate, only the specific authed routes).

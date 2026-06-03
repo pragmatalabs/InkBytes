@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -31,18 +31,6 @@ return [
     */
 
     'connections' => [
-
-        'sqlite' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
-        ],
 
         'mysql' => [
             'driver' => 'mysql',
@@ -84,18 +72,23 @@ return [
             ]) : [],
         ],
 
+        // Shared Postgres+pgvector (same instance as Curator). The Backoffice is
+        // isolated in the `backoffice` schema; `backoffice` is first in the
+        // search_path so Laravel's `migrations` table and all Laravel-owned
+        // tables land there, never in Curator's `public` pipeline schema.
+        // See docs/adr/0003-backoffice-schema-isolation.md.
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'database' => env('DB_DATABASE', 'inkbytes'),
+            'username' => env('DB_USERNAME', 'inkbytes'),
+            'password' => env('DB_PASSWORD', 'inkbytes'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            'search_path' => 'backoffice,public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
