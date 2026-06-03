@@ -54,6 +54,26 @@ note "Preconditions"
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
+# .venv/bin/python is a universal (x86_64 + arm64) binary and inherits the
+# parent shell's architecture. If this terminal runs under Rosetta, even
+# `uname -m` reports x86_64, so we can't trust it. The native wheels
+# (pydantic_core, asyncpg…) are built for one arch; probe both slices and pick
+# whichever one actually imports pydantic_core.
+PY=(python)
+if command -v arch >/dev/null 2>&1; then
+  picked=""
+  for cand in arm64 x86_64; do
+    if arch "-${cand}" python -c "import pydantic_core" 2>/dev/null; then
+      PY=(arch "-${cand}" python); picked="${cand}"; break
+    fi
+  done
+  [[ -n "${picked}" ]] || die "venv cannot import pydantic_core under arm64 or x86_64 — rebuild the venv (see scripts/fix_stub_page.sh header)."
+  echo "python arch: ${picked}"
+else
+  python -c "import pydantic_core" 2>/dev/null \
+    || die "venv cannot import pydantic_core — rebuild the venv."
+fi
+
 q "SELECT 1;" >/dev/null || die "cannot reach Postgres (is the dev stack up?)"
 
 # Refuse to run if someone else already owns the commands queue — otherwise
@@ -74,7 +94,7 @@ echo "page headline before: ${before}"
 # ── 3. start the command consumer ───────────────────────────────────────--
 note "Starting --consume-commands"
 LOG="$(mktemp -t curator-cmd.XXXXXX).log"
-python main.py --config "${CONFIG}" --consume-commands >"${LOG}" 2>&1 &
+"${PY[@]}" main.py --config "${CONFIG}" --consume-commands >"${LOG}" 2>&1 &
 CONSUMER_PID=$!
 cleanup() {
   kill "${CONSUMER_PID}" 2>/dev/null || true
@@ -97,7 +117,7 @@ echo "consumer ready (log: ${LOG})"
 
 # ── 4. publish the command ──────────────────────────────────────────────--
 note "Publishing event.resynthesize ${EVENT_ID}"
-python scripts/publish_command.py event.resynthesize "${EVENT_ID}" "${CONFIG}"
+"${PY[@]}" scripts/publish_command.py event.resynthesize "${EVENT_ID}" "${CONFIG}"
 
 # ── 5. wait for the dispatch to complete ────────────────────────────────--
 done_line="event.resynthesize ${EVENT_ID} dispatched"
