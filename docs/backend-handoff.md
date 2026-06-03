@@ -1,30 +1,46 @@
 # InkBytes — Backend Consolidation Handoff (for Claude Code agents)
 
-> *Status: v1 · Owner: Julián de la Rosa · Last updated: 2026-06-02*
+> *Status: v1 · Owner: Julián de la Rosa · Last updated: 2026-06-02 (reviewed + patched for DB safety)*
 >
 > **Purpose.** This is the handoff for building the consolidated backend. Open one
 > Claude Code tab per assignment below, paste its kickoff prompt, and the agent has
 > everything it needs. The decision is locked in
 > [`adr/0001-consolidate-backend-into-laravel-backoffice.md`](./adr/0001-consolidate-backend-into-laravel-backoffice.md);
 > the design is in [`backend-architecture.md`](./backend-architecture.md).
+>
+> ⚠️ **Phases 1.1/1.2 were patched after a codebase audit** — the original
+> `migrate:fresh` step would have destroyed Curator's live data. Read
+> [`adr/0003-backoffice-schema-isolation.md`](./adr/0003-backoffice-schema-isolation.md)
+> and [`backend-handoff-review.md`](./backend-handoff-review.md) before any DB work.
 
 ## 0. Read first (every agent, ~5 min)
 
 1. [`docs/STATUS.md`](./STATUS.md) — live system state.
 2. [`docs/backend-architecture.md`](./backend-architecture.md) — the target. **This is the spec.**
 3. [`docs/adr/0001-consolidate-backend-into-laravel-backoffice.md`](./adr/0001-consolidate-backend-into-laravel-backoffice.md) — the decision + table ownership.
-4. The area `CLAUDE.md` for the service you're touching (`Messor/`, `Curator/`, `Reader/apps/web/`).
+4. [`docs/adr/0003-backoffice-schema-isolation.md`](./adr/0003-backoffice-schema-isolation.md) — **DB-safety mechanics (read before any DB work)**, and [`docs/backend-handoff-review.md`](./backend-handoff-review.md) — why.
+5. The area `CLAUDE.md` for the service you're touching (`Messor/`, `Curator/`, `Reader/apps/web/`).
 
 ## 1. Golden rules (do not violate)
 
 - **One admin.** All CRUD goes in the Laravel Backoffice (`Messor/apps/platform`).
   Never add admin pages to the Reader. If you find `Reader/apps/web/app/admin/`, it
   is being deleted — do not extend it.
-- **One database.** Postgres + pgvector only. No SQLite. No second store, no cross-DB sync.
+- **One database, two schemas.** Postgres + pgvector only. No SQLite. Curator's
+  pipeline lives in the **`public`** schema; the Backoffice migrates into a
+  **`backoffice`** schema (`search_path=backoffice,public`). See
+  [ADR-0003](./adr/0003-backoffice-schema-isolation.md).
+- **🚫 Never `php artisan migrate:fresh` against `public`.** Laravel migrations are
+  scoped to `backoffice`; `migrate:fresh` on `public` would drop Curator's live
+  pipeline data. Use scoped `php artisan migrate` only.
 - **Table ownership** (so migrations don't collide):
-  - *Curator owns* (pipeline writes): `events`, `articles`, `entities`, `pages`.
-  - *Backoffice owns* (Laravel migrations): `outlets`, `curator_settings`, `api_keys`,
-    `model_usage`, `customers`, `subscriptions`, `users`.
+  - *Curator owns* (`public`, pipeline writes): `events`, `articles`, `entities`,
+    `pages`, **and the `outlets` DDL** (the Backoffice CRUDs `public.outlets` but does
+    not own its schema — ADR-0003).
+  - *Backoffice owns* (`backoffice` schema, Laravel migrations): `curator_settings`,
+    `api_keys`, `model_usage`, `customers`, `subscriptions`, `users`.
+  - **Laravel must NOT define `articles` or `sources`** — Curator's `public.articles`
+    is canonical; the legacy Laravel `articles`/`sources` migrations are removed.
   - Touch only the tables your assignment owns. Read across the line is fine; schema
     changes across the line are not.
 - **Secrets.** `api_keys` rows are encrypted at rest (Laravel `encrypted` cast),
@@ -54,18 +70,27 @@ Task IDs in the tracker: 1.1=#13, 1.2=#14, 2.1=#15, 2.2=#16, 2.3=#17, 3=#18.
 
 ## Tab A — Phase 1.1 · Point Laravel at shared Postgres, drop SQLite
 
-**Goal.** Laravel runs on the same Postgres+pgvector Curator uses; SQLite gone.
+**Goal.** Laravel runs on the same Postgres+pgvector Curator uses, **isolated in a
+`backoffice` schema**; SQLite gone.
 **cd:** `Messor/apps/platform`
-**Read:** `config/database.php`, `.env.example`, `backend-architecture.md` §4.
-**Do:** set `DB_CONNECTION=pgsql` pointing at the orchestrator Postgres; remove the
-sqlite connection + any `database.sqlite`; run `php artisan migrate` clean; confirm
-Breeze login and the existing index pages (Sources, Runs, Articles, Dashboard) load.
-**Don't:** create new feature tables here; don't touch Curator's pipeline tables.
-**Done when:** `php artisan migrate:fresh` succeeds on Postgres and auth + all current
-pages work. Update `STATUS.md`.
+**Read:** `config/database.php`, `.env.example`, `backend-architecture.md` §4,
+**`adr/0003-backoffice-schema-isolation.md`** (the DB-safety mechanics).
+**Do:** set `DB_CONNECTION=pgsql` pointing at the orchestrator Postgres with
+`'search_path' => 'backoffice,public'` and the migrations/default schema =
+`backoffice` (create the schema if absent); remove the sqlite connection + any
+`database.sqlite`; **delete the legacy `create_articles` and `create_sources`
+migrations** (do not port them — Curator's `public.articles` is canonical); run the
+**scoped** `php artisan migrate` (creates Laravel's tables in `backoffice` only);
+confirm Breeze login and the existing pages load (Sources/Runs/Articles views that
+depended on the dropped tables will be reworked in 1.2).
+**Don't:** ❌ run `php artisan migrate:fresh` against `public`; ❌ create new feature
+tables here; ❌ touch Curator's `public` pipeline tables.
+**Done when:** `php artisan migrate` succeeds into the `backoffice` schema, Curator's
+`public` tables/data are untouched (verify counts unchanged), and Breeze auth works.
+Update `STATUS.md`.
 
 **Kickoff prompt:**
-> Read `docs/backend-architecture.md` and `docs/adr/0001-consolidate-backend-into-laravel-backoffice.md`, then `cd Messor/apps/platform`. Switch the app from SQLite to the shared Postgres+pgvector (same instance Curator uses, see `orchestrator/docker-compose.dev.yaml`). Remove SQLite config and files, get `php artisan migrate:fresh` passing on Postgres, and verify Breeze auth + the existing Inertia pages still load. Follow the golden rules in `docs/backend-handoff.md` §1. Do not add new tables in this task.
+> Read `docs/backend-architecture.md`, `docs/adr/0001-consolidate-backend-into-laravel-backoffice.md`, and **`docs/adr/0003-backoffice-schema-isolation.md`**, then `cd Messor/apps/platform`. Switch the app from SQLite to the shared Postgres+pgvector (same instance Curator uses, `orchestrator/docker-compose.dev.yaml`), with the Laravel connection scoped to a **`backoffice` schema** (`search_path=backoffice,public`, migrations schema `backoffice`). Remove SQLite config/files and **delete the legacy `articles`/`sources` migrations** (Curator's `public.articles` is canonical — do not recreate them). Run a **scoped `php artisan migrate`** (NOT `migrate:fresh`, which would drop Curator's live `public` data) and verify Breeze auth works and Curator's `public` row counts (articles/events/pages) are unchanged. Follow `docs/backend-handoff.md` §1.
 
 ---
 
@@ -76,17 +101,21 @@ the duplicates are gone.
 **cd:** `Messor/apps/platform` (+ reference `Curator/apps/curator/db/migrations/002_outlets_table.sql`)
 **Read:** Laravel `app/Models/Source.php`, `SourceController.php`, the Curator outlets
 migration, `backend-architecture.md` §4–5.
-**Do:** make Laravel read/write the Postgres `outlets` table (match Curator's schema:
-region/language/vertical/priority/active); build create/update/delete + list in the
-admin (Inertia/React/MUI); migrate any data from `sources`; **delete** the Laravel
-`sources` table, the duplicate SQLite-era `articles` table, and
-`Reader/apps/web/app/admin/`.
-**Don't:** change the `outlets` columns Curator/Messor depend on.
-**Done when:** an admin can CRUD an outlet and Messor/Curator pick it up; `sources`
-gone; Reader `/admin` gone. Update `STATUS.md`.
+**Do:** bind a Laravel model to **`public.outlets`** (Curator owns the DDL; match its
+schema: region/language/vertical/priority/active); build create/update/delete + list
+in the admin (Inertia/React/MUI); migrate any rows from the old `sources` data into
+`public.outlets`; **make Curator's startup outlets auto-seed idempotent
+(seed-only-if-empty)** in `Curator/apps/curator/core/application.py` so a Curator
+restart never overwrites admin edits; **delete** `Reader/apps/web/app/admin/`. (The
+legacy `sources`/`articles` migrations were already removed in 1.1 — nothing to drop
+here.)
+**Don't:** ❌ change the `outlets` columns Curator/Messor depend on; ❌ move `outlets`
+out of `public`; ❌ re-introduce a Laravel-owned `articles`/`sources` table.
+**Done when:** an admin can CRUD an outlet, Messor/Curator pick it up, **and a Curator
+restart does not revert the edit**; Reader `/admin` gone. Update `STATUS.md`.
 
 **Kickoff prompt:**
-> Read `docs/backend-architecture.md` §4–5 and `docs/backend-handoff.md` §1. In `Messor/apps/platform`, replace the SQLite `sources` table with the shared Postgres `outlets` table (schema in `Curator/apps/curator/db/migrations/002_outlets_table.sql`). Build full outlets CRUD in the Inertia/React/MUI admin, migrate existing source rows, then delete the `sources` table, the duplicate `articles` table, and the `Reader/apps/web/app/admin/` page. Outlets is Backoffice-owned; don't break the columns Messor/Curator read.
+> Read `docs/backend-architecture.md` §4–5, `docs/adr/0003-backoffice-schema-isolation.md`, and `docs/backend-handoff.md` §1. In `Messor/apps/platform`, build full CRUD against the shared **`public.outlets`** table (schema in `Curator/apps/curator/db/migrations/002_outlets_table.sql`; Curator owns the DDL) in the Inertia/React/MUI admin, and migrate old `sources` rows into it. Make Curator's startup outlets seed **idempotent (seed-if-empty)** in `core/application.py` so restarts don't clobber admin edits. Delete the `Reader/apps/web/app/admin/` page. Don't move `outlets` out of `public` or recreate a Laravel `articles`/`sources` table.
 
 ---
 
@@ -149,9 +178,11 @@ Update `STATUS.md`.
 **Goal.** Paying customers and subscriptions managed in the Backoffice; Reader gated.
 **cd:** `Messor/apps/platform` and `Reader/apps/web`
 **Read:** `backend-architecture.md` §4–5, `mvp-plan.md` §9 (pricing/gating).
-**Do:** add `customers` + `subscriptions` via **Laravel Cashier** (Stripe); staff
-`users` + roles; programmatic API keys via **Sanctum**; wire Reader subscriber gating
-(Laravel issues a token/session, Reader verifies — Reader stays read-only).
+**Do:** **install Cashier first** (`composer require laravel/cashier` — not yet in
+`composer.json`; Sanctum + Breeze already are); add `customers` + `subscriptions` via
+**Laravel Cashier** (Stripe) in the `backoffice` schema; staff `users` + roles;
+programmatic API keys via **Sanctum**; wire Reader subscriber gating (Laravel issues a
+token/session, Reader verifies — Reader stays read-only).
 **Don't:** put billing logic in the Reader; don't store card data yourself (Stripe).
 **Done when:** a test customer subscribes via Stripe Checkout and the Reader unlocks
 full pages for them. Update `STATUS.md`.
@@ -164,7 +195,8 @@ full pages for them. Update `STATUS.md`.
 ## 3. Definition of done (whole effort)
 
 - One admin (Laravel Backoffice); the Reader has no `/admin`.
-- One Postgres; no SQLite; `sources` and the duplicate `articles` gone; single `outlets`.
+- One Postgres, two schemas (`public` = Curator pipeline, `backoffice` = Laravel); no
+  SQLite; legacy `sources` and the duplicate `articles` gone; single `public.outlets`.
 - Curator reads models/thresholds/keys from DB (env fallback) and writes `model_usage`.
 - Admin can: CRUD outlets, edit Curator settings + keys (masked), see spend, moderate
   events/pages and re-run synthesis, manage customers + subscriptions + staff roles.

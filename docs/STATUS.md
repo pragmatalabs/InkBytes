@@ -60,6 +60,13 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
 
 ## Open items / next steps
 
+0. **Backend consolidation (in planning):** Laravel Backoffice is the single admin
+   ([root ADR-0001](./adr/0001-consolidate-backend-into-laravel-backoffice.md)). The
+   build handoff ([backend-handoff.md](./backend-handoff.md)) was **audited + patched
+   for DB safety** ([review](./backend-handoff-review.md),
+   [ADR-0003 schema isolation](./adr/0003-backoffice-schema-isolation.md)) — the
+   original Phase 1.1 `migrate:fresh` would have wiped Curator's data. Safe to start
+   Phase 1.1 now.
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.
