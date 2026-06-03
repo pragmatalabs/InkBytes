@@ -129,7 +129,16 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      frontend builds; verified end-to-end no-LLM (unpublish→publish toggled
      `public.pages.published_at`; `event.resynthesize` dispatched stub synthesis);
      `public` counts unchanged (events=220, pages=29).
-     **Next: Phase 3** (business layer: customers/subscriptions/roles + Reader gating).
+   - **Phase 3 PAUSED** (business layer: customers/subscriptions/roles + Reader gating):
+     blocked on Stripe test credentials + pricing/gating decisions (Owner). Scope when
+     resumed: `composer require laravel/cashier`, `customers`/`subscriptions` in
+     `backoffice`, staff roles, Sanctum tokens, Reader subscriber gating (Laravel issues,
+     Reader verifies, Reader stays read-only).
+   - **Data note:** the 2.3 re-synthesize verification ran in **stub mode** (no
+     `ANTHROPIC_API_KEY`) and overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7`'s headline +
+     `synthesis_md` with stub text (1 of 29; source articles intact). Pending real
+     regeneration once the Anthropic key is set. *Lesson: verify re-synthesize against a
+     throwaway event, never live data.*
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.
