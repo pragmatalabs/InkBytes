@@ -12,9 +12,30 @@ import {
 } from '@mui/material';
 
 const numberFormatter = new Intl.NumberFormat();
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+
+function relativeTime(iso) {
+    if (!iso) return '—';
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (Number.isNaN(mins)) return '—';
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const h = Math.floor(mins / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+}
 
 export default function Dashboard({ metrics = {} }) {
     const regions = metrics.regions ?? [];
+    const p = metrics.pipeline ?? {};
+
+    const pipelineCards = [
+        { label: 'Articles', value: numberFormatter.format(p.articles ?? 0), description: `${numberFormatter.format(p.enriched ?? 0)} enriched` },
+        { label: 'Events', value: numberFormatter.format(p.events ?? 0), description: 'Clustered by Curator' },
+        { label: 'Pages', value: numberFormatter.format(p.pages_published ?? 0), description: `${numberFormatter.format(p.pages ?? 0)} total` },
+        { label: 'LLM Spend', value: usd.format(p.spend_usd ?? 0), description: 'Across all calls' },
+        { label: 'Last Harvest', value: relativeTime(p.last_harvest), description: 'Most recent article scraped' },
+    ];
 
     const cards = [
         {
@@ -37,9 +58,37 @@ export default function Dashboard({ metrics = {} }) {
     return (
         <AppLayout
             title="Control Center"
-            subtitle="Monitor the outlet catalogue feeding the ingestion pipeline."
+            subtitle="Live pipeline health and the outlet catalogue feeding it."
         >
             <Head title="Dashboard" />
+
+            {p.available !== false && (
+                <>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
+                        Pipeline
+                    </Typography>
+                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                        {pipelineCards.map((card) => (
+                            <Grid key={card.label} size={{ xs: 6, md: 'grow' }}>
+                                <Card sx={{ height: '100%' }}>
+                                    <CardContent>
+                                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                            {card.label}
+                                        </Typography>
+                                        <Typography variant="h6">{card.value}</Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
+                                            {card.description}
+                                        </Typography>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        ))}
+                    </Grid>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
+                        Outlets
+                    </Typography>
+                </>
+            )}
 
             <Grid container spacing={2}>
                 {cards.map((card) => (

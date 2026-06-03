@@ -125,7 +125,7 @@ export default function AppLayout({
                         Messor
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                        Laravel Platform
+                        InkBytes Backoffice
                     </Typography>
                 </Box>
             </Stack>

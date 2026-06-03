@@ -59,28 +59,28 @@ export default function ModelUsageIndex({
             <Head title="Cost & Usage" />
 
             <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         label="Total spend"
                         value={usd(summary.total_cost_usd, 4)}
                         hint={`${int(summary.total_calls)} calls`}
                     />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         label="Per 1000 articles"
                         value={usd(summary.cost_per_1000_articles, 4)}
                         hint={`${int(summary.article_count)} articles enriched`}
                     />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         label="Per published page"
                         value={usd(summary.cost_per_page, 4)}
                         hint={`${int(summary.page_count)} pages published`}
                     />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         label="Tokens (in / out)"
                         value={`${int(summary.total_input_tokens)} / ${int(

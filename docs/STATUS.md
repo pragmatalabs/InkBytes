@@ -134,11 +134,16 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      resumed: `composer require laravel/cashier`, `customers`/`subscriptions` in
      `backoffice`, staff roles, Sanctum tokens, Reader subscriber gating (Laravel issues,
      Reader verifies, Reader stays read-only).
-   - **Data note:** the 2.3 re-synthesize verification ran in **stub mode** (no
-     `ANTHROPIC_API_KEY`) and overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7`'s headline +
-     `synthesis_md` with stub text (1 of 29; source articles intact). Pending real
-     regeneration once the Anthropic key is set. *Lesson: verify re-synthesize against a
-     throwaway event, never live data.*
+   - **Backoffice UX hardening (Phase A) DONE:** drove the live app and fixed what made
+     it *look* broken — seeded a dev admin (`admin@inkbytes.test`, login wall was just an
+     un-run seeder); fixed MUI v7 `<Grid item>` → `size` truncation on Curator Settings +
+     Cost & Usage; deepened the Control Center with **live pipeline metrics** (articles/
+     enriched/events/pages/spend/last-harvest via cross-schema reads); rebranded
+     Laravel→InkBytes (logo + "InkBytes Backoffice"). 40 tests pass; verified in-browser.
+     Next: gap-analysis P0s — **B1 audit log, B2 RBAC**.
+   - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
+     stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
+     retained: verify re-synthesize against a throwaway event, never live data.*
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.

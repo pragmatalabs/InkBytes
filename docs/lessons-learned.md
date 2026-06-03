@@ -5,6 +5,27 @@
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
 
+## 2026-06-03 — Backoffice "doesn't work" was three small things, not a broken app
+
+Reported as "visually + functionally doesn't work / no logic." Running it (login →
+click every page) showed the app is actually sound; the perception came from:
+
+- **`db:seed` was never run → `backoffice.users` empty → login wall.** A fresh app
+  with no account *looks* completely broken. Seeders that create the admin must
+  actually be run after `migrate`; the dev seeder now creates `admin@inkbytes.test`.
+- **MUI v7 `<Grid item xs={} md={}>` is a silent no-op.** v7's `Grid` is the v2 API
+  (`<Grid size={{ xs, md }}>`); the legacy `item`/`xs`/`md` props are ignored, so
+  columns don't size and inputs collapse to content width — the Curator Settings
+  model dropdowns truncated to "Enrich mo…" / "cl…". Fix: use `size={{...}}`. Grep
+  the whole app for `<Grid item` after a v6→v7 bump.
+- **A "Control Center" that only shows outlet counts reads as "no logic."** Wiring
+  the dashboard to the real pipeline (articles/enriched/events/pages/spend/last-harvest
+  via cross-schema reads of Curator `public.*` + `backoffice.model_usage`) is what
+  makes an admin feel alive.
+- **Responsive ≠ broken.** Below the sidebar breakpoint the nav collapses to a
+  hamburger; verifying at a narrow viewport made it look like the nav was missing.
+  Check desktop width before "fixing" a non-bug.
+
 ## 2026-06-03 — Phase 2.3: events/pages moderation + re-run commands
 
 ### Laravel has no AMQP client — publish commands via the RabbitMQ management HTTP API

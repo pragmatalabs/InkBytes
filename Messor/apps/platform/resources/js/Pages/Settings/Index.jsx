@@ -75,7 +75,7 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                             Models
                         </Typography>
                         <Grid container spacing={2.5}>
-                            <Grid item xs={12} md={6}>
+                            <Grid size={{ xs: 12, md: 6 }}>
                                 <Autocomplete
                                     freeSolo
                                     options={modelSuggestions}
@@ -96,7 +96,7 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                                     )}
                                 />
                             </Grid>
-                            <Grid item xs={12} md={6}>
+                            <Grid size={{ xs: 12, md: 6 }}>
                                 <Autocomplete
                                     freeSolo
                                     options={modelSuggestions}
@@ -129,21 +129,21 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                             Generation
                         </Typography>
                         <Grid container spacing={2.5}>
-                            <Grid item xs={12} md={4}>
+                            <Grid size={{ xs: 12, md: 4 }}>
                                 {numberField(
                                     'max_tokens_enrich',
                                     'Max tokens (enrich)',
                                     'Per-article enrichment cap'
                                 )}
                             </Grid>
-                            <Grid item xs={12} md={4}>
+                            <Grid size={{ xs: 12, md: 4 }}>
                                 {numberField(
                                     'max_tokens_synth',
                                     'Max tokens (synthesize)',
                                     'Per-page synthesis cap'
                                 )}
                             </Grid>
-                            <Grid item xs={12} md={4}>
+                            <Grid size={{ xs: 12, md: 4 }}>
                                 {numberField(
                                     'temperature',
                                     'Temperature',
@@ -161,7 +161,7 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                             Clustering
                         </Typography>
                         <Grid container spacing={2.5}>
-                            <Grid item xs={12} md={3}>
+                            <Grid size={{ xs: 12, md: 3 }}>
                                 {numberField(
                                     'similarity_threshold',
                                     'Similarity threshold',
@@ -169,21 +169,21 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                                     0.01
                                 )}
                             </Grid>
-                            <Grid item xs={12} md={3}>
+                            <Grid size={{ xs: 12, md: 3 }}>
                                 {numberField(
                                     'entity_overlap_min',
                                     'Entity overlap min',
                                     'Shared entities to join'
                                 )}
                             </Grid>
-                            <Grid item xs={12} md={3}>
+                            <Grid size={{ xs: 12, md: 3 }}>
                                 {numberField(
                                     'min_sources_to_publish',
                                     'Min sources to publish',
                                     "Don't publish single-source"
                                 )}
                             </Grid>
-                            <Grid item xs={12} md={3}>
+                            <Grid size={{ xs: 12, md: 3 }}>
                                 {numberField(
                                     'recent_window_hours',
                                     'Recent window (hours)',

@@ -16,12 +16,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Dev admin so the Backoffice is usable immediately after `php artisan db:seed`.
+        // Override in real environments; never ship these credentials to production.
         User::query()->updateOrCreate([
-            'email' => 'test@example.com',
+            'email' => 'admin@inkbytes.test',
         ], [
-            'name' => 'Test User',
+            'name' => 'Admin',
             'email_verified_at' => now(),
-            'password' => Hash::make('password'),
+            'password' => Hash::make('password123'),
         ]);
 
         // Outlets are seeded by Curator into public.outlets (seed-if-empty);
