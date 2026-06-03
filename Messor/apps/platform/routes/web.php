@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\CuratorSettingController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ModelUsageController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RuntimeController;
@@ -38,6 +39,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // See ADR-0004 (config from DB) + ADR-0003 (schema isolation).
     Route::get('/settings', [CuratorSettingController::class, 'edit'])->name('settings.edit');
     Route::put('/settings', [CuratorSettingController::class, 'update'])->name('settings.update');
+
+    // Model usage / cost dashboard — read-only aggregates over
+    // backoffice.model_usage (Curator writes rows; Phase 2.2 / ADR-0003).
+    Route::get('/model-usage', [ModelUsageController::class, 'index'])->name('model-usage.index');
 
     // Provider API keys — encrypted-at-rest vault for store/rotate/mask/test.
     // Curator does NOT read these (it loads real keys from env — ADR-0004).

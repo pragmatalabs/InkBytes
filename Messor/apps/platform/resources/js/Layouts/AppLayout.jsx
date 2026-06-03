@@ -2,6 +2,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
@@ -58,6 +59,12 @@ const navigationItems = [
         routeName: 'settings.edit',
         match: 'settings.*',
         icon: TuneRoundedIcon,
+    },
+    {
+        label: 'Cost & Usage',
+        routeName: 'model-usage.index',
+        match: 'model-usage.*',
+        icon: InsightsRoundedIcon,
     },
     {
         label: 'API Keys',

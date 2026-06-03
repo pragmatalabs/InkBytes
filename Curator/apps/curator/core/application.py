@@ -44,6 +44,11 @@ class Application:
     async def startup(self, *, with_db: bool = True) -> None:
         if with_db:
             await self.db.connect()
+            # Wire the cost meter's DB sink so every completed LLM call is
+            # persisted to backoffice.model_usage (Phase 2.2). The write is
+            # fire-and-forget and non-fatal; the in-memory totals + COST log
+            # line are unchanged.
+            self.llm.meter.set_sink(self.db.record_model_usage)
             # Bootstrap the outlets catalogue on a fresh/empty DB only.
             # seed_outlets() is seed-if-empty (ADR-0003): once the table has
             # rows, the Laravel Backoffice owns outlet data and a Curator

@@ -52,6 +52,7 @@ class SynthesizeSkill:
             user_content=user_content,
             response_model=PageV1,
             max_tokens=self.llm_cfg.max_tokens_synth,
+            event_id=event_id,
         )
         await self._persist(event_id, page, rows)
         logger.info("SYNTHESIZE %s -> '%s'", event_id, page.headline)

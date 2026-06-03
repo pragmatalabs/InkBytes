@@ -171,6 +171,45 @@ class DatabaseService:
             return None
         return dict(row) if row else None
 
+    # ─────────────────────────────────────────── model usage ──────
+    async def record_model_usage(
+        self,
+        *,
+        call_label: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost_usd: float,
+        event_id: str | None = None,
+    ) -> None:
+        """Persist one completed LLM call into `backoffice.model_usage`.
+
+        This is a DATA write to a Backoffice-DDL-owned table (ADR-0001/0003):
+        Laravel owns the schema, Curator only INSERTs rows — the same
+        cross-schema data-write pattern used for `public.outlets`. The table is
+        schema-qualified because Curator's connection search_path is `public`.
+
+        `created_at` is set here (NOW()) so the row carries the call's
+        completion time even though the column also has a DB default.
+
+        This helper deliberately does NOT swallow exceptions — the caller
+        (CostMeter) wraps it so a logging/DB failure can never break the
+        pipeline. Keeping the raise here lets the caller log the real cause.
+        """
+        if not self.pool:
+            raise RuntimeError("DB pool not initialised")
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                """
+                INSERT INTO backoffice.model_usage
+                    (call_label, model, input_tokens, output_tokens,
+                     cost_usd, event_id, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                """,
+                call_label, model, int(input_tokens), int(output_tokens),
+                cost_usd, event_id,
+            )
+
     async def get_outlets_with_stats(self) -> list[dict[str, Any]]:
         """Return all outlets joined with live article/event stats from the DB."""
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]

@@ -148,3 +148,40 @@ was standalone (no FK to the dropped tables) and was kept. The orphaned
 will 500 at request time; per the handoff those Sources/Runs/Articles views are
 reworked in Phase 1.2, so they were left in place (they don't break boot or
 migrate, only the specific authed routes).
+
+### Persisting per-call cost from a sync meter via an async DB sink (Phase 2.2)
+Curator's `CostMeter.record()` is synchronous and is called from inside
+`LlmService.structured()` (which *is* async) right after reading the
+completion's token usage. To add a DB sink without making the meter async or
+threading a DB handle through every call site, the meter takes an optional
+async sink (`set_sink(db.record_model_usage)`) and schedules it
+fire-and-forget with `loop.create_task(...)` *outside* the meter's lock. Two
+things that matter:
+
+- **Non-fatal by construction.** The whole sink path is wrapped so a DB/logging
+  failure is caught and logged, never propagated — accounting must never break a
+  real LLM call. The in-memory totals + the existing `COST …` log line are kept
+  exactly as-is and run *before* the sink, so even if persistence fails the
+  operator still sees the run total. Verified by pointing the sink at a function
+  that raises: `record()` returned normally and only logged a WARNING.
+- **No running loop ⇒ skip, don't block.** `record()` guards
+  `asyncio.get_running_loop()`; in a sync context (a unit test, a future sync
+  caller) there's nothing to schedule onto, so it logs a debug line and skips
+  the write rather than blocking. In the real pipeline `structured()` is always
+  on the loop, so writes happen.
+
+`event_id` is threaded only where it's cheap: synthesize passes the cluster's
+event id; enrich passes `None` (no event exists pre-clustering), which is why
+the column is nullable.
+
+### `date_trunc` is Postgres-only — make dashboard aggregations driver-aware
+The cost dashboard groups spend "by day". `date_trunc('day', created_at)` is
+correct in prod (Postgres) but the Laravel feature tests run on **SQLite
+in-memory**, where `date_trunc` doesn't exist and the request 500s. Fix: pick
+the day-bucket expression from `getConnection()->getDriverName()` —
+`to_char(date_trunc('day', …), 'YYYY-MM-DD')` for `pgsql`, `strftime('%Y-%m-%d', …)`
+for sqlite. Same lesson for the cross-schema denominators: the dashboard reads
+`public.articles`/`public.pages` for the per-1000-articles / per-page figures,
+which don't exist under the SQLite test DB, so those count reads are wrapped to
+fall back to 0 — the read-only dashboard renders instead of erroring. Both keep
+prod behaviour identical while letting the suite stay on SQLite.

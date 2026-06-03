@@ -55,8 +55,14 @@ class LlmService:
         user_content: str,
         response_model: type[T],
         max_tokens: int,
+        event_id: str | None = None,
     ) -> T:
-        """Run a structured LLM call. Returns a validated `response_model` instance."""
+        """Run a structured LLM call. Returns a validated `response_model` instance.
+
+        `event_id` is optional context recorded with the call's token usage
+        (Phase 2.2). It is None for enrich (no event exists yet) and the
+        cluster's event id for synthesize.
+        """
         if self._stub_mode:
             return _stub_response(response_model, user_content)
 
@@ -78,7 +84,10 @@ class LlmService:
             result, completion = await messages_api.create_with_completion(**kwargs)
             try:
                 usage = completion.usage
-                self.meter.record(label, usage.input_tokens, usage.output_tokens)
+                self.meter.record(
+                    label, usage.input_tokens, usage.output_tokens,
+                    model=model, event_id=event_id,
+                )
             except Exception:
                 logger.debug("token usage unavailable on completion", exc_info=True)
             return result

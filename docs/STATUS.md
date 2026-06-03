@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-02*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-03*
 
 ## TL;DR
 
@@ -91,7 +91,21 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      admin screens: **Curator Settings** (edit tunables) + **API Keys** (list/create/
      rotate/delete, masked to last-4, with a "test key" provider check). 32 Laravel
      tests pass (7 new); frontend builds; `public` counts unchanged (309/220/29/31).
-     **Next: Phase 2.2** (model_usage + cost dashboard) and/or 2.3 (moderation).
+   - **Phase 2.2 DONE** (branch `backend/phase-2.2-model-usage`): model usage +
+     cost dashboard. New Backoffice-owned table `backoffice.model_usage` (Laravel
+     migration owns the DDL): `call_label`, `model`, `input_tokens`, `output_tokens`,
+     `cost_usd` (decimal), nullable `event_id` (Curator's text event id, no cross-schema
+     FK), `created_at` (timestamptz); indexed on `(model)` and `(created_at)`. Curator's
+     `CostMeter` gains an async **DB sink** (`set_sink`): every completed LLM call now
+     persists one row via `DatabaseService.record_model_usage(...)` (schema-qualified
+     INSERT) **alongside** the unchanged in-memory totals + COST log line. The write is
+     fire-and-forget (`loop.create_task`) and **non-fatal** — any DB/logging failure is
+     caught and logged, never breaking the pipeline. New read-only admin screen **Cost &
+     Usage**: spend by model, by skill, by day, plus projected **per-1000-articles** and
+     **per-page** (derived from live `public.articles`/`public.pages` counts). 34 Laravel
+     tests pass (2 new); frontend builds; `public` counts unchanged (309/220/29/31);
+     `model_usage` left empty (synthetic verification rows cleaned up).
+     **Next: Phase 2.3** (events/pages moderation + re-run) and/or Phase 3 (business layer).
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.
