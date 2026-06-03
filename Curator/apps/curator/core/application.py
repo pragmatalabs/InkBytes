@@ -37,6 +37,8 @@ class Application:
         self.synthesize = SynthesizeSkill(self.llm, self.db, cfg.llm)
         # Concurrency gate
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
+        # Background settings-refresh task (started in run_consumer).
+        self._config_task: asyncio.Task | None = None
 
     # ─────────────────────────────────────────── lifecycle ──────────
     async def startup(self, *, with_db: bool = True) -> None:
@@ -52,12 +54,34 @@ class Application:
                 # Fallback: look for a local copy next to the curator app
                 outlets_cfg = Path(__file__).resolve().parents[1] / "data" / "outlets.json"
             await self.db.seed_outlets(outlets_cfg)
+            # Overlay Backoffice-owned tunables from the DB over env/YAML.
+            # Absent table/row → keep env/YAML (fallback). Keys stay env-only.
+            await self._refresh_config_from_db()
         logger.info(
             "%s v%s ready (mode=%s, db=%s)",
             self.NAME, self.VERSION, self.cfg.application.mode, with_db,
         )
 
+    async def _refresh_config_from_db(self) -> bool:
+        """Re-read backoffice.curator_settings and overlay it onto live cfg."""
+        row = await self.db.fetch_curator_settings()
+        return self.cfg.apply_db_settings(row)
+
+    async def _config_refresh_loop(self) -> None:
+        """Periodically re-read settings so admin edits apply without redeploy."""
+        interval = self.cfg.application.config_refresh_seconds
+        if interval <= 0:
+            return
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                await self._refresh_config_from_db()
+            except Exception:  # pragma: no cover - defensive, never kill the loop
+                logger.exception("config refresh failed; will retry")
+
     async def shutdown(self) -> None:
+        if self._config_task is not None:
+            self._config_task.cancel()
         await self.mq.close()
         await self.db.close()
 
@@ -101,6 +125,9 @@ class Application:
         """Run forever, consuming RabbitMQ events."""
         await self.mq.connect()
         await self.mq.consume(self._handle_event)
+        # Periodic config refresh so admin edits in the Backoffice take effect
+        # without a Curator redeploy (ADR-0004 / backend-architecture §6).
+        self._config_task = asyncio.create_task(self._config_refresh_loop())
         # Keep the event loop alive until interrupted.
         await asyncio.Future()
 

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\ApiKeyController;
+use App\Http\Controllers\CuratorSettingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
@@ -31,6 +33,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/scraping/{id}/stream', [ScrapingJobController::class, 'stream'])->name('scraping.stream');
     Route::get('/runtime', [RuntimeController::class, 'index'])->name('runtime.index');
     Route::get('/runtime/snapshot', [RuntimeController::class, 'snapshot'])->name('runtime.snapshot');
+
+    // Curator settings — the single backoffice.curator_settings row Curator polls.
+    // See ADR-0004 (config from DB) + ADR-0003 (schema isolation).
+    Route::get('/settings', [CuratorSettingController::class, 'edit'])->name('settings.edit');
+    Route::put('/settings', [CuratorSettingController::class, 'update'])->name('settings.update');
+
+    // Provider API keys — encrypted-at-rest vault for store/rotate/mask/test.
+    // Curator does NOT read these (it loads real keys from env — ADR-0004).
+    Route::get('/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
+    Route::post('/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
+    Route::put('/api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
+    Route::delete('/api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+    Route::post('/api-keys/{apiKey}/test', [ApiKeyController::class, 'test'])->name('api-keys.test');
 });
 
 Route::middleware('auth')->group(function () {

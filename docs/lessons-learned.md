@@ -5,6 +5,42 @@
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
 
+## 2026-06-03 — Phase 2.1: DB-backed Curator config + key management
+
+### Curator's asyncpg connection lives in `public`; cross-schema reads MUST be qualified
+Laravel sets `search_path=backoffice,public`, but Curator's asyncpg pool has no
+custom search_path, so it defaults to `public`. An unqualified
+`SELECT ... FROM curator_settings` would silently fail to find the
+Backoffice-owned table. Always schema-qualify the cross-schema read:
+`backoffice.curator_settings`. (→ ADR-0004, ADR-0003)
+
+### Refresh-without-redeploy = mutate the *same* cfg objects in place
+The skills (`EnrichSkill.llm_cfg`, `ClusterSkill.cfg`) and the orchestrator hold
+**references** to the same `LlmCfg` / `ClusterCfg` instances created at boot.
+So applying DB settings by mutating those objects' attributes in place (not
+rebuilding `CuratorConfig`) makes a change visible on the very next event with
+no re-wiring. Pydantic v2 models are mutable by default, so this just works.
+
+### Keep provider keys in env — don't make Python decrypt Laravel's `encrypted` cast
+Laravel's `encrypted` cast is AES-256-GCM with a PHP-specific JSON envelope
+(`{"iv":...,"value":...,"mac":...}`) keyed by `APP_KEY`. Re-implementing that in
+Python to read `api_keys` would be fragile cross-language crypto for zero v0
+benefit, since Curator already has the keys in its environment. Decision:
+`api_keys` is a management vault for the admin (store/rotate/mask/test);
+Curator's key-loading stays env-only. (→ ADR-0004)
+
+### Migrations that seed must run on the test DB too (SQLite in-memory)
+`phpunit.xml` uses `DB_CONNECTION=sqlite` / `:memory:`. The `curator_settings`
+migration seeds its single row with `DB::table()->insert(['id'=>1,...])`, which
+works identically on SQLite and Postgres — verify new seed/`down()` logic isn't
+Postgres-only or the whole suite breaks under `RefreshDatabase`.
+
+### Laravel `$hidden` + an explicit `masked()` is the safe key projection
+Marking the `encrypted` `value` column as `$hidden` stops it leaking through any
+accidental `->toArray()` / `->toJson()`, while a dedicated `masked()` (last-4)
+is the only thing the controller ever sends to the client. Never project the
+raw decrypted value into an Inertia prop.
+
 ## 2026-06-02 — Monorepo unification, kernel consolidation, Docker, Reader admin
 
 ### Symlinks on `sys.path` shadow installed packages — silently

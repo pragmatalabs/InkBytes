@@ -1,15 +1,23 @@
-"""Curator config — YAML defaults + env-var overlay (pydantic-settings).
+"""Curator config — YAML defaults + env-var overlay + DB settings overlay.
 
 Loading order:
   1. read env.yaml (or whatever was passed via --config)
   2. overlay any env var matching a known mapping (ANTHROPIC_API_KEY,
      OPENAI_API_KEY, DATABASE_URL, RABBITMQ_URL, S3_*)
+  3. at runtime, overlay the tunables from `backoffice.curator_settings`
+     (the Backoffice-owned row) — see `apply_db_settings()` / ADR-0004.
 
 `__SET_VIA_ENV__` placeholders cause a fail-fast at boot if the
 corresponding env var is not set.
+
+Provider API keys are loaded from ENV ONLY (steps 1–2). Curator never reads
+or decrypts the Laravel `backoffice.api_keys` table; that table is for the
+Backoffice to manage/rotate/test keys. See
+`docs/adr/0004-curator-config-from-db-keys-via-env.md`.
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -17,7 +25,27 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
+
 PLACEHOLDER = "__SET_VIA_ENV__"
+
+# The columns Curator reads from backoffice.curator_settings, mapped to the
+# (section, field) they overlay onto. Keys stay out of this table by design.
+_DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
+    "enrich_model":           ("llm", "enrich_model"),
+    "synthesize_model":       ("llm", "synthesize_model"),
+    "max_tokens_enrich":      ("llm", "max_tokens_enrich"),
+    "max_tokens_synth":       ("llm", "max_tokens_synth"),
+    "temperature":            ("llm", "temperature"),
+    "similarity_threshold":   ("clustering", "similarity_threshold"),
+    "entity_overlap_min":     ("clustering", "entity_overlap_min"),
+    "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
+    "recent_window_hours":    ("clustering", "recent_window_hours"),
+}
+
+# Schema-qualified: Curator's asyncpg connection defaults to the `public`
+# search_path, so the Backoffice-owned table MUST be qualified.
+_DB_SETTINGS_TABLE = "backoffice.curator_settings"
 
 
 class AppCfg(BaseModel):
@@ -26,6 +54,9 @@ class AppCfg(BaseModel):
     mode: str = "development"
     log_level: str = "INFO"
     max_concurrent_articles: int = 4
+    # How often (seconds) the consumer re-reads backoffice.curator_settings so
+    # an admin change takes effect without a redeploy. 0 disables polling.
+    config_refresh_seconds: int = 30
 
 
 class LlmCfg(BaseModel):
@@ -123,6 +154,43 @@ class CuratorConfig(BaseModel):
                 f"Missing required config in production mode: {missing}. "
                 "Set the corresponding environment variables."
             )
+
+    def apply_db_settings(self, row: dict[str, Any] | None) -> bool:
+        """Overlay tunables from a `backoffice.curator_settings` row IN PLACE.
+
+        Mutating the existing `self.llm` / `self.clustering` objects (rather
+        than rebuilding the config) is what makes refresh take effect without a
+        redeploy: the skills and the orchestrator hold references to these same
+        objects, so a change here is visible on the next event.
+
+        Args:
+            row: a mapping of column → value from the settings table, or None
+                 when the table/row is absent (then env/YAML values stand —
+                 this is the fallback path).
+
+        Returns:
+            True if any field changed, False otherwise (incl. row is None).
+
+        Note: API keys are NOT in this row and are never overlaid here.
+        """
+        if not row:
+            return False
+
+        changed = False
+        for column, (section, field) in _DB_SETTINGS_MAP.items():
+            if column not in row or row[column] is None:
+                continue
+            target = getattr(self, section)
+            current = getattr(target, field)
+            # Coerce to the existing field's type so e.g. Decimal/str from the
+            # DB driver compares/stores cleanly as float/int.
+            new_value = type(current)(row[column])
+            if new_value != current:
+                setattr(target, field, new_value)
+                changed = True
+        if changed:
+            logger.info("Applied curator_settings from DB (%s).", _DB_SETTINGS_TABLE)
+        return changed
 
 
 def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:

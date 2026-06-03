@@ -77,7 +77,21 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      (models, services, controllers, pages, API routes, seeders, tests) retired; Dashboard
      rewritten on outlet metrics. Curator's startup outlet seed is now **seed-if-empty**
      (count guard) so admin edits survive restarts. **Reader `/admin` + its proxy deleted.**
-     Frontend builds; 25 Laravel tests pass. **Next: Phase 2.1** (DB-backed Curator config).
+     Frontend builds; 25 Laravel tests pass.
+   - **Phase 2.1 DONE** (branch `backend/phase-2.1-curator-config`): DB-backed Curator
+     config + key management ([ADR-0004](./adr/0004-curator-config-from-db-keys-via-env.md)).
+     Two Backoffice-owned tables migrated into `backoffice`: `curator_settings`
+     (LLM models/token caps/temperature + clustering thresholds, single live row,
+     seeded from config.py defaults) and `api_keys` (provider/label/active +
+     `encrypted`-cast `value`). Curator `core/config.py` overlays
+     `backoffice.curator_settings` (schema-qualified) over env/YAML and re-reads it on
+     a 30s poll, so an admin edit changes pipeline behaviour **without a redeploy**;
+     env/YAML stays the fallback when the row/table is absent. **API keys stay env-only**
+     — Curator never reads/decrypts `api_keys` (avoids Python↔Laravel AES crypto). New
+     admin screens: **Curator Settings** (edit tunables) + **API Keys** (list/create/
+     rotate/delete, masked to last-4, with a "test key" provider check). 32 Laravel
+     tests pass (7 new); frontend builds; `public` counts unchanged (309/220/29/31).
+     **Next: Phase 2.2** (model_usage + cost dashboard) and/or 2.3 (moderation).
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.

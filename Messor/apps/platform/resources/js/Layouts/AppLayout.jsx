@@ -1,11 +1,13 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import {
     AppBar,
     Avatar,
@@ -50,6 +52,18 @@ const navigationItems = [
         routeName: 'runtime.index',
         match: 'runtime.*',
         icon: MemoryRoundedIcon,
+    },
+    {
+        label: 'Curator Settings',
+        routeName: 'settings.edit',
+        match: 'settings.*',
+        icon: TuneRoundedIcon,
+    },
+    {
+        label: 'API Keys',
+        routeName: 'api-keys.index',
+        match: 'api-keys.*',
+        icon: KeyRoundedIcon,
     },
     {
         label: 'Profile',

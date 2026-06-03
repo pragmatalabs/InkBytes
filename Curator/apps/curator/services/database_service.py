@@ -139,6 +139,38 @@ class DatabaseService:
         logger.info("Seeded %d outlets from %s", len(records), config_path.name)
         return len(records)
 
+    # ─────────────────────────────────────────── curator settings ──
+    async def fetch_curator_settings(self) -> dict[str, Any] | None:
+        """Read the Backoffice-owned tunables row (read-only, schema-qualified).
+
+        The Laravel Backoffice owns `backoffice.curator_settings` (ADR-0003);
+        Curator only reads it. The table is schema-qualified because Curator's
+        connection search_path is `public`. Returns None when the table or row
+        is absent (fresh DB, or Backoffice migrations not yet run) so the
+        caller falls back to env/YAML config.
+
+        Curator never reads `backoffice.api_keys` — keys come from env (ADR-0004).
+        """
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+                row = await conn.fetchrow(
+                    "SELECT * FROM backoffice.curator_settings ORDER BY id LIMIT 1"
+                )
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.info(
+                "backoffice.curator_settings not present — using env/YAML config."
+            )
+            return None
+        except asyncpg.exceptions.InvalidSchemaNameError:
+            logger.info("backoffice schema absent — using env/YAML config.")
+            return None
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("Could not read curator_settings (%s) — keeping current config.", e)
+            return None
+        return dict(row) if row else None
+
     async def get_outlets_with_stats(self) -> list[dict[str, Any]]:
         """Return all outlets joined with live article/event stats from the DB."""
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
