@@ -1,0 +1,51 @@
+# InkBytes monorepo (GitHub: pragmatalabs/InkBytes)
+# Default-ignore everything at the root, then re-include the active v0 stack.
+# Legacy/parked projects (Entopics, Unitas, Synochi, hermes, ...) keep their
+# own nested .git repos and are intentionally NOT tracked by this monorepo.
+/*
+!.gitignore
+!CLAUDE.md
+!Messor/
+!Curator/
+!Reader/
+!orchestrator/
+!docs/
+
+# ── Build / dependency / runtime junk (applies inside the tracked dirs) ──
+node_modules/
+.next/
+.turbo/
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+*.tsbuildinfo
+
+# ── Logs, data, runtime artifacts ──
+*.log
+logs/
+*.sqlite3
+data/scrapes/
+data/history/
+data/rabbit/
+data/local/
+
+# ── Secrets / local config (never commit) ──
+.env
+.env.*
+!.env.example
+env.local.yaml
+*.local.yaml
+.secrets.env
+
+# ── OS / editor ──
+.DS_Store
+.idea/
+.vscode/
+.claude/settings.local.json

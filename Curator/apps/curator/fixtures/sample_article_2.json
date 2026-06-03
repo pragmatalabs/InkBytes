@@ -1,0 +1,22 @@
+{
+  "schema": "inkbytes.article.v1",
+  "session_id": "IKPGRB-2026-06-02T12:05:00Z",
+  "spaces_key": "messor/staging/sample/IKPGRB-2026-06-02T12-05-00Z--sample-2.json",
+  "article": {
+    "id": "sha256:c0ffee0002",
+    "outlet": { "id": "reuters", "name": "Reuters" },
+    "url": "https://www.reuters.com/markets/rates-bonds/central-bank-holds-rates-2026-06-02/",
+    "canonical_url": "https://www.reuters.com/markets/rates-bonds/central-bank-holds-rates-2026-06-02/",
+    "title": "Central bank holds benchmark rate, points to easing inflation",
+    "text": "The central bank left its main interest rate unchanged on Tuesday, signalling confidence that inflation continues to slow toward its policy target. The decision, widely anticipated by economists, marks a fourth straight month of declining price growth. Officials noted that the labour market remains resilient and reiterated their commitment to a data-dependent path. Energy prices were flagged as the primary upside risk. Bond yields edged lower after the announcement, while the currency was little changed against the dollar.",
+    "language": "en",
+    "published_at": "2026-06-02T11:45:00Z",
+    "scraped_at": "2026-06-02T12:05:00Z",
+    "word_count": 96,
+    "authors": ["Reuters Staff"],
+    "meta_categories": ["markets", "rates-bonds"],
+    "category": "markets",
+    "keywords": ["central bank", "interest rates", "inflation", "monetary policy"],
+    "metadata": { "og:type": "article", "og:locale": "en_US" }
+  }
+}

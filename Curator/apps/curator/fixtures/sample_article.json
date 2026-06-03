@@ -1,0 +1,22 @@
+{
+  "schema": "inkbytes.article.v1",
+  "session_id": "IKPGRB-2026-06-02T12:00:00Z",
+  "spaces_key": "messor/staging/sample/IKPGRB-2026-06-02T12-00-00Z--sample.json",
+  "article": {
+    "id": "sha256:c0ffee0001",
+    "outlet": { "id": "bbcnews", "name": "BBC News" },
+    "url": "https://www.bbc.com/news/sample-1",
+    "canonical_url": "https://www.bbc.com/news/sample-1",
+    "title": "Central bank holds key rate steady amid inflation easing",
+    "text": "The country's central bank kept its benchmark interest rate unchanged on Tuesday, citing signs that inflation is gradually easing toward its target. Officials said price growth slowed for a fourth consecutive month, while the labour market remained tight. Several analysts said the decision was widely expected and pointed to ongoing risks from energy prices. The central bank emphasised that future moves would remain data-dependent. Markets reacted modestly, with the local currency holding steady against the dollar.",
+    "language": "en",
+    "published_at": "2026-06-02T11:30:00Z",
+    "scraped_at": "2026-06-02T12:00:00Z",
+    "word_count": 92,
+    "authors": ["Staff"],
+    "meta_categories": ["business", "economy"],
+    "category": "business",
+    "keywords": ["central bank", "interest rates", "inflation"],
+    "metadata": { "og:type": "article", "og:locale": "en_US" }
+  }
+}

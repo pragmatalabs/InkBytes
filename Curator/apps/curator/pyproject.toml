@@ -1,0 +1,32 @@
+[project]
+name = "inkbytes-curator"
+version = "0.1.0"
+description = "Curator — InkBytes LLM-powered curation pipeline (Stages 2-4)."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+authors = [
+  { name = "Julian De La Rosa", email = "julian.delarosa.suncar@gmail.com" },
+]
+license = { text = "Proprietary" }
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "skills*", "services*", "contracts*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"

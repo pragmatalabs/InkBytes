@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  --ink:       #111111;
+  --ink-muted: #666666;
+  --border:    #e5e5e5;
+  --bg:        #fafaf9;
+  --accent:    #1a1a2e;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Synthesis markdown paragraphs */
+.prose-synthesis p {
+  margin-bottom: 1.1em;
+  line-height: 1.8;
+}

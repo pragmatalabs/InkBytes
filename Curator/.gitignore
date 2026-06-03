@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+env.local.yaml
+*.log
+logs/
+data/
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+dist/
+build/

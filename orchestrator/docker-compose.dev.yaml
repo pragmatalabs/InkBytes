@@ -1,0 +1,152 @@
+# InkBytes — parent orchestrator (development)
+#
+# Brings up the whole v0 stack locally:
+#   Messor harvester · Curator (LLM pipeline) · Reader (Next.js)
+#   · Postgres (with pgvector) · RabbitMQ · MinIO (DO Spaces stand-in)
+#
+# Usage from parent dir:
+#   docker compose -f orchestrator/docker-compose.dev.yaml up -d
+#   docker compose -f orchestrator/docker-compose.dev.yaml down -v
+#
+# Service URLs:
+#   Reader:        http://localhost:3000
+#   Admin:         http://localhost:3001
+#   Curator API:   http://localhost:8060
+#   Messor API:    http://localhost:8050
+#   Postgres:      localhost:5432  (inkbytes / inkbytes)
+#   RabbitMQ UI:   http://localhost:15672  (messor / messor)
+#   MinIO console: http://localhost:9001   (messor / messormessor)
+
+name: inkbytes-dev
+
+services:
+  # ─────────────────────────────────────────── infra ──────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: inkbytes-dev-postgres
+    environment:
+      POSTGRES_USER: inkbytes
+      POSTGRES_PASSWORD: inkbytes
+      POSTGRES_DB: inkbytes
+    ports: ["5432:5432"]
+    volumes: [pg-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inkbytes"]
+      interval: 10s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: inkbytes-dev-rabbitmq
+    ports: ["5672:5672", "15672:15672"]
+    environment:
+      RABBITMQ_DEFAULT_USER: messor
+      RABBITMQ_DEFAULT_PASS: messor
+    volumes: [rmq-data:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: inkbytes-dev-minio
+    ports: ["9000:9000", "9001:9001"]
+    environment:
+      MINIO_ROOT_USER: messor
+      MINIO_ROOT_PASSWORD: messormessor
+    command: server /data --console-address ":9001"
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      retries: 10
+
+  minio-bootstrap:
+    image: minio/mc:latest
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 messor messormessor &&
+        mc mb --ignore-existing local/inkbytes &&
+        echo 'MinIO bucket inkbytes ready.';
+      "
+    restart: "no"
+
+  # ─────────────────────────────────────────── services ──────────────
+  # Messor (harvester) — built from existing monorepo
+  messor:
+    build:
+      context: ../Messor
+      dockerfile: infra/docker/scraper.Dockerfile
+    container_name: inkbytes-dev-messor
+    depends_on:
+      rabbitmq:  { condition: service_healthy }
+      minio:     { condition: service_healthy }
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: messor
+      RABBITMQ_PASS: messor
+      DO_SPACES_KEY: messor
+      DO_SPACES_SECRET: messormessor
+      DO_SPACES_ENDPOINT: http://minio:9000
+      MESSOR_API_BASE_URL: http://platform:8080/api
+    ports: ["8050:8050"]
+    volumes:
+      - messor-data:/app/data
+
+  # Curator (LLM pipeline) — NEW monorepo, scaffolded D2
+  curator:
+    build:
+      context: ../Curator
+      dockerfile: apps/curator/Dockerfile
+    container_name: inkbytes-dev-curator
+    depends_on:
+      postgres:  { condition: service_healthy }
+      rabbitmq:  { condition: service_healthy }
+      minio:     { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://inkbytes:inkbytes@postgres:5432/inkbytes
+      RABBITMQ_URL: amqp://messor:messor@rabbitmq:5672/
+      S3_ENDPOINT: http://minio:9000
+      S3_KEY: messor
+      S3_SECRET: messormessor
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports: ["8060:8060"]
+    profiles: ["full"]   # not in default `up`; enable with --profile full
+
+  # Reader (Next.js public) — NEW monorepo, scaffolded D4
+  reader:
+    build:
+      context: ../Reader
+      dockerfile: apps/web/Dockerfile
+    container_name: inkbytes-dev-reader
+    depends_on:
+      postgres:  { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://inkbytes:inkbytes@postgres:5432/inkbytes
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      INKBYTES_DEMO_PASSWORD: ${INKBYTES_DEMO_PASSWORD:-letmein}
+    ports: ["3000:3000"]
+    profiles: ["full"]
+
+  # Admin (Next.js) — NEW monorepo, scaffolded D5
+  admin:
+    build:
+      context: ../Reader
+      dockerfile: apps/admin/Dockerfile
+    container_name: inkbytes-dev-admin
+    depends_on:
+      postgres:  { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://inkbytes:inkbytes@postgres:5432/inkbytes
+    ports: ["3001:3001"]
+    profiles: ["full"]
+
+volumes:
+  pg-data:
+  rmq-data:
+  minio-data:
+  messor-data:
