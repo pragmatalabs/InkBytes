@@ -1,58 +1,73 @@
-# Stage 1: Build environment
-FROM python:3.11 as builder
-LABEL name="inkbytes-messor-harvester-builder2" \
-    version="0.1" \
-    author="juliandelarosa@icloud.com"
+# syntax=docker/dockerfile:1
+#
+# Messor harvester image.
+#
+# Build context MUST be the Messor/ root — see docker/docker-compose.yaml:
+#     build:
+#       context: ..                 # -> Messor/
+#       dockerfile: docker/Dockerfile
+# so that both apps/scraper (the service) and packages/inkbytes (the
+# self-contained shared kernel) are visible to the build.
+#
+# The shared kernel is installed from the build context via requirements.txt
+# (`-e ../../packages/inkbytes`); it is NOT cloned from GitLab anymore.
 
-# Install system dependencies for build
-RUN apt-get update && apt-get install -y nano git && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy application code and requirements
-COPY ./ /app
-
-# Prepare necessary directories and scripts
-RUN chmod +x /app/scripts/install_inkbytes_libraries.sh && \
-    rm -rf /app/venv && \
-    python -m venv /app/venv
-
-# Copy configuration and requirements
-#COPY ./env.do.yaml /app/env.yaml
-#COPY ../requirements.txt /app
-
-# Install application's dependencies
-RUN /app/venv/bin/pip install --upgrade pip && \
-    /app/venv/bin/pip install -r /app/requirements.txt pytz nltk 'uvicorn[standard]'
-
-# Install libraries from gitlab
-RUN for repo in common models database; do \
-    /app/scripts/install_inkbytes_libraries.sh https://gitlab.com/inkbytes/${repo}.git develop inkbytes; \
-    done
-
-# Clean up any Python cache files (optional)
-RUN find /app -type d -name "__pycache__" -exec rm -r {} +
-RUN ls -la /app
-# Stage 2: Runtime environment
-FROM python:3.11 as runner
-LABEL name="inkbytes-messor-harvester-runner"
+# ── Stage 1: builder ──────────────────────────────────────────────────────────
+FROM python:3.11 AS builder
 
 WORKDIR /app
 
-# Copy from builder stage
-COPY --from=builder /app /app
+# Copy only the dependency manifests + the kernel first, so the (expensive) pip
+# layer is cached and only re-runs when dependencies or the kernel change.
+COPY apps/scraper/requirements.txt apps/scraper/pyproject.toml ./apps/scraper/
+COPY packages/inkbytes ./packages/inkbytes
 
-# Prepare the environment and set paths
-ENV PATH="/app/venv/bin:$PATH"
-RUN echo "source /app/venv/bin/activate" > /app/activate_venv.sh && \
-    chmod +x /app/scripts/install_inkbytes_libraries.sh /app/activate_venv.sh && \
-    echo "source /app/activate_venv.sh" >> /root/.bashrc
+# Build the venv. requirements.txt declares the kernel as `-e ../../packages/inkbytes`,
+# a path resolved relative to the current dir, so install from apps/scraper.
+RUN python -m venv /app/venv && \
+    /app/venv/bin/pip install --upgrade pip && \
+    cd apps/scraper && \
+    /app/venv/bin/pip install -r requirements.txt
 
-# Note: data and logs directories will be mounted as volumes from host
-# No need to create them - they will be bound from project root
+# Tokenizer data required by newspaper3k. Baked into the image (no network at runtime).
+RUN /app/venv/bin/python -m nltk.downloader -d /usr/share/nltk_data punkt punkt_tab
 
-# Expose the port your app runs on (adjust if needed)
-EXPOSE 8080
+# Now copy the application source (changes here don't bust the pip cache above).
+COPY apps/scraper ./apps/scraper
 
-# Set default command for scheduled mode in Docker
-CMD ["python", "main.py", "--schedule"]
+# Drop Python caches.
+RUN find /app -type d -name __pycache__ -prune -exec rm -rf {} + || true
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+FROM python:3.11-slim AS runner
+LABEL org.opencontainers.image.title="inkbytes-messor-harvester" \
+      org.opencontainers.image.source="https://github.com/pragmatalabs/InkBytes"
+
+WORKDIR /app/apps/scraper
+
+ENV PATH="/app/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    NLTK_DATA=/usr/share/nltk_data
+
+# The editable kernel install records the absolute path /app/packages/inkbytes,
+# so the venv AND that tree must land at the same paths they had in the builder.
+COPY --from=builder /app/venv /app/venv
+COPY --from=builder /app/packages /app/packages
+COPY --from=builder /app/apps/scraper /app/apps/scraper
+COPY --from=builder /usr/share/nltk_data /usr/share/nltk_data
+
+# Runtime dirs are excluded from the image (.dockerignore) and normally
+# bind-mounted, but create them so the container also runs standalone — the
+# logger opens logs/messor.log eagerly at startup and would crash otherwise.
+RUN mkdir -p /app/apps/scraper/logs \
+             /app/apps/scraper/data/scrapes \
+             /app/apps/scraper/data/history
+
+# FastAPI status/health surface.
+EXPOSE 8050
+
+# Scheduled (continuous) mode is the production entrypoint. Container stdin is
+# non-interactive, so the harvester runs its cycles and exits the command loop
+# cleanly instead of dropping into the REPL (see core/command_processor.py).
+# data/ and logs/ are expected to be bind-mounted from the host.
+CMD ["python", "main.py", "env.yaml", "--schedule"]

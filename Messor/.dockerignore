@@ -47,3 +47,18 @@ CLAUDE.md
 !infra/docker/platform/node.Dockerfile
 !infra/docker/platform/nginx/default.conf
 !infra/docker/scraper.Dockerfile
+
+# ── Harvester image: never bake runtime artifacts into the image ──────────────
+# data/ and logs/ are bind-mounted at runtime; only the seed data/outlets is
+# part of the image. Excluding these also keeps the build context small.
+apps/scraper/data/history
+apps/scraper/data/scrapes
+apps/scraper/data/rabbit
+apps/scraper/logs
+**/*.log
+apps/scraper/*.session.json
+scraping_session.json
+
+# Sibling apps that are not part of the harvester image
+apps/platform
+client
