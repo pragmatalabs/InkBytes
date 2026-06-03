@@ -308,24 +308,37 @@ class CommandProcessor:
             for auto_command in auto_command_queue:
                 print(f"\nExecuting auto command: {auto_command}")
                 self._execute_command(auto_command)
-        
+
+        # One-shot mode: when stdin is not an interactive terminal (Docker, CI,
+        # `< /dev/null`, piped input), there is no user to prompt. Reading from a
+        # closed stdin makes input() raise EOFError immediately and repeatedly,
+        # so we must NOT enter the interactive loop — otherwise it spins at full
+        # speed, flooding the logs. Exit cleanly after the queued commands.
+        if not sys.stdin.isatty():
+            self.logger.info("Non-interactive stdin detected; skipping interactive command loop")
+            self.logger.info("Completed process_commands")
+            return
+
         while not self.exit_event.is_set():
             try:
                 # Get command input from user
                 command_input = input("\nEnter command: ").strip()
-                
+
                 if not command_input:
                     continue
-                
+
                 self._execute_command(command_input)
-                
-            except KeyboardInterrupt:
-                self.logger.info("Command input interrupted")
+
+            except (EOFError, KeyboardInterrupt):
+                # EOFError: stdin closed / Ctrl-D. KeyboardInterrupt: Ctrl-C.
+                # Either way the user (or lack thereof) is done — exit the loop
+                # instead of logging an error and retrying forever.
+                self.logger.info("Command input closed; exiting command loop")
                 self.do_exit()
                 break
             except Exception as e:
                 self.logger.error(f"Error processing command: {e}")
-                
+
         self.logger.info("Completed process_commands")
     
     def _execute_command(self, command_input):
