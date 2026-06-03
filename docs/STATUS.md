@@ -71,7 +71,13 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      Curator's `public` data untouched (articles=309, events=220, pages=29, outlets=31).
      Legacy `sources`/`articles` migrations deleted; `scrape_runs` + its `add_view_tracking`
      alter also deleted (FK-depended on the dropped `sources`); `scraping_jobs` kept.
-     Breeze auth boots against Postgres. **Next: Phase 1.2** (single `public.outlets` CRUD).
+     Breeze auth boots against Postgres.
+   - **Phase 1.2 DONE** (merged): Outlets CRUD in the Backoffice bound to `public.outlets`
+     (Curator owns the DDL; no Laravel migration). Dead Sources/Runs/Articles surface
+     (models, services, controllers, pages, API routes, seeders, tests) retired; Dashboard
+     rewritten on outlet metrics. Curator's startup outlet seed is now **seed-if-empty**
+     (count guard) so admin edits survive restarts. **Reader `/admin` + its proxy deleted.**
+     Frontend builds; 25 Laravel tests pass. **Next: Phase 2.1** (DB-backed Curator config).
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.
