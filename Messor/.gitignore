@@ -97,3 +97,11 @@ node_modules/
 
 # Runtime scrape artifact
 /scraping_session.json
+
+# Runtime data under the scraper app (keep data/outlets/ seed config).
+# The patterns above are anchored to repo root; these cover the app path.
+apps/scraper/data/scrapes/
+apps/scraper/data/history/
+apps/scraper/data/rabbit/
+apps/scraper/data/local/
+data/rabbit/
