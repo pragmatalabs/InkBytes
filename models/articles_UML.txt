@@ -1,0 +1,81 @@
+@startuml
+class Article {
+    __getitem__()
+    from_dict()
+    to_dict()
+    __setitem__()
+    to_json()
+    set_topics()
+    update()
+    encode()
+    get_entities()
+    get_topics()
+    set_entities()
+    get_entity_links()
+    get_all_entity_types()
+    get_links()
+    set_links()
+    get_entities_by_type()
+    add_related_article()
+    get_related_articles()
+    add_similars_article()
+    get_similars_articles()
+    add_topic()
+    get_category()
+    get_word_count()
+    get_top_keywords()
+    set_sentiment()
+    set_factual()
+    set_summary()
+    extract_category()
+        topics
+    links
+    sentiment
+    factual
+    summary
+    category
+    __init__()
+}
+class ArticleBuilder {
+    buildFromNewspaper3K()
+        __init__()
+}
+class ArticleEncoder {
+    default()
+        __init__()
+}
+class ArticleCollection {
+    __iter__()
+    __len__()
+    count()
+    append()
+    add_article()
+    size()
+    remove_article()
+    filter_articles()
+    find_article()
+    save_to_json()
+    load_from_json()
+    __getitem__()
+    __setitem__()
+    add_article()
+    get_article()
+    remove_article()
+    save_to_json()
+    load_articles_from_json()
+    load_from_json()
+    to_dict()
+    from_dict()
+    filter_articles()
+    build_article_collection()
+    group_articles_by_cluster()
+    extract_unique_clusters()
+        __init__()
+}
+class ArticleProcessor {
+        __init__()
+}
+BaseModel <|-- Article
+BaseModel <|-- ArticleBuilder
+BaseModel <|-- ArticleCollection
+@enduml

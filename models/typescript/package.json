@@ -1,0 +1,10 @@
+{
+  "name": "inkbytes_typescript_models",
+  "version": "1.0.0",
+  "description": "Inkbytes common shared models and functions",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "private": false
+}

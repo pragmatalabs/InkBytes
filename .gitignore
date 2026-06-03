@@ -1,7 +1,8 @@
 # InkBytes monorepo (GitHub: pragmatalabs/InkBytes)
-# Default-ignore everything at the root, then re-include the active v0 stack.
-# Legacy/parked projects (Entopics, Unitas, Synochi, hermes, ...) keep their
-# own nested .git repos and are intentionally NOT tracked by this monorepo.
+# Default-ignore everything at the root, then re-include the tracked dirs.
+# Unifying into GitHub: the former GitLab modules (database, common, models)
+# are now part of this monorepo. Remove their nested .git dirs before adding.
+# Entopics, Unitas, Synochi, hermes and the rest stay parked under Trashx/.
 /*
 !.gitignore
 !CLAUDE.md
@@ -10,6 +11,10 @@
 !Reader/
 !orchestrator/
 !docs/
+!database/
+!common/
+!models/
+# !src/   <- legacy duplicate of Messor/packages/inkbytes (+ DocTrainer); enable only if you want it tracked
 
 # ── Build / dependency / runtime junk (applies inside the tracked dirs) ──
 node_modules/

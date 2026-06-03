@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "ikbcommon"
+version = "0.1.1.1"
+description = "Inkbytes Common"
+authors = ["Julian De La Rosa <julian.delarosa.suncar@gmail.com>"]
+readme = "README.md"
+packages = [{include = "*/*", from = "./"}]
+exclude = ["./dist", "./dist/*"]
+[tool.poetry.dependencies]
+python = "^3.10"
+python-dotenv = "1.0.0"
+beautifulsoup4 = "4.12.3"
+nltk = "3.8.1"
+requests = "2.31.0"
+tinydb = "4.8.0"
+pandas="2.2.0"
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

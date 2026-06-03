@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "models"
+version = "0.1.0"
+description = ""
+authors = ["Julian De La Rosa <julian.delarosa.suncar@gmail.com>"]
+readme = "README.md"
+packages = [
+    { include = "*"}
+]
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

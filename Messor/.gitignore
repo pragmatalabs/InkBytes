@@ -70,7 +70,6 @@ secrets/
 # Project specific
 Storage/
 data/scrapes/
-inkbytes/
 apps/platform/node_modules/
 apps/platform/vendor/
 apps/platform/public/build/
