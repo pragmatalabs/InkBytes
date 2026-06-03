@@ -36,22 +36,33 @@ class DatabaseService:
         logger.info("Postgres pool ready (min=%d max=%d)", self.cfg.pool_min, self.cfg.pool_max)
 
     async def _ensure_schema(self) -> None:
-        """Apply each migration file when its sentinel table is absent.
+        """Apply each migration file when its guard says it's not yet applied.
 
-        Guards per migration:
-          001 → 'articles' table
-          002 → 'outlets' table
-        Using `IF NOT EXISTS` in the SQL makes each file idempotent if
-        re-run (e.g. after a manual partial apply).
+        Two guard kinds:
+          • table guard  — skip if a sentinel table already exists (DDL that
+            creates a table). 001 → 'articles', 002 → 'outlets'.
+          • predicate guard — skip if a SQL predicate already holds (DDL that
+            alters an existing table). 003 → pages.published_at already nullable.
+        Using `IF NOT EXISTS` / idempotent ALTERs in the SQL makes each file
+        safe to re-run, but the guards avoid the churn on every boot.
         """
-        # sentinel table for each numbered migration
-        GUARDS: dict[str, str] = {
+        # sentinel table for each numbered table-creating migration
+        TABLE_GUARDS: dict[str, str] = {
             "001_initial_schema.sql": "articles",
             "002_outlets_table.sql":  "outlets",
         }
+        # boolean SQL guard for each ALTER-style migration: TRUE → already applied
+        ALTER_GUARDS: dict[str, str] = {
+            # 003 makes pages.published_at nullable.
+            "003_pages_moderation.sql": (
+                "SELECT is_nullable = 'YES' FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'pages' "
+                "AND column_name = 'published_at'"
+            ),
+        }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
-                guard_table = GUARDS.get(sql_file.name)
+                guard_table = TABLE_GUARDS.get(sql_file.name)
                 if guard_table:
                     exists = await conn.fetchval(
                         "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
@@ -59,6 +70,11 @@ class DatabaseService:
                         guard_table,
                     )
                     if exists:
+                        continue
+                alter_guard = ALTER_GUARDS.get(sql_file.name)
+                if alter_guard:
+                    already = await conn.fetchval(alter_guard)
+                    if already:
                         continue
                 logger.info("Applying migration %s", sql_file.name)
                 await conn.execute(sql_file.read_text(encoding="utf-8"))
@@ -209,6 +225,66 @@ class DatabaseService:
                 call_label, model, int(input_tokens), int(output_tokens),
                 cost_usd, event_id,
             )
+
+    # ─────────────────────────────────────────── moderation ────────
+    # Curator owns all writes to public.pages / public.events (ADR-0003). The
+    # Backoffice only issues RabbitMQ commands; these helpers perform the
+    # actual mutation. Each returns True when a row was affected.
+    async def set_page_published(self, page_id: str, *, published: bool) -> bool:
+        """Publish (set published_at = NOW()) or unpublish (NULL) a page.
+
+        Also keeps the parent event's status in sync: a published page → event
+        'published'; an unpublished page → event 'draft' (unless already
+        'dropped', which we leave alone — drop is a stronger, explicit state).
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            async with conn.transaction():
+                if published:
+                    event_id = await conn.fetchval(
+                        "UPDATE pages SET published_at = NOW() WHERE id = $1 "
+                        "RETURNING event_id",
+                        page_id,
+                    )
+                    if event_id is not None:
+                        await conn.execute(
+                            "UPDATE events SET status = 'published', "
+                            "last_updated_at = NOW() WHERE id = $1",
+                            event_id,
+                        )
+                else:
+                    event_id = await conn.fetchval(
+                        "UPDATE pages SET published_at = NULL WHERE id = $1 "
+                        "RETURNING event_id",
+                        page_id,
+                    )
+                    if event_id is not None:
+                        await conn.execute(
+                            "UPDATE events SET status = 'draft', "
+                            "last_updated_at = NOW() WHERE id = $1 "
+                            "AND status <> 'dropped'",
+                            event_id,
+                        )
+        return event_id is not None
+
+    async def drop_page(self, page_id: str) -> bool:
+        """Drop a page: unpublish it (published_at = NULL) and mark its event
+        'dropped'. No hard delete — the row is retained so it can be revived
+        (re-publish / re-synthesize). Returns True if the page existed.
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            async with conn.transaction():
+                event_id = await conn.fetchval(
+                    "UPDATE pages SET published_at = NULL WHERE id = $1 "
+                    "RETURNING event_id",
+                    page_id,
+                )
+                if event_id is not None:
+                    await conn.execute(
+                        "UPDATE events SET status = 'dropped', "
+                        "last_updated_at = NOW() WHERE id = $1",
+                        event_id,
+                    )
+        return event_id is not None
 
     async def get_outlets_with_stats(self) -> list[dict[str, Any]]:
         """Return all outlets joined with live article/event stats from the DB."""

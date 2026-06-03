@@ -52,6 +52,8 @@ async def _run(args: argparse.Namespace) -> None:
     # (fixture) skip it — the embedded server would just confuse the output.
     api_task: asyncio.Task | None = None
     server: uvicorn.Server | None = None
+    # --consume-commands is a focused harness (Phase 2.3) that must NOT bind the
+    # FastAPI port, so it can run alongside an existing --api-only Curator.
     long_running = args.consume or args.api_only
     if needs_db and long_running:
         api = build_app(app)
@@ -68,6 +70,8 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_fixture(Path(args.fixture))
         elif args.consume:
             await app.run_consumer()
+        elif args.consume_commands:
+            await app.run_command_consumer()
         elif args.api_only:
             assert api_task is not None
             await api_task
@@ -90,6 +94,7 @@ def main() -> int:
     parser.add_argument("--config", default="env.yaml", help="Path to config YAML")
     grp = parser.add_mutually_exclusive_group()
     grp.add_argument("--consume", action="store_true", help="Consume RabbitMQ events forever (needs DB)")
+    grp.add_argument("--consume-commands", action="store_true", help="Consume only Backoffice moderation commands (needs DB; no FastAPI port)")
     grp.add_argument("--fixture", metavar="PATH", help="Process one fixture event end-to-end (needs DB)")
     grp.add_argument("--dry-run", metavar="PATH", help="Run ENRICH+embed only on a fixture; no DB required")
     grp.add_argument("--api-only", action="store_true", help="Run only the FastAPI surface (needs DB)")

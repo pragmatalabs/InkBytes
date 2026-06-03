@@ -1,9 +1,53 @@
 # InkBytes — Lessons Learned
 
-> *Status: living doc · Owner: Julián · Last updated: 2026-06-02*
+> *Status: living doc · Owner: Julián · Last updated: 2026-06-03*
 
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
+
+## 2026-06-03 — Phase 2.3: events/pages moderation + re-run commands
+
+### Laravel has no AMQP client — publish commands via the RabbitMQ management HTTP API
+The Backoffice needs to emit RabbitMQ commands but ships only Guzzle (no
+`php-amqplib`, and the handoff forbids adding one without justification). The
+management API's `POST /api/exchanges/{vhost}/{exchange}/publish` (HTTP basic
+auth `messor:messor`, port **15672** not 5672) does fire-and-forget publishing
+with zero new dependencies. `%2F` is the default vhost; rawurlencode it.
+`CuratorCommandService` wraps this. Two non-obvious bits: (1) the API returns
+`{"routed": true|false}` — `false` means the exchange exists but no queue is
+bound (Curator's consumer isn't running), so we raise on it rather than report
+success; (2) we **PUT the exchange declare first** (idempotent) so an admin can
+issue a command even before Curator has ever booted, otherwise publish 404s.
+
+### `public.pages.published_at` was `NOT NULL` — unpublish needs it nullable
+The 001 schema declared `published_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`, so
+"unpublish" had no clean representation (a sentinel date is worse). Curator owns
+the pages DDL, so the fix is a **Curator** migration (`003_pages_moderation.sql`,
+`ALTER COLUMN published_at DROP NOT NULL`), not a Backoffice one. The moderation
+state of record stays `events.status` (`draft|published|dropped`, already in
+001); `pages.published_at` is just the publish toggle. `page.drop` is a soft
+drop (unpublish + event `dropped`, row retained) — no hard delete, so a dropped
+page is revivable. (→ ADR-0003: Curator owns these writes; Backoffice commands)
+
+### Curator's migration applier needs a predicate guard for ALTER-style migrations
+`_ensure_schema` skipped a migration only if a *sentinel table* existed — fine
+for CREATE TABLE files, useless for an ALTER (the table already exists). Added a
+second guard kind: a boolean SQL predicate (`is_nullable='YES'` for 003) so the
+ALTER runs once and is skipped on every later boot. Without this it'd re-ALTER
+on every connect (harmless but noisy).
+
+### Test the controller's cross-schema read defensively — SQLite has no `public.*`
+The moderation list reads `public.events`/`public.pages`, which don't exist in
+the `:memory:` SQLite test DB. Like the cost dashboard, wrap the reads in
+try/catch and render an empty list rather than 500. Command-publish tests use
+`Http::fake()` against the mgmt API — no real broker needed.
+
+### Re-synthesize in stub mode overwrites real page content — use a throwaway event to test
+`event.resynthesize` re-runs the synthesize skill, which in stub mode (no
+`ANTHROPIC_API_KEY`) writes a deterministic "Stub one-pager (offline dev)" over
+the real headline/synthesis_md (source articles are untouched, so a real
+re-synthesize regenerates it). When proving the command path against live data,
+prefer a disposable event, or expect to re-run synthesis with real keys after.
 
 ## 2026-06-03 — Phase 2.1: DB-backed Curator config + key management
 

@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\CuratorSettingController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EventModerationController;
 use App\Http\Controllers\ModelUsageController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
@@ -39,6 +40,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // See ADR-0004 (config from DB) + ADR-0003 (schema isolation).
     Route::get('/settings', [CuratorSettingController::class, 'edit'])->name('settings.edit');
     Route::put('/settings', [CuratorSettingController::class, 'update'])->name('settings.update');
+
+    // Events / Pages moderation (Phase 2.3) — read-only review of Curator's
+    // public.events/public.pages + publish/unpublish/drop and re-synthesize/
+    // re-cluster actions that publish RabbitMQ commands (Curator applies them).
+    Route::get('/moderation', [EventModerationController::class, 'index'])->name('moderation.index');
+    Route::post('/moderation/pages/{page}/publish', [EventModerationController::class, 'publishPage'])->name('moderation.pages.publish');
+    Route::post('/moderation/pages/{page}/unpublish', [EventModerationController::class, 'unpublishPage'])->name('moderation.pages.unpublish');
+    Route::post('/moderation/pages/{page}/drop', [EventModerationController::class, 'dropPage'])->name('moderation.pages.drop');
+    Route::post('/moderation/events/{event}/resynthesize', [EventModerationController::class, 'resynthesizeEvent'])->name('moderation.events.resynthesize');
+    Route::post('/moderation/events/{event}/recluster', [EventModerationController::class, 'reclusterEvent'])->name('moderation.events.recluster');
 
     // Model usage / cost dashboard — read-only aggregates over
     // backoffice.model_usage (Curator writes rows; Phase 2.2 / ADR-0003).

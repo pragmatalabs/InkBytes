@@ -35,4 +35,24 @@ return [
         ],
     ],
 
+    /*
+    | Curator moderation commands (Phase 2.3).
+    |
+    | The Backoffice publishes JSON commands (page.publish / page.unpublish /
+    | page.drop / event.resynthesize / event.recluster) to a RabbitMQ topic
+    | exchange that Curator consumes. We publish via the RabbitMQ *management
+    | HTTP API* (Guzzle, no AMQP composer package) — see CuratorCommandService
+    | and docs/lessons-learned.md.
+    */
+    'curator' => [
+        'rabbitmq' => [
+            // Management HTTP API base (note: port 15672, not the AMQP 5672).
+            'management_url' => env('RABBITMQ_MANAGEMENT_URL', 'http://localhost:15672'),
+            'user' => env('RABBITMQ_USER', 'messor'),
+            'password' => env('RABBITMQ_PASSWORD', 'messor'),
+            'vhost' => env('RABBITMQ_VHOST', '/'),
+            'commands_exchange' => env('CURATOR_COMMANDS_EXCHANGE', 'curator.commands'),
+        ],
+    ],
+
 ];

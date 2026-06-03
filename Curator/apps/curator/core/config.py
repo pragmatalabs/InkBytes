@@ -103,6 +103,13 @@ class RmqCfg(BaseModel):
     consume_queue: str = "curator.articles-scraped"
     consume_routing_key: str = "event.article.scraped"
     publish_exchange: str = "curator"
+    # Backoffice → Curator moderation commands (Phase 2.3). The Laravel admin
+    # publishes page.publish / page.unpublish / page.drop / event.resynthesize
+    # / event.recluster to this topic exchange; Curator consumes and applies
+    # the writes (Curator owns public.events / public.pages — ADR-0003).
+    commands_exchange: str = "curator.commands"
+    commands_queue: str = "curator.commands"
+    commands_routing_key: str = "#"  # all command routing keys
 
 
 class SpacesCfg(BaseModel):

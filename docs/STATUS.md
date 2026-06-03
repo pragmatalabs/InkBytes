@@ -105,7 +105,31 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      **per-page** (derived from live `public.articles`/`public.pages` counts). 34 Laravel
      tests pass (2 new); frontend builds; `public` counts unchanged (309/220/29/31);
      `model_usage` left empty (synthetic verification rows cleaned up).
-     **Next: Phase 2.3** (events/pages moderation + re-run) and/or Phase 3 (business layer).
+   - **Phase 2.3 DONE** (branch `backend/phase-2.3-moderation`): events/pages
+     moderation + re-run commands. New read-only Backoffice screen **Moderation**
+     lists Curator's `public.events` + their `public.pages` (headline, source count
+     via `evidence_rail`, freshness, published-at, cost) with **Publish / Unpublish /
+     Drop** and **Re-synthesize / Re-cluster** actions. The Backoffice **never writes**
+     events/pages (ADR-0003): each action publishes a JSON command over RabbitMQ and
+     Curator applies the write. Command transport is the **RabbitMQ management HTTP API**
+     via Guzzle (`CuratorCommandService`) — **no AMQP composer package** added (see
+     lessons-learned). Commands ride a new durable topic exchange `curator.commands`
+     (queue `curator.commands`) with routing keys `page.publish` / `page.unpublish` /
+     `page.drop` / `event.resynthesize` / `event.recluster`; payload `{"id": "<target>"}`.
+     Curator extends its aio-pika layer with a command consumer (`MessageService.consume_commands`
+     + `Application._handle_command`), wired into `run_consumer` and a focused
+     `main.py --consume-commands` harness (no FastAPI :8060 bind, so it coexists with a
+     running `--api-only` Curator). Handlers: publish→`published_at=NOW()`+event
+     `published`; unpublish→`published_at=NULL`+event `draft`; drop→`published_at=NULL`+
+     event `dropped` (no hard delete — row retained, revivable); resynthesize/recluster
+     re-run the existing skills. **Curator migration `003_pages_moderation.sql`** makes
+     `public.pages.published_at` **nullable** (was `NOT NULL`) so unpublish/drop have a
+     clean toggle; the moderation state of record stays `events.status`
+     (`draft|published|dropped`, already in 001). 40 Laravel tests pass (6 new);
+     frontend builds; verified end-to-end no-LLM (unpublish→publish toggled
+     `public.pages.published_at`; `event.resynthesize` dispatched stub synthesis);
+     `public` counts unchanged (events=220, pages=29).
+     **Next: Phase 3** (business layer: customers/subscriptions/roles + Reader gating).
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.

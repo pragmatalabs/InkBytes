@@ -5,6 +5,7 @@ import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded';
@@ -59,6 +60,12 @@ const navigationItems = [
         routeName: 'settings.edit',
         match: 'settings.*',
         icon: TuneRoundedIcon,
+    },
+    {
+        label: 'Moderation',
+        routeName: 'moderation.index',
+        match: 'moderation.*',
+        icon: RateReviewRoundedIcon,
     },
     {
         label: 'Cost & Usage',

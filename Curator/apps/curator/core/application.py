@@ -20,6 +20,23 @@ from skills.synthesize import SynthesizeSkill
 logger = logging.getLogger(__name__)
 
 
+def _parse_vector(raw: Any) -> list[float]:
+    """Parse a pgvector value back into a list[float].
+
+    asyncpg has no native vector codec here, so the column round-trips as the
+    text literal `[0.1,0.2,...]`. (If a list ever comes through directly, pass
+    it untouched.)
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        return [float(x) for x in raw]
+    s = str(raw).strip().lstrip("[").rstrip("]")
+    if not s:
+        return []
+    return [float(x) for x in s.split(",")]
+
+
 class Application:
     NAME = "Curator"
     VERSION = "0.1.0"
@@ -127,14 +144,112 @@ class Application:
         print("=" * 60)
 
     async def run_consumer(self) -> None:
-        """Run forever, consuming RabbitMQ events."""
+        """Run forever, consuming RabbitMQ events + Backoffice commands."""
         await self.mq.connect()
         await self.mq.consume(self._handle_event)
+        # Backoffice moderation commands (Phase 2.3): publish/unpublish/drop and
+        # re-synthesize/re-cluster. Curator owns the writes to public.events /
+        # public.pages; the Backoffice only issues these commands (ADR-0003).
+        await self.mq.consume_commands(self._handle_command)
         # Periodic config refresh so admin edits in the Backoffice take effect
         # without a Curator redeploy (ADR-0004 / backend-architecture §6).
         self._config_task = asyncio.create_task(self._config_refresh_loop())
         # Keep the event loop alive until interrupted.
         await asyncio.Future()
+
+    async def run_command_consumer(self) -> None:
+        """Consume ONLY the Backoffice command queue (no article pipeline).
+
+        Used by `main.py --consume-commands` as a focused harness that does not
+        bind the FastAPI port 8060, so it can run alongside an existing
+        `--api-only` Curator instance during Phase 2.3 testing.
+        """
+        await self.mq.connect()
+        await self.mq.consume_commands(self._handle_command)
+        await asyncio.Future()
+
+    # ─────────────────────────────────────────── commands ───────────
+    async def _handle_command(self, routing_key: str, payload: dict[str, Any]) -> None:
+        """Dispatch a single Backoffice moderation command.
+
+        routing_key is the command name; payload carries `{"id": "<target>"}`.
+        Curator performs the actual write/skill re-run (it owns these tables).
+        """
+        target_id = (payload or {}).get("id")
+        if not target_id:
+            logger.error("command %s missing 'id' — payload=%s", routing_key, payload)
+            return
+        logger.info("← command %s id=%s", routing_key, target_id)
+
+        if routing_key == "page.publish":
+            ok = await self.db.set_page_published(target_id, published=True)
+            logger.info("page.publish %s -> %s", target_id, "ok" if ok else "no such page")
+        elif routing_key == "page.unpublish":
+            ok = await self.db.set_page_published(target_id, published=False)
+            logger.info("page.unpublish %s -> %s", target_id, "ok" if ok else "no such page")
+        elif routing_key == "page.drop":
+            ok = await self.db.drop_page(target_id)
+            logger.info("page.drop %s -> %s", target_id, "ok" if ok else "no such page")
+        elif routing_key == "event.resynthesize":
+            # Re-run synthesis for this event id (writes/updates its pages row).
+            # Works in stub mode without LLM keys (deterministic offline output).
+            await self.synthesize.run(target_id)
+            logger.info("event.resynthesize %s dispatched", target_id)
+        elif routing_key == "event.recluster":
+            await self._recluster_event(target_id)
+            logger.info("event.recluster %s dispatched", target_id)
+        else:
+            logger.warning("unknown command routing_key=%s — ignored", routing_key)
+
+    async def _recluster_event(self, event_id: str) -> None:
+        """Re-run clustering for every article currently in an event.
+
+        Re-clustering an existing event means re-evaluating its members against
+        the recent neighbourhood: we detach the articles, then feed each back
+        through ClusterSkill (which may re-form the same event or split/merge).
+        Re-synthesis is left to a follow-up `event.resynthesize` command so the
+        two actions stay independently triggerable from the UI.
+        """
+        async with self.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                """
+                SELECT id, embedding, outlet_id, language, scraped_at
+                  FROM articles
+                 WHERE event_id = $1 AND embedding IS NOT NULL
+                 ORDER BY scraped_at
+                """,
+                event_id,
+            )
+            if not rows:
+                logger.info("event.recluster %s — no articles to recluster", event_id)
+                return
+            # Detach members so the cluster skill re-resolves them from scratch.
+            await conn.execute(
+                "UPDATE articles SET event_id = NULL, cluster_distance = NULL "
+                "WHERE event_id = $1",
+                event_id,
+            )
+
+        for r in rows:
+            ent_rows = await self._article_entities(r["id"])
+            # embedding comes back as a pgvector text literal "[..]"; parse it.
+            embedding = _parse_vector(r["embedding"])
+            await self.cluster.run(
+                article_id=r["id"],
+                embedding=embedding,
+                entities=ent_rows,
+                outlet_id=r["outlet_id"],
+                language=r["language"],
+                scraped_at=r["scraped_at"],
+            )
+
+    async def _article_entities(self, article_id: str) -> list[dict[str, Any]]:
+        async with self.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                "SELECT name, type, salience FROM entities WHERE article_id = $1",
+                article_id,
+            )
+        return [dict(r) for r in rows]
 
     # ─────────────────────────────────────────── pipeline ───────────
     async def _handle_event(self, payload: dict[str, Any]) -> None:
