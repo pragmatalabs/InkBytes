@@ -51,11 +51,11 @@ class LoggingService:
         
         return logger
     
-    def info(self, message: str):
-        self.logger.info(message)
-        
-    def error(self, message: str):
-        self.logger.error(message)
-        
-    def warning(self, message: str):
-        self.logger.warning(message)
+    def info(self, message: str, *args, **kwargs):
+        self.logger.info(message, *args, **kwargs)
+
+    def error(self, message: str, *args, **kwargs):
+        self.logger.error(message, *args, **kwargs)
+
+    def warning(self, message: str, *args, **kwargs):
+        self.logger.warning(message, *args, **kwargs)
