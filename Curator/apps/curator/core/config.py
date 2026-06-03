@@ -32,8 +32,8 @@ class LlmCfg(BaseModel):
     provider: str = "anthropic"
     enrich_model: str = "claude-haiku-4-5"
     synthesize_model: str = "claude-haiku-4-5"
-    max_tokens_enrich: int = 600
-    max_tokens_synth: int = 900
+    max_tokens_enrich: int = 1500
+    max_tokens_synth: int = 2500
     temperature: float = 0.2
     api_key: str = PLACEHOLDER
     # Standard list prices for cost accounting. Defaults = Claude Haiku 4.5
@@ -51,9 +51,12 @@ class EmbedCfg(BaseModel):
 
 
 class ClusterCfg(BaseModel):
-    similarity_threshold: float = 0.78
+    # Tuned for real cross-outlet news (text-embedding-3-small): 0.78 was too
+    # strict and produced no clusters; 0.62 + 1 shared entity merges same-story
+    # articles across outlets while the entity gate guards against false merges.
+    similarity_threshold: float = 0.62
     min_sources_to_publish: int = 2
-    entity_overlap_min: int = 2
+    entity_overlap_min: int = 1
     recent_window_hours: int = 48
 
 
