@@ -37,7 +37,7 @@ Messor/
 │   │   ├── requirements.txt · pyproject.toml
 │   └── platform/                 ← Laravel (deferred to post-v0)
 ├── packages/inkbytes/            ← shared kernel (Python pkg, pydantic v1)
-│   └── inkbytes/{common,models,database}/   ← symlinks to repo-root dirs
+│   └── inkbytes/{common,models,database}/   ← real source, self-contained (ADR-0007)
 ├── docs/                         ← contracts, architecture, ops, ADRs
 ├── infra/docker/                 ← Dockerfile, dev compose
 ├── scripts/                      ← dev-up.sh, dev-smoke.sh, commit-v1-docs.sh

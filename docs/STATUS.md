@@ -63,20 +63,24 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
 2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
    a one-off recluster. Wire `--schedule` for continuous operation.
-3. **Outlet coverage:** only CNN/NPR/AP exercised. LATAM/ES outlets in `outlets.json`
-   not yet harvested.
-4. **Messor REPL:** `--scrape` mode spins on EOF with no TTY (non-blocking, but should
-   exit cleanly).
+3. **Outlet coverage:** EN (CNN/NPR/AP) plus LATAM/ES (Infobae, Milenio, El Universal MX,
+   Listín Diario, El Espectador, clarín, animalpolítico…) now exercised via the Messor
+   admin client. Broaden + schedule for full coverage.
+4. ~~**Messor REPL:** `--scrape` spins on EOF with no TTY.~~ **Resolved** — non-TTY exits
+   cleanly (one-shot) or holds the API up (serve mode). See Messor ADR-0007 follow-up.
 
 ## Known risks / cleanup debt
 
 - **`Trashx/`** (local only, untracked): holds 34 moved legacy items. Several are repos
   with **unpushed/uncommitted work** (Entopics, Unitas, hermes, mefisto, walkway,
   DocTrainer, Inkbytes-PowerDesktop). Review repo-by-repo before deleting.
-- **Messor GitLab repo** (`Messor/.git` → gitlab.com/inkbytes/messor) still exists with
-  `b7247c7` unpushed and now diverges from the GitHub monorepo copy. Retire it to keep a
-  single canonical source.
+- ~~**Nested GitLab/local repos** inside the tree.~~ **Resolved** — severed; GitHub is the
+  single source of truth. See [root ADR-0002](./adr/0002-github-monorepo-single-source.md).
+- ~~**Shared-kernel symlinks** (`apps/scraper/inkbytes` → `src/inkbytes`, in-package links).~~
+  **Resolved** — kernel is now self-contained real source. See
+  [Messor ADR-0007](../Messor/docs/adr/0007-self-contained-shared-kernel.md).
 - **Curator config**: `env.local.yaml` (gitignored) carries the live keys/values; the
   committed `config.py` defaults match it, but the secrets live only on this machine.
-- Two minor tracked artifacts in Messor: `scraping_session.json` and the
-  `apps/scraper/inkbytes` symlink (the latter is the documented shared-kernel link).
+- **`Trashx/` legacy repos** (see above) still need repo-by-repo review before deletion.
+- **Deploy image**: build `--platform linux/amd64` for the DO droplet (local builds are
+  arm64); supply service hostnames via env-var overlay (committed `env.yaml` uses localhost).
