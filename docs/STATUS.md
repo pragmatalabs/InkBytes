@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B7 shipped)*
 
 ## TL;DR
 
