@@ -292,3 +292,30 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 **Cheapest first value:** **B9 → B10** (both S, no blocking decision). Both gating
 decisions are now made (KEEP env keys; B12 = Messor→Postgres), so the whole P2/P3
 sequence is unblocked.
+
+---
+
+## Post-backlog: per-run scrape options (2026-06-04, branch `backend/scrape-run-options`)
+
+A follow-on beyond B1–B13. The Scraping page used to always run a fixed
+all-outlets harvest. It now lets an operator scope a single run:
+
+- **Messor** — `SCRAPE` gained `--outlets=slug1,slug2,…`. `scraper_service`
+  filters the loaded catalogue to outlets whose `id`/`name`/`slug` matches
+  (case-insensitive); unknown slugs are logged and ignored (defensive). `--limit`
+  and the custom `--outlet="name|url"` still work; bare `--scrape` = all outlets.
+  Stays pydantic v1, Postgres-free, no new deps.
+- **Backoffice** — `scraping_jobs.options` (nullable json) stores the validated
+  `{limit?, outlet_slugs?[]}`. A `{SCRAPE_ARGS}` placeholder in `SCRAPING_COMMAND`
+  is substituted by `RunScrapingWorker::composeScrapeArgs()` (no placeholder ⇒
+  command runs verbatim, backward-compatible). The Scraping page adds an outlet
+  multi-select (from active `public.outlets`) + a limit field.
+- **Security** — outlet slugs are allowlisted against `public.outlets.id`
+  (`whereIn`) plus a `[a-z0-9._-]` regex; limit is int-bounded 1..200; the outlet
+  CSV is `escapeshellarg`'d at build time. A `bbc; rm -rf /` attempt is rejected
+  at validation (422) and never reaches a shell. Operator+ gating (B2) and a B1
+  `scraping.triggered` audit (recording the scope) are preserved.
+
+Mapping (worker arg builder): none → `--scrape`; `{limit:3}` →
+`--scrape=--limit=3`; `{outlet_slugs:[apnews,bbc]}` → `--scrape --outlets='apnews,bbc'`;
+both → `--scrape --outlets='bbc,cnbc' --limit=5`.

@@ -215,14 +215,63 @@ class ScraperService:
         except Exception as e:
             self.logger.error(f"Error in perform_concurrent_scraping: {e}")
     
-    def execute_scraping_process(self, limit=None, custom_outlet=None):
+    @staticmethod
+    def _outlet_identifiers(outlet) -> set:
+        """Collect every slug-like identifier an outlet can be matched on.
+
+        The catalogue's `id` is a string slug (e.g. "bbc"). After loading,
+        OutletsSource carries that slug in `name` (and possibly `slug`/`id`);
+        we accept any of them, case-insensitively, so the Backoffice's
+        `public.outlets.id` matches regardless of which field it landed in.
+        """
+        ids = set()
+        for value in (getattr(outlet, 'id', None),
+                      getattr(outlet, 'name', None),
+                      getattr(outlet, 'slug', None)):
+            if value is None:
+                continue
+            text = str(value).strip().lower()
+            if text:
+                ids.add(text)
+        return ids
+
+    def _filter_outlets_by_slugs(self, outlets, slugs):
+        """Restrict the loaded catalogue to outlets whose id/name/slug matches.
+
+        Unknown slugs are ignored defensively (logged, never fatal). Matching is
+        case-insensitive against the outlet's id, name, and slug. Returns the
+        filtered list preserving catalogue order.
+        """
+        wanted = {str(s).strip().lower() for s in slugs if str(s).strip()}
+        if not wanted:
+            return outlets
+
+        filtered = [o for o in outlets if self._outlet_identifiers(o) & wanted]
+
+        matched = set()
+        for o in filtered:
+            matched |= (self._outlet_identifiers(o) & wanted)
+        unknown = wanted - matched
+        if unknown:
+            self.logger.warning(
+                f"Ignoring unknown outlet slug(s): {sorted(unknown)}"
+            )
+        self.logger.info(
+            f"Outlet subset filter: {len(filtered)} of {len(outlets)} "
+            f"outlets matched {sorted(wanted)}"
+        )
+        return filtered
+
+    def execute_scraping_process(self, limit=None, custom_outlet=None, slugs=None):
         """
         Execute the scraping process for outlets.
-        
+
         Args:
             limit: Optional limit on number of outlets to scrape
             custom_outlet: Optional custom outlet definition (dict with name and url)
-        
+            slugs: Optional list of catalogue outlet slugs to restrict the harvest
+                to. Unknown slugs are ignored. Ignored when custom_outlet is set.
+
         Returns:
             List of scraping session results
         """
@@ -240,7 +289,19 @@ class ScraperService:
                     self.logger.warning("No outlets found")
                     self.logger.info("Completed execute_scraping_process")
                     return []
-                
+
+                # Restrict to the requested subset of outlets, if any. Applied
+                # before --limit so the limit caps the chosen subset, not the
+                # full catalogue.
+                if slugs:
+                    outlets = self._filter_outlets_by_slugs(outlets, slugs)
+                    if not outlets:
+                        self.logger.warning(
+                            "No outlets matched the requested subset; nothing to scrape"
+                        )
+                        self.logger.info("Completed execute_scraping_process")
+                        return []
+
                 # Apply limit if specified
                 if limit and isinstance(limit, int) and limit > 0:
                     self.logger.info(f"Limiting to {limit} outlets")

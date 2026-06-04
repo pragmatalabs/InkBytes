@@ -5,6 +5,7 @@ import { useToast } from '@/providers/ToastProvider';
 import { Head } from '@inertiajs/react';
 import {
     Alert,
+    Autocomplete,
     Box,
     Button,
     Chip,
@@ -69,11 +70,30 @@ const formatDuration = (seconds) => {
 
 const isActiveStatus = (status) => ['pending', 'running'].includes(status);
 
-export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
+const scopeLabel = (options) => {
+    if (!options || (typeof options === 'object' && Object.keys(options).length === 0)) {
+        return 'All outlets';
+    }
+
+    const parts = [];
+    const slugs = Array.isArray(options.outlet_slugs) ? options.outlet_slugs : [];
+    if (slugs.length > 0) {
+        parts.push(`${slugs.length} outlet${slugs.length === 1 ? '' : 's'}: ${slugs.join(', ')}`);
+    }
+    if (options.limit) {
+        parts.push(`limit ${options.limit}`);
+    }
+
+    return parts.length > 0 ? parts.join(' · ') : 'All outlets';
+};
+
+export default function ScrapingJobsIndex({ jobs: initialJobs = [], outlets: outletOptions = [] }) {
     const { isOperator } = useAuthRole();
     const { showToast } = useToast();
     const [jobs, setJobs] = useState(initialJobs);
     const [triggerName, setTriggerName] = useState('');
+    const [selectedOutlets, setSelectedOutlets] = useState([]);
+    const [limitInput, setLimitInput] = useState('');
     const [triggering, setTriggering] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [logLines, setLogLines] = useState([]);
@@ -90,6 +110,16 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
         () => jobs.find((job) => job.id === selectedJobId) || null,
         [jobs, selectedJobId],
     );
+
+    const limitError = useMemo(() => {
+        const trimmed = limitInput.trim();
+        if (trimmed === '') {
+            return false;
+        }
+
+        const value = Number(trimmed);
+        return !Number.isInteger(value) || value < 1 || value > 200;
+    }, [limitInput]);
 
     const fetchJobs = useCallback(async () => {
         try {
@@ -167,12 +197,26 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
         setTriggering(true);
 
         try {
-            const response = await window.axios.post(route('scraping.trigger'), {
-                name: triggerName.trim(),
-            });
+            const payload = { name: triggerName.trim() };
+
+            const slugs = selectedOutlets.map((outlet) => outlet.id);
+            if (slugs.length > 0) {
+                payload.outlet_slugs = slugs;
+            }
+
+            const trimmedLimit = limitInput.trim();
+            if (trimmedLimit !== '') {
+                payload.limit = Number(trimmedLimit);
+            }
+
+            const response = await window.axios.post(route('scraping.trigger'), payload);
 
             const createdJob = response.data?.data;
             showToast('Scraping job started successfully.', 'success');
+
+            // Reset the per-run scope so the next run defaults to all outlets.
+            setSelectedOutlets([]);
+            setLimitInput('');
 
             await fetchJobs();
 
@@ -180,7 +224,12 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
                 setSelectedJobId(createdJob.id);
             }
         } catch (error) {
+            const validationErrors = error?.response?.data?.errors;
+            const firstValidation = validationErrors
+                ? Object.values(validationErrors).flat()[0]
+                : null;
             const message =
+                firstValidation ||
                 error?.response?.data?.message ||
                 'Unable to trigger scraping job right now.';
 
@@ -211,16 +260,48 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
                             onChange={(event) =>
                                 setTriggerName(event.target.value)
                             }
-                            sx={{ minWidth: 260, flex: 1 }}
+                            sx={{ minWidth: 200, flex: 1 }}
+                        />
+                        <Autocomplete
+                            multiple
+                            size="small"
+                            options={outletOptions}
+                            value={selectedOutlets}
+                            onChange={(_event, value) => setSelectedOutlets(value)}
+                            getOptionLabel={(option) => option.display_name || option.name || option.id}
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Outlets (all if empty)"
+                                    placeholder={selectedOutlets.length === 0 ? 'All outlets' : ''}
+                                />
+                            )}
+                            sx={{ minWidth: 280, flex: 2 }}
+                        />
+                        <TextField
+                            size="small"
+                            type="number"
+                            label="Limit"
+                            value={limitInput}
+                            onChange={(event) => setLimitInput(event.target.value)}
+                            error={limitError}
+                            helperText={limitError ? '1–200' : ' '}
+                            inputProps={{ min: 1, max: 200 }}
+                            sx={{ width: 110 }}
                         />
                         <Button
                             variant="contained"
                             onClick={handleTrigger}
-                            disabled={triggering || activeJobExists}
+                            disabled={triggering || activeJobExists || limitError}
                         >
                             {triggering ? 'Starting...' : '▶ Iniciar Scraping'}
                         </Button>
                     </Stack>
+
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        Leave outlets empty and limit blank to scrape all active outlets (default).
+                    </Typography>
 
                     {activeJobExists ? (
                         <Alert severity="info" sx={{ mt: 1.5 }}>
@@ -262,7 +343,16 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
                                     selected={selectedJobId === job.id}
                                     sx={{ cursor: 'pointer' }}
                                 >
-                                    <TableCell sx={{ fontWeight: 600 }}>{job.name}</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>
+                                        {job.name}
+                                        <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                            sx={{ display: 'block', fontWeight: 400 }}
+                                        >
+                                            {scopeLabel(job.options)}
+                                        </Typography>
+                                    </TableCell>
                                     <TableCell>
                                         <Chip
                                             size="small"

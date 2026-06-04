@@ -13,6 +13,7 @@ class ScrapingJob extends Model
         'name',
         'status',
         'triggered_by',
+        'options',
         'started_at',
         'finished_at',
         'exit_code',
@@ -20,6 +21,7 @@ class ScrapingJob extends Model
     ];
 
     protected $casts = [
+        'options' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
         'exit_code' => 'integer',

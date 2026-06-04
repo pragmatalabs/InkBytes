@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\RunScrapingWorker;
+use App\Models\AuditLog;
+use App\Models\Outlet;
 use App\Models\ScrapingJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +28,19 @@ class ScrapingJobController extends Controller
                     ->limit(100)
                     ->get()
             ),
+            // Active outlet catalogue for the per-run subset multi-select. The
+            // `id` is the slug the trigger validates against (public.outlets.id).
+            'outlets' => Outlet::query()
+                ->where('active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'display_name'])
+                ->map(fn (Outlet $outlet): array => [
+                    'id' => (string) $outlet->id,
+                    'name' => $outlet->name,
+                    'display_name' => $outlet->display_name ?: $outlet->name,
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -51,19 +66,72 @@ class ScrapingJobController extends Controller
             ], 409);
         }
 
+        // SECURITY: outlet_slugs are validated against the public.outlets
+        // allowlist so only real catalogue ids can ever reach the worker's arg
+        // builder; limit is bounded to an int range. The slug regex is a cheap
+        // first filter (rejects shell metacharacters) before the DB allowlist
+        // check below. A slug not in the DB → 422 (never escapes into a shell
+        // command).
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:255'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+            'outlet_slugs' => ['nullable', 'array', 'max:200'],
+            'outlet_slugs.*' => ['string', 'regex:/^[a-z0-9._-]+$/'],
         ]);
+
+        // DB allowlist: every requested slug must exist in public.outlets.
+        // Done via the Outlet model (correctly bound to the public schema)
+        // rather than Rule::exists, whose dotted-table parsing treats the
+        // schema as a connection name. Any unknown slug fails validation (422).
+        $requestedSlugs = array_values(array_unique($validated['outlet_slugs'] ?? []));
+        if ($requestedSlugs !== []) {
+            $knownSlugs = Outlet::query()
+                ->whereIn('id', $requestedSlugs)
+                ->pluck('id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+
+            $unknownSlugs = array_values(array_diff($requestedSlugs, $knownSlugs));
+            if ($unknownSlugs !== []) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'outlet_slugs' => [
+                        'Unknown outlet slug(s): '.implode(', ', $unknownSlugs),
+                    ],
+                ]);
+            }
+        }
 
         $name = trim((string) ($validated['name'] ?? ''));
         if ($name === '') {
             $name = sprintf('Scraping Run %s', now()->format('Y-m-d H:i:s'));
         }
 
+        // Normalise the per-run options. Empty selection + empty limit stores
+        // null → the worker builds `--scrape` (all outlets), the default.
+        $limit = $validated['limit'] ?? null;
+        $slugs = array_values(array_unique($validated['outlet_slugs'] ?? []));
+
+        $options = [];
+        if ($limit !== null) {
+            $options['limit'] = (int) $limit;
+        }
+        if ($slugs !== []) {
+            $options['outlet_slugs'] = $slugs;
+        }
+        $options = $options === [] ? null : $options;
+
         $scrapingJob = ScrapingJob::query()->create([
             'name' => $name,
             'status' => 'pending',
             'triggered_by' => $request->user()?->email ?? 'system',
+            'options' => $options,
+        ]);
+
+        // Audit the trigger with the chosen scope (B1). The stored options are
+        // allowlist-validated, so this is safe to record verbatim.
+        AuditLog::record('scraping.triggered', 'scraping_job', (string) $scrapingJob->id, null, [
+            'name' => $name,
+            'options' => $options,
         ]);
 
         RunScrapingWorker::dispatch($scrapingJob->id)->onQueue('scraping');
@@ -210,6 +278,7 @@ class ScrapingJobController extends Controller
             'duration_seconds' => $durationSeconds,
             'exit_code' => $job->exit_code,
             'log_path' => $job->log_path,
+            'options' => $job->options,
             'progress' => null,
         ];
     }

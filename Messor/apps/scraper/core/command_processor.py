@@ -80,12 +80,13 @@ class CommandProcessor:
     def execute_scraping(self, args=None):
         """
         Execute scraping process and handle results.
-        
+
         Args:
             args: Optional string of arguments in the format:
                   --limit=N to scrape only N outlets
                   --outlet="name|url" to scrape a custom outlet not in the database
-        
+                  --outlets=slug1,slug2 to scrape only the named catalogue outlets
+
         This implementation handles the scraping, publishing events to RabbitMQ,
         and moving files to Digital Ocean S3 in a single command.
         """
@@ -111,10 +112,11 @@ class CommandProcessor:
     def _execute_scraping_internal(self, args=None):
         """Internal scraping execution without lock management."""
         self.logger.info("Starting execute_scraping")
-        
+
         limit = None
         custom_outlet = None
-        
+        slugs = None
+
         # Parse arguments if provided
         if args:
             args = args.strip()
@@ -126,9 +128,12 @@ class CommandProcessor:
                     self.logger.info(f"Limit parameter provided: {limit}")
                 except (ValueError, IndexError):
                     self.logger.warning("Invalid limit parameter, ignoring")
-            
-            # Parse custom outlet parameter
-            if "--outlet=" in args:
+
+            # Parse custom outlet parameter. `--outlet=` is a substring of the
+            # plural `--outlets=` subset flag, so only treat it as a custom
+            # outlet when what follows is NOT the `s=` of `--outlets=`.
+            has_custom_outlet = "--outlet=" in args and not args.split("--outlet=")[1].startswith("s=")
+            if has_custom_outlet:
                 try:
                     outlet_str = args.split("--outlet=")[1].split('"')[1]
                     name, url = outlet_str.split("|")
@@ -136,9 +141,23 @@ class CommandProcessor:
                     self.logger.info(f"Custom outlet provided: {name} - {url}")
                 except (ValueError, IndexError):
                     self.logger.warning("Invalid outlet parameter, ignoring")
-        
+
+            # Parse outlet-slug subset parameter. `--outlets=slug1,slug2,...`
+            # restricts the harvest to the named catalogue outlets. The list is
+            # comma-separated; empty entries are dropped. The custom-outlet
+            # guard above disambiguates the singular `--outlet=` from this flag.
+            if "--outlets=" in args:
+                try:
+                    slugs_str = args.split("--outlets=")[1].split()[0]
+                    slugs = [s.strip() for s in slugs_str.split(",") if s.strip()]
+                    self.logger.info(f"Outlet subset provided: {slugs}")
+                except (ValueError, IndexError):
+                    self.logger.warning("Invalid outlets parameter, ignoring")
+
         # Execute scraping with parameters
-        sessions = self.scraper_service.execute_scraping_process(limit=limit, custom_outlet=custom_outlet)
+        sessions = self.scraper_service.execute_scraping_process(
+            limit=limit, custom_outlet=custom_outlet, slugs=slugs
+        )
         
         # In the new refactored version, the ScraperService now handles
         # saving sessions, publishing events, and moving files to S3,
@@ -222,9 +241,11 @@ class CommandProcessor:
         print("SCRAPE - Scrape articles from configured outlets, publish events, and move files to S3")
         print("  Options:")
         print("    --limit=N          - Scrape only the first N outlets")
+        print("    --outlets=a,b,c    - Scrape only the named catalogue outlets (by slug)")
         print("    --outlet=\"name|url\" - Scrape a custom outlet not in the database")
         print("  Examples:")
         print("    SCRAPE --limit=5")
+        print("    SCRAPE --outlets=bbc,cnbc")
         print("    SCRAPE --outlet=\"techblog|https://techblog.example.com\"")
         print("MOVE - Move files to Digital Ocean storage")
         print("CLEAN - Clean up staging files")

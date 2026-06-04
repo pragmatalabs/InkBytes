@@ -81,6 +81,20 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
 
 ## Open items / next steps
 
+> **2026-06-04 — Per-run scrape options shipped** (branch `backend/scrape-run-options`).
+> The Backoffice "▶ Iniciar Scraping" panel now offers an **outlet multi-select**
+> + an optional **limit** alongside the job name; empty selection + blank limit =
+> scrape all (unchanged default). Messor's SCRAPE command gained `--outlets=slug,…`
+> (filters the catalogue by id/name/slug; unknown slugs ignored). Safe path:
+> `scraping_jobs.options` (json) stores the validated `{limit?, outlet_slugs?[]}`;
+> `RunScrapingWorker` substitutes a new `{SCRAPE_ARGS}` placeholder in
+> `SCRAPING_COMMAND` with `escapeshellarg`'d args (no placeholder ⇒ runs verbatim,
+> backward-compatible). SECURITY: slugs are allowlisted against `public.outlets.id`
+> (`whereIn`) + a `[a-z0-9._-]` regex and limit is int-bounded 1..200, so a
+> `bbc; rm -rf /` attempt is rejected at validation (422) and never reaches a shell.
+> Operator+ gating (B2) and B1 audit (`scraping.triggered`, records the scope) kept.
+> See [`messor-admin-p2-p3-plan.md`](./messor-admin-p2-p3-plan.md).
+
 0. **Backend consolidation (in progress):** Laravel Backoffice is the single admin
    ([root ADR-0001](./adr/0001-consolidate-backend-into-laravel-backoffice.md)). The
    build handoff ([backend-handoff.md](./backend-handoff.md)) was **audited + patched
