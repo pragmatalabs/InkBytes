@@ -12,7 +12,7 @@
 
 | Area | Routes / depth | State |
 |---|---|---|
-| Auth | Breeze: login, register, password reset, email verify, profile | ✅ working, **single role** |
+| Auth | Breeze: login, register, password reset, email verify, profile | ✅ working; **RBAC live** (admin/operator/viewer — B2, ADR-0005) |
 | Outlets CRUD | index / store / update / destroy + region/lang/vertical filters | ✅ bound to `public.outlets` (Curator owns DDL) |
 | API Keys | index / store / update / destroy / **test** | ✅ Laravel `encrypted` cast, masked, provider test |
 | Curator Settings | edit / update (models, token caps, temperature, clustering thresholds) | ✅ live DB overlay, 30s refresh (ADR-0004) |
@@ -21,7 +21,7 @@
 | Scraping | trigger / status / **stream** (live logs) | ✅ ops console (→ Messor FastAPI :8050) |
 | Runtime | index / snapshot | ✅ system view |
 | Dashboard | outlet-derived metrics | ✅ basic |
-| Tests | 6 feature suites (~40 tests) | ✅ |
+| Tests | 8 feature suites (63 tests) | ✅ |
 
 DB: Backoffice tables live in the `backoffice` schema; Curator pipeline in `public`
 (ADR-0003). `migrate:fresh` is scoped to `backoffice` and cannot touch Curator data.
@@ -42,7 +42,7 @@ DB: Backoffice tables live in the `backoffice` schema; Curator pipeline in `publ
 - **No event/page analytics** (publish rate, sources-per-event distribution, freshness/staleness).
 
 ### Gap 3 — Admin-platform fundamentals (missing entirely)
-- **RBAC / roles** — single role; no admin vs operator vs viewer. Anyone who logs in can rotate keys, change Curator models, and drop live pages.
+- ~~**RBAC / roles** — single role; no admin vs operator vs viewer. Anyone who logs in can rotate keys, change Curator models, and drop live pages.~~ ✅ **DONE (B2)** — admin/operator/viewer enforced by the `role` middleware; see [ADR-0005](./adr/0005-backoffice-rbac.md).
 - **Audit log** — no record of *who* published/dropped a page, changed a setting, or rotated a key. For an admin touching cost + live content, this is the highest-risk gap.
 - **Alerting / notifications** — failed scrapes, stale outlets, pipeline stalls, cost-over-budget surface nowhere.
 - **Programmatic API (Sanctum tokens)** — deferred to Phase 3.
@@ -61,7 +61,7 @@ Effort: S ≈ <½ day · M ≈ ~1 day · L ≈ multi-day. Priority P0 (do first)
 | # | Pri | Item | Gap | Effort | Why / payoff |
 |---|----|------|-----|--------|--------------|
 | B1 | ✅ **DONE** | **Audit log** — record actor + action + target + before/after for every mutation (moderation, settings, key rotation, outlet CRUD) | 3 | M | Accountability for cost- and content-affecting actions; foundation for everything else |
-| B2 | **P0** | **RBAC** — roles (admin / operator / viewer) gating dangerous routes (keys, settings, moderation, scrape trigger) | 3 | M | Stops any logged-in user from rotating keys / dropping pages |
+| B2 | ✅ **DONE** | **RBAC** — roles (admin / operator / viewer) gating dangerous routes (keys, settings, moderation, scrape trigger). Custom `role` middleware (no spatie); last-admin guard; role changes audited. See [ADR-0005](./adr/0005-backoffice-rbac.md) | 3 | M | Stops any logged-in user from rotating keys / dropping pages |
 | B3 | **P1** | **Outlet health columns** — last-scraped, article count, success rate, events contributed (read from Curator `public`) | 1,2 | M | Restores visibility deleted in 1.2; makes Outlets actionable |
 | B4 | **P1** | **Scraping run history / time-series** — per-cycle articles, dedup ratio, success rate over time | 2 | L | Replaces the deleted Runs analytics; core ops insight |
 | B5 | **P1** | **Cost dashboard upgrades** — date-range filter, CSV export, budget threshold + alert, by-outlet/by-event drill-down | 2 | M | Turns usage from descriptive to actionable; ties to MVP cost target |

@@ -29,10 +29,16 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                // `role` is not hidden on the model, so it rides along here.
+                // The React layer reads `auth.user.role` to hide/disable gated
+                // controls (cosmetic — the `role` middleware is the real gate).
+                // See ADR-0005.
+                'user' => $user,
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

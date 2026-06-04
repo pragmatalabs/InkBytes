@@ -140,7 +140,7 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      Cost & Usage; deepened the Control Center with **live pipeline metrics** (articles/
      enriched/events/pages/spend/last-harvest via cross-schema reads); rebranded
      Laravel→InkBytes (logo + "InkBytes Backoffice"). 40 tests pass; verified in-browser.
-     Next: gap-analysis P0s — ~~B1 audit log~~ (DONE), **B2 RBAC**.
+     Next: gap-analysis P0s — ~~B1 audit log~~ (DONE), ~~B2 RBAC~~ (DONE).
    - **B1 audit log DONE** (branch `backend/b1-audit-log`): records *who did what to
      which target, with before/after* for every state-changing admin action. New
      Backoffice-owned table **`backoffice.audit_logs`** (Laravel migration; columns
@@ -159,6 +159,29 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      tests pass** (5 new, incl. one asserting key material is never persisted); frontend
      builds (manifest includes the page); verified the recorder + apikey/outlet wiring
      against Postgres via tinker; `public` counts unchanged (articles=309, events=220,
+     pages=29, outlets=31).
+   - **B2 RBAC DONE** (branch `backend/b2-rbac`): three roles on
+     **`backoffice.users.role`** (string, default `viewer`; migration
+     `2026_06_03_000005`, promotes the seed admin to `admin`). Gating is
+     server-side via a custom **`EnsureUserHasRole`** middleware (route alias
+     `role`) — **no spatie, no new packages** (ADR-0005). Route→role mapping in
+     `routes/web.php`: read-only routes ungated (dashboard, outlets.index,
+     model-usage, moderation.index, runtime, scraping status/stream);
+     **`role:operator`** on outlets store/update/destroy + scraping.trigger +
+     all moderation action POSTs; **`role:admin`** on api-keys.*, settings.*,
+     audit-log, and the new users routes. Matrix: admin=everything,
+     operator=outlets/scraping/moderation mutations (no keys/settings/users),
+     viewer=read-only. The React layer reads `auth.user.role` (shared by
+     `HandleInertiaRequests`) via a `useAuthRole()` hook to hide/disable gated
+     controls + nav entries — **cosmetic only; middleware is the real gate**.
+     New **admin-only Users screen** (`/users`, `UserController` index +
+     updateRole) with a role selector and a **last-admin safeguard** (cannot
+     demote the only admin → zero-admin lockout blocked); role changes audited
+     as `user.role_changed` (B1). New registrations default to `viewer`. Profile
+     page shows the current role chip. **63 Laravel tests pass** (18 new across
+     `RoleAccessTest` + `UserManagementTest`); `npm run build` green; verified
+     against Postgres: `users.role` present, seed admin=`admin`, role-change
+     audit row written; `public` counts unchanged (articles=309, events=220,
      pages=29, outlets=31).
    - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson

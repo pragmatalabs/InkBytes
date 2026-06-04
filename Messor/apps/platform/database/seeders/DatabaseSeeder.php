@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@inkbytes.test',
         ], [
             'name' => 'Admin',
+            'role' => User::ROLE_ADMIN,
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);

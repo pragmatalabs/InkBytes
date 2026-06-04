@@ -1,4 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -51,6 +52,7 @@ const emptyOutlet = {
 
 export default function OutletsIndex({ outlets = [], options = {} }) {
     const { flash } = usePage().props;
+    const { isOperator } = useAuthRole();
     const regions = options.regions ?? ['global'];
     const verticals = options.verticals ?? ['general'];
 
@@ -130,19 +132,21 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
         >
             <Head title="Outlets" />
 
-            <Stack
-                direction="row"
-                justifyContent="flex-end"
-                sx={{ mb: 2 }}
-            >
-                <Button
-                    variant="contained"
-                    startIcon={<AddRoundedIcon />}
-                    onClick={openCreate}
+            {isOperator ? (
+                <Stack
+                    direction="row"
+                    justifyContent="flex-end"
+                    sx={{ mb: 2 }}
                 >
-                    Add Outlet
-                </Button>
-            </Stack>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddRoundedIcon />}
+                        onClick={openCreate}
+                    >
+                        Add Outlet
+                    </Button>
+                </Stack>
+            ) : null}
 
             <TableContainer component={Paper}>
                 <Table>
@@ -236,25 +240,40 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                                         />
                                     </TableCell>
                                     <TableCell align="right">
-                                        <Tooltip title="Edit">
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => openEdit(outlet)}
+                                        {isOperator ? (
+                                            <>
+                                                <Tooltip title="Edit">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() =>
+                                                            openEdit(outlet)
+                                                        }
+                                                    >
+                                                        <EditRoundedIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Delete">
+                                                    <IconButton
+                                                        size="small"
+                                                        color="error"
+                                                        onClick={() =>
+                                                            setConfirmDelete(
+                                                                outlet,
+                                                            )
+                                                        }
+                                                    >
+                                                        <DeleteOutlineRoundedIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
+                                        ) : (
+                                            <Typography
+                                                variant="caption"
+                                                color="text.secondary"
                                             >
-                                                <EditRoundedIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
-                                        <Tooltip title="Delete">
-                                            <IconButton
-                                                size="small"
-                                                color="error"
-                                                onClick={() =>
-                                                    setConfirmDelete(outlet)
-                                                }
-                                            >
-                                                <DeleteOutlineRoundedIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
+                                                —
+                                            </Typography>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))

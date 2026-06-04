@@ -1,6 +1,8 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Link, usePage } from '@inertiajs/react';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
@@ -16,6 +18,7 @@ import {
     Avatar,
     Box,
     Button,
+    Chip,
     Divider,
     Drawer,
     IconButton,
@@ -61,6 +64,7 @@ const navigationItems = [
         routeName: 'settings.edit',
         match: 'settings.*',
         icon: TuneRoundedIcon,
+        requires: 'admin',
     },
     {
         label: 'Moderation',
@@ -79,12 +83,21 @@ const navigationItems = [
         routeName: 'api-keys.index',
         match: 'api-keys.*',
         icon: KeyRoundedIcon,
+        requires: 'admin',
     },
     {
         label: 'Audit Log',
         routeName: 'audit-log.index',
         match: 'audit-log.*',
         icon: HistoryRoundedIcon,
+        requires: 'admin',
+    },
+    {
+        label: 'Users',
+        routeName: 'users.index',
+        match: 'users.*',
+        icon: GroupRoundedIcon,
+        requires: 'admin',
     },
     {
         label: 'Profile',
@@ -93,6 +106,26 @@ const navigationItems = [
         icon: PersonRoundedIcon,
     },
 ];
+
+// Whether a nav item is visible for the given role gates.
+const navItemVisible = (item, gates) => {
+    if (item.requires === 'admin') {
+        return gates.isAdmin;
+    }
+    if (item.requires === 'operator') {
+        return gates.isOperator;
+    }
+
+    return true;
+};
+
+const roleLabel = (role) => {
+    if (!role) {
+        return null;
+    }
+
+    return role.charAt(0).toUpperCase() + role.slice(1);
+};
 
 const getUserInitials = (name) => {
     if (!name) {
@@ -113,10 +146,15 @@ export default function AppLayout({
     children,
 }) {
     const { auth } = usePage().props;
+    const gates = useAuthRole();
     const [mobileOpen, setMobileOpen] = useState(false);
     const user = auth?.user;
 
     const userInitials = useMemo(() => getUserInitials(user?.name), [user]);
+    const visibleNavItems = useMemo(
+        () => navigationItems.filter((item) => navItemVisible(item, gates)),
+        [gates],
+    );
 
     const drawer = (
         <Box sx={{ height: '100%', backgroundColor: 'background.paper' }}>
@@ -140,7 +178,7 @@ export default function AppLayout({
             <Divider />
 
             <List sx={{ px: 1.25, py: 1.5 }}>
-                {navigationItems.map((item) => {
+                {visibleNavItems.map((item) => {
                     const Icon = item.icon;
                     const selected = route().current(item.match);
 
@@ -215,6 +253,16 @@ export default function AppLayout({
                                 {user?.email ?? ''}
                             </Typography>
                         </Box>
+
+                        {gates.role ? (
+                            <Chip
+                                size="small"
+                                label={roleLabel(gates.role)}
+                                color={gates.isAdmin ? 'primary' : 'default'}
+                                variant={gates.isAdmin ? 'filled' : 'outlined'}
+                                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                            />
+                        ) : null}
 
                         <Button
                             size="small"

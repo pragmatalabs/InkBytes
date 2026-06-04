@@ -1,4 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Head } from '@inertiajs/react';
 import {
     Alert,
@@ -68,6 +69,7 @@ const formatDuration = (seconds) => {
 const isActiveStatus = (status) => ['pending', 'running'].includes(status);
 
 export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
+    const { isOperator } = useAuthRole();
     const [jobs, setJobs] = useState(initialJobs);
     const [triggerName, setTriggerName] = useState('Jurisprudencia JCE');
     const [triggering, setTriggering] = useState(false);
@@ -206,34 +208,38 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
         >
             <Head title="Scraping Control Panel" />
 
-            <Paper sx={{ p: 2.5, mb: 2 }}>
-                <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    alignItems={{ xs: 'stretch', md: 'center' }}
-                >
-                    <TextField
-                        size="small"
-                        label="Job name"
-                        value={triggerName}
-                        onChange={(event) => setTriggerName(event.target.value)}
-                        sx={{ minWidth: 260, flex: 1 }}
-                    />
-                    <Button
-                        variant="contained"
-                        onClick={handleTrigger}
-                        disabled={triggering || activeJobExists}
+            {isOperator ? (
+                <Paper sx={{ p: 2.5, mb: 2 }}>
+                    <Stack
+                        direction={{ xs: 'column', md: 'row' }}
+                        spacing={1.5}
+                        alignItems={{ xs: 'stretch', md: 'center' }}
                     >
-                        {triggering ? 'Starting...' : '▶ Iniciar Scraping'}
-                    </Button>
-                </Stack>
+                        <TextField
+                            size="small"
+                            label="Job name"
+                            value={triggerName}
+                            onChange={(event) =>
+                                setTriggerName(event.target.value)
+                            }
+                            sx={{ minWidth: 260, flex: 1 }}
+                        />
+                        <Button
+                            variant="contained"
+                            onClick={handleTrigger}
+                            disabled={triggering || activeJobExists}
+                        >
+                            {triggering ? 'Starting...' : '▶ Iniciar Scraping'}
+                        </Button>
+                    </Stack>
 
-                {activeJobExists ? (
-                    <Alert severity="info" sx={{ mt: 1.5 }}>
-                        A scraping job is already pending or running.
-                    </Alert>
-                ) : null}
-            </Paper>
+                    {activeJobExists ? (
+                        <Alert severity="info" sx={{ mt: 1.5 }}>
+                            A scraping job is already pending or running.
+                        </Alert>
+                    ) : null}
+                </Paper>
+            ) : null}
 
             <TableContainer component={Paper} sx={{ mb: 2 }}>
                 <Table>

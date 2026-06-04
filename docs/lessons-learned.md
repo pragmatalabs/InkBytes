@@ -281,3 +281,27 @@ failure (same philosophy as the cost-meter sink). An audit hiccup (DB blip,
 missing table) must never break the outlet/key/settings mutation it's recording.
 Verified by dropping the `audit_logs` table mid-test and asserting `record()`
 returns normally instead of throwing.
+
+### B2 RBAC — gate at the route, test on SQLite by relying on middleware order
+The `role` middleware runs **before** the controller, so a forbidden role gets
+its 403 before any Postgres-backed controller logic runs. That's what lets the
+gating feature tests assert cleanly on the **SQLite in-memory** suite even for
+routes that read Curator's `public.*` tables (e.g. `outlets.store`, which
+validates with `Rule::unique('public.outlets')`). For the *positive* direction —
+proving an operator/admin **passes** the gate — those `public.*` routes can't run
+to completion under SQLite, so the test asserts the status is simply **not 403**
+(the request continues past the gate to a non-auth failure), while the
+fully-self-contained moderation action POSTs (RabbitMQ mgmt API is HTTP-faked)
+give a clean 302 to prove the operator tier end-to-end. Takeaway: order your
+middleware so the cheap authz check fires first, and your gating tests stay DB-agnostic.
+
+### Default new users to the least-privileged role, guard the last admin
+New self-service Breeze registrations default to `viewer` (least privilege — an
+admin must promote them). The factory, by contrast, defaults to `admin` so the
+pre-existing feature suites (which exercise mutations) keep passing unchanged;
+explicit `->viewer()` / `->operator()` / `->admin()` states drive the RBAC tests.
+Role changes go through `UserController::updateRole`, which blocks demoting the
+**last remaining admin** (zero-admin lockout) — enforced in the controller, not a
+DB constraint, and audited as `user.role_changed`. Role itself is a plain string
+validated against `User::ROLES` (not a Postgres CHECK) so SQLite and Postgres
+behave identically and the allowed set lives in one constant.

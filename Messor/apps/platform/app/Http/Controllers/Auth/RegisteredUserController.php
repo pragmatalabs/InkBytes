@@ -40,6 +40,9 @@ class RegisteredUserController extends Controller
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
+            // New self-service registrations are read-only by default; an admin
+            // promotes them via Users management. See ADR-0005 (RBAC).
+            'role' => User::ROLE_VIEWER,
             'password' => Hash::make($request->password),
         ]);
 

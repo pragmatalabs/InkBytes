@@ -1,4 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Head, router, usePage } from '@inertiajs/react';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
@@ -31,6 +32,7 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
 
 export default function ModerationIndex({ events = [], stats = {} }) {
     const { flash } = usePage().props;
+    const { isOperator } = useAuthRole();
     const [snack, setSnack] = useState(null);
     const [busy, setBusy] = useState(null); // `${kind}:${id}` while a command is in-flight
 
@@ -166,7 +168,15 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                                                 flexWrap="wrap"
                                                 useFlexGap
                                             >
-                                                {page && !published && (
+                                                {!isOperator && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                    >
+                                                        read-only
+                                                    </Typography>
+                                                )}
+                                                {isOperator && page && !published && (
                                                     <Button
                                                         size="small"
                                                         variant="contained"
@@ -183,7 +193,7 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                                                         Publish
                                                     </Button>
                                                 )}
-                                                {page && published && (
+                                                {isOperator && page && published && (
                                                     <Button
                                                         size="small"
                                                         variant="outlined"
@@ -199,7 +209,7 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                                                         Unpublish
                                                     </Button>
                                                 )}
-                                                {page && (
+                                                {isOperator && page && (
                                                     <Button
                                                         size="small"
                                                         variant="outlined"
@@ -216,48 +226,52 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                                                         Drop
                                                     </Button>
                                                 )}
-                                                <Tooltip title="Re-run synthesis for this event">
-                                                    <span>
-                                                        <Button
-                                                            size="small"
-                                                            variant="text"
-                                                            startIcon={
-                                                                <AutorenewRoundedIcon fontSize="small" />
-                                                            }
-                                                            disabled={busy != null}
-                                                            onClick={() =>
-                                                                send(
-                                                                    `resyn:${event.id}`,
-                                                                    'moderation.events.resynthesize',
-                                                                    event.id
-                                                                )
-                                                            }
-                                                        >
-                                                            Re-synth
-                                                        </Button>
-                                                    </span>
-                                                </Tooltip>
-                                                <Tooltip title="Re-cluster this event's articles">
-                                                    <span>
-                                                        <Button
-                                                            size="small"
-                                                            variant="text"
-                                                            startIcon={
-                                                                <HubRoundedIcon fontSize="small" />
-                                                            }
-                                                            disabled={busy != null}
-                                                            onClick={() =>
-                                                                send(
-                                                                    `reclus:${event.id}`,
-                                                                    'moderation.events.recluster',
-                                                                    event.id
-                                                                )
-                                                            }
-                                                        >
-                                                            Re-cluster
-                                                        </Button>
-                                                    </span>
-                                                </Tooltip>
+                                                {isOperator && (
+                                                    <Tooltip title="Re-run synthesis for this event">
+                                                        <span>
+                                                            <Button
+                                                                size="small"
+                                                                variant="text"
+                                                                startIcon={
+                                                                    <AutorenewRoundedIcon fontSize="small" />
+                                                                }
+                                                                disabled={busy != null}
+                                                                onClick={() =>
+                                                                    send(
+                                                                        `resyn:${event.id}`,
+                                                                        'moderation.events.resynthesize',
+                                                                        event.id
+                                                                    )
+                                                                }
+                                                            >
+                                                                Re-synth
+                                                            </Button>
+                                                        </span>
+                                                    </Tooltip>
+                                                )}
+                                                {isOperator && (
+                                                    <Tooltip title="Re-cluster this event's articles">
+                                                        <span>
+                                                            <Button
+                                                                size="small"
+                                                                variant="text"
+                                                                startIcon={
+                                                                    <HubRoundedIcon fontSize="small" />
+                                                                }
+                                                                disabled={busy != null}
+                                                                onClick={() =>
+                                                                    send(
+                                                                        `reclus:${event.id}`,
+                                                                        'moderation.events.recluster',
+                                                                        event.id
+                                                                    )
+                                                                }
+                                                            >
+                                                                Re-cluster
+                                                            </Button>
+                                                        </span>
+                                                    </Tooltip>
+                                                )}
                                             </Stack>
                                         </TableCell>
                                     </TableRow>
