@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B8 shipped)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B11 shipped)*
 
 ## TL;DR
 
@@ -304,6 +304,33 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B11 alerting DONE** (branch `backend/b11-alerting`): a **scheduled
+     evaluator** that pushes problems instead of waiting to be asked.
+     New Backoffice-owned table **`backoffice.alerts`** (`type, severity, title,
+     message, context jsonb, dedup_key, status, acknowledged_at/by, timestamps`;
+     indexed on status/type/dedup_key **+ a partial unique index `(dedup_key)
+     WHERE status='open'`**). The command **`php artisan alerts:evaluate`**
+     probes the existing B3/B4/B5/B6 signals and **UPSERTS open alerts by
+     `dedup_key`** (a still-firing condition refreshes the open row, never
+     duplicates; **no auto-resolve** — a cleared alert waits for a human to ack).
+     Four rules, thresholds in `config/curator.php`, **each independently
+     try/caught**: **over_budget** (MTD `model_usage` > `monthly_budget_usd`,
+     flagship/deterministic), **stale_outlet** (active outlet not scraped in
+     `stale_outlet_hours`, one per outlet), **scrape_low_success** (latest Messor
+     session rate < floor; defensive HTTP — Messor-unreachable does **not**
+     alert), **pipeline_stalled** (no harvest in N h OR RabbitMQ depth > backlog).
+     Registered in `routes/console.php` (`everyFiveMinutes()->withoutOverlapping()`)
+     — **DEPLOY NOTE: needs the scheduler running** (`php artisan schedule:work` /
+     cron `schedule:run`). **In-app channel only**: a header **bell badge**
+     (open-alert count shared via `HandleInertiaRequests`) → a server-paginated
+     **`/alerts`** page (B7 trait) with **Acknowledge** (operator+, B1-audited
+     `alert.acknowledged`); email/Notification deferred (single `raise()` funnel
+     ready). **117 Laravel tests pass** (13 new in `AlertingTest`; `public.*`
+     reproduced via `ATTACH DATABASE`, Messor/RabbitMQ faked); `npm run build`
+     green. Verified live: `\d backoffice.alerts` shows the table + indexes; a
+     tiny-budget probe fired `over_budget` then **deduped on re-run**, after which
+     the **budget was restored to NULL and all probe rows deleted**. **`public`
+     counts unchanged** (articles=309, events=220, pages=29, outlets=31).
    - **B8 API-key depth (reduced) DONE** (branch `backend/b8-apikey-depth`):
      per [ADR-0004](./adr/0004-curator-config-from-db-keys-via-env.md) **KEEP env
      keys**, so B8 = two things. (1) **One-active-per-provider**:

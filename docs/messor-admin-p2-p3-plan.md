@@ -124,11 +124,21 @@ trait + small composable React pieces, so each page keeps its bespoke row render
 - Tests (7, `OutletImportExportTest`): export shape/round-trip + all-roles access, preview create=1/update=1/error=1 without writing, malformed-file rejection, apply upsert + B1 audit rows, apply-aborts-on-invalid, viewer-forbidden. The Curator-owned `public.outlets` is reproduced in tests via an `ATTACH DATABASE … AS public` (DatabaseMigrations, no shipped DDL) so the upsert runs against the real Eloquent model.
 - **Verification:** export = 31 rows, field set matches `outlets.json` (MATCH: YES). Live apply exercised against Postgres (create→32 + update npr) then **restored to 31** with npr reverted. Full suite **89 green**; `npm run build` green.
 
-## B11 — Alerting (P2 · M — builds on B3/B4/B5)
-**Diff:** signals exist (B3 health, B4 success rate, B5 budget, B6 queue) but nothing pushes. No `Notifications` dir; `MAIL_*` configured.
-**Open decisions:** (1) **channel** — in-app bell / email / both; (2) **evaluation** — Laravel **scheduler** (cron) vs event-driven. *Default: scheduled evaluator + `alerts` table + in-app bell; email later.*
-**Rules:** failed/low-success scrape (B4), stale outlet (B3 Old/Never), cost over budget (B5 MTD>budget), pipeline stalled (B6 queue backlog / no harvest in X h). Alerts acknowledgeable + audited.
-**Steps:** `alerts` table → scheduled evaluator job → in-app bell + alerts page → (opt) mail → tests. **Deploy note:** needs the Laravel scheduler running (`schedule:work` / cron).
+## B11 — Alerting (P2 · M — builds on B3/B4/B5) ✅ DONE
+**Decision (resolved):** scheduled evaluator + `alerts` table + in-app bell; **email/Notification deferred**.
+**Shipped (branch `backend/b11-alerting`):**
+- **Schema:** migration `…000002_create_alerts_table.php` → `backoffice.alerts` (`id, type, severity, title, message, context jsonb, dedup_key, status, acknowledged_at, acknowledged_by, timestamps`). Indexes on `(status)`, `(type)`, `(dedup_key)` **plus a partial unique index `(dedup_key) WHERE status='open'`** so at most one OPEN alert per key even under a race (Postgres + SQLite).
+- **Dedup approach:** the evaluator UPSERTS by `dedup_key` — a still-firing condition **refreshes** the existing OPEN alert (message/context/severity) instead of creating a duplicate. **No auto-resolve** (deliberate): once a condition clears the open alert stays for a human to ack (a cleared alert is still operationally interesting; auto-closing would hide flapping).
+- **Evaluator:** `php artisan alerts:evaluate` (`App\Console\Commands\EvaluateAlerts`). Thresholds from `config/curator.php` → `alerts.{stale_outlet_hours=24, low_success_rate=0.5, pipeline_stalled_hours=6, queue_backlog=1000}`. Four rules, **each independently try/caught** (one failing probe never aborts the rest; command always exits 0):
+  - **over_budget** (flagship, deterministic, no external call): MTD `model_usage` cost > `curator_settings.monthly_budget_usd` (skipped if null). `dedup_key=over_budget`, critical.
+  - **stale_outlet**: active `public.outlets` whose latest `public.articles.scraped_at` is older than the threshold or never scraped. One per outlet (`dedup_key=stale_outlet:<id>`), warning.
+  - **scrape_low_success**: latest Messor `/api/scrapesessions` `success_rate` below the floor (defensive `Http::timeout`; **Messor-unreachable does NOT alert**). `dedup_key=scrape_low_success`, warning.
+  - **pipeline_stalled**: no harvest in N h (`MAX public.articles.scraped_at`) OR RabbitMQ key-queue depth > backlog (mgmt API like B6; unreachable RabbitMQ skips the backlog symptom). `dedup_key=pipeline_stalled`, critical.
+- **Schedule:** registered in `routes/console.php` — `Schedule::command('alerts:evaluate')->everyFiveMinutes()->withoutOverlapping()`. **DEPLOY NOTE: requires the Laravel scheduler running** (`php artisan schedule:work` in dev, or system cron invoking `schedule:run` every minute in prod). Without it, no alerts are raised.
+- **In-app bell + page:** `HandleInertiaRequests` shares `alerts.open_count` (lazy closure, best-effort → 0 if the table is unreachable); `AppLayout` header shows a `Badge` bell linking to `/alerts`. `AlertController@index` renders `Alerts/Index.jsx` — server-paginated (B7 trait + `useListQuery`/`SortableTableCell`/`ListSearchField`/`ListPagination`), filterable by status/type, searchable, open-first ordering, expandable context. **Acknowledge** = `POST /alerts/{alert}/acknowledge` (operator+, B2), flips status + snapshots who/when, **audited (B1 `alert.acknowledged`)**; already-acknowledged is a no-op (no re-audit).
+- **Channel:** in-app only. The single `raise()` upsert funnel is where a future email/Notification channel hooks in (fire on first-open).
+- **Tests** (13 in `AlertingTest`): over_budget fires + dedups + skipped-when-null; stale_outlet per-outlet/never-scraped/inactive-excluded/fresh-skipped/dedup; scrape_low_success fires (faked Messor) + skipped-when-unreachable; pipeline_stalled on no-recent-harvest; one-failing-probe-doesn't-abort-others; page paginates (all roles) + exposes `openCount`; acknowledge flips+audits (operator) / forbidden (viewer) / no-op when already acked. Cross-schema `public.*` reproduced via `ATTACH DATABASE … AS public` (DatabaseMigrations); Messor/RabbitMQ HTTP faked.
+- **Verification (live Postgres):** `\d backoffice.alerts` shows the table + all 4 indexes incl. the partial unique. Set `monthly_budget_usd=0.001` → `alerts:evaluate` raised an `over_budget` row (+ live stale_outlet×28 + pipeline_stalled from the real idle pipeline); **re-run kept it at 1** (deduped). **Budget restored to NULL, all 30 probe rows deleted.** Full suite **117 green**; `npm run build` green; `public` unchanged (309/220/29/31).
 
 ## B12 — React client (:5174) fate (P3 · M/L — see decision (b))
 Reconfirmed: the Backoffice already has **more** than the :5174 client (Scraping trigger + SSE logs + Postgres run history + full Outlets CRUD). **The one real gap is the per-session scrape-results browser** (per-outlet article counts / dedup / timestamps); the rest is decommission.
@@ -184,7 +194,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 2 | **B10** outlet import/export ✅ DONE | S | ✅ export = download |
 | 3 | **B7** pagination/search/bulk ✅ DONE | M | ✅ shared trait + composable React pieces |
 | 4 | **B8** one-active + rotation view ✅ DONE | S | ✅ (a) decided: KEEP — ship reduced |
-| 5 | **B11** alerting | M | channel + scheduler |
+| 5 | **B11** alerting ✅ DONE | M | ✅ scheduled evaluator + alerts table + in-app bell (email deferred) |
 | 6 | **B12** client consolidation | M/L | ✅ (b) decided: Option B (ADR-0006) |
 | 7 | **B13** UX polish | M | — |
 

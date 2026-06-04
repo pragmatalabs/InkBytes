@@ -349,3 +349,34 @@ a test that scans the rendered response for the secret + a tinker check of the
 component payload). Lesson: when a screen exists to *observe* infra, the
 observation must be cheaper and safer than what it observes — bounded time, no
 500s, and no leakage of the credentials used to reach it.
+
+### B11 alerting — dedup as a DB invariant, "don't alert on your own blindness", and the Http::fake merge trap
+The evaluator's job is to *not* spam: a condition that stays true for hours must
+be **one** open alert, not one per 5-minute run. We made dedup a **DB
+invariant**, not just app logic — a **partial unique index `(dedup_key) WHERE
+status='open'`** (Postgres + SQLite both support it) so even a concurrent
+`alerts:evaluate` can't open two rows for the same key. The app-side upsert
+(`raise()`: find-open-by-key → refresh, else create) is the fast path; the index
+is the safety net. We deliberately chose **no auto-resolve** — when a condition
+clears, the open alert stays for a human to acknowledge, because a *cleared*
+alert is still operationally interesting and auto-closing would hide flapping.
+Acknowledge (not resolve) is the only state transition the UI offers.
+
+Second principle: **never alert on your own inability to observe.** The
+`scrape_low_success` rule reads Messor over HTTP; if Messor is unreachable the
+rule **returns 0 (no alert)** rather than raising "scrape is broken" — a probe
+failure is not the same as a bad signal (`pipeline_stalled` has a separate, more
+deliberate basis: no harvest in N h OR a real RabbitMQ backlog). Likewise the
+RabbitMQ backlog check returns `null` (skip the symptom) when the mgmt API is
+down. Each of the four rules is **independently try/caught** and the command
+always exits 0 — it's a background evaluator, not a health gate, so one dead
+probe must never abort the sweep.
+
+The testing gotcha worth remembering: **`Http::fake()` calls MERGE, and earlier
+stubs win.** Registering a catch-all `['*' => 500]` in `setUp()` and then a
+specific `['*/api/scrapesessions*' => 200, ...]` in a test does **not** override
+— the `*` from setUp matches first and you get 500. Fix: don't register a
+catch-all in `setUp` (use only `Http::preventStrayRequests()`); let each test
+register its own fakes **first**, so its specific-pattern-then-`*` ordering
+actually applies. Tinker-reproduced both the broken merge and the fix before
+trusting the suite.

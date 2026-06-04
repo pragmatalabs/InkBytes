@@ -8,6 +8,7 @@ import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import MonitorHeartRoundedIcon from '@mui/icons-material/MonitorHeartRounded';
+import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded';
@@ -18,6 +19,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import {
     AppBar,
     Avatar,
+    Badge,
     Box,
     Button,
     Chip,
@@ -30,6 +32,7 @@ import {
     ListItemText,
     Stack,
     Toolbar,
+    Tooltip,
     Typography,
 } from '@mui/material';
 import { useMemo, useState } from 'react';
@@ -72,6 +75,12 @@ const navigationItems = [
         routeName: 'health.index',
         match: 'health.*',
         icon: MonitorHeartRoundedIcon,
+    },
+    {
+        label: 'Alerts',
+        routeName: 'alerts.index',
+        match: 'alerts.*',
+        icon: NotificationsRoundedIcon,
     },
     {
         label: 'Curator Settings',
@@ -159,10 +168,11 @@ export default function AppLayout({
     subtitle = '',
     children,
 }) {
-    const { auth } = usePage().props;
+    const { auth, alerts } = usePage().props;
     const gates = useAuthRole();
     const [mobileOpen, setMobileOpen] = useState(false);
     const user = auth?.user;
+    const openAlertCount = alerts?.open_count ?? 0;
 
     const userInitials = useMemo(() => getUserInitials(user?.name), [user]);
     const visibleNavItems = useMemo(
@@ -246,6 +256,29 @@ export default function AppLayout({
                     <Box sx={{ flexGrow: 1 }} />
 
                     <Stack direction="row" alignItems="center" spacing={1.25}>
+                        <Tooltip
+                            title={
+                                openAlertCount > 0
+                                    ? `${openAlertCount} open alert(s)`
+                                    : 'No open alerts'
+                            }
+                        >
+                            <IconButton
+                                color="inherit"
+                                component={Link}
+                                href={route('alerts.index')}
+                                aria-label="alerts"
+                            >
+                                <Badge
+                                    badgeContent={openAlertCount}
+                                    color="error"
+                                    overlap="circular"
+                                >
+                                    <NotificationsRoundedIcon />
+                                </Badge>
+                            </IconButton>
+                        </Tooltip>
+
                         <Avatar
                             sx={{
                                 width: 34,

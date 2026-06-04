@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CuratorSettingController;
@@ -49,6 +50,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Curator / Messor / RabbitMQ. All authenticated roles; no role gate.
     Route::get('/health', [HealthController::class, 'index'])->name('health.index');
 
+    // Alerts (B11) — in-app view of alerts raised by the scheduled
+    // `alerts:evaluate` evaluator. Read-only list for all roles (the bell
+    // target); the acknowledge POST below is operator+.
+    Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
+
     // Moderation list is read-only review; the action POSTs below are operator+.
     Route::get('/moderation', [EventModerationController::class, 'index'])->name('moderation.index');
 
@@ -71,6 +77,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Bulk activate / deactivate / delete selected outlets (B7). Audited (B1).
         Route::post('/outlets/bulk', [OutletController::class, 'bulk'])->name('outlets.bulk');
+
+        // Acknowledge an open alert (B11). Audited (B1 alert.acknowledged).
+        Route::post('/alerts/{alert}/acknowledge', [AlertController::class, 'acknowledge'])->name('alerts.acknowledge');
 
         // Import (B10): upload → preview (no write) → apply (upsert-by-id, audited).
         Route::post('/outlets/import/preview', [OutletController::class, 'importPreview'])->name('outlets.import.preview');

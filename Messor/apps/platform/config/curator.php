@@ -66,4 +66,35 @@ return [
         'recent_window_hours' => 48,
         'monthly_budget_usd' => null,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Alerting thresholds (B11)
+    |--------------------------------------------------------------------------
+    |
+    | Thresholds the scheduled `alerts:evaluate` evaluator reads when checking
+    | each rule against the existing B3/B4/B5/B6 signal sources. Keep the knobs
+    | here (not hard-coded in the command) so ops can tune them in one place.
+    |
+    |   stale_outlet_hours    — an ACTIVE outlet whose latest public.articles
+    |                           scrape is older than this (or never scraped) is
+    |                           "stale". One alert per outlet.
+    |   low_success_rate      — latest Messor session success_rate (0..1) below
+    |                           this raises scrape_low_success (defensive HTTP;
+    |                           skipped if Messor is unreachable).
+    |   pipeline_stalled_hours— no harvest (MAX public.articles.scraped_at) in
+    |                           this many hours raises pipeline_stalled.
+    |   queue_backlog         — total RabbitMQ depth across the key queues above
+    |                           this also raises pipeline_stalled.
+    |
+    | over_budget has no threshold here — it fires deterministically when MTD
+    | model_usage cost exceeds curator_settings.monthly_budget_usd (skipped when
+    | the budget is null).
+    */
+    'alerts' => [
+        'stale_outlet_hours' => env('ALERT_STALE_OUTLET_HOURS', 24),
+        'low_success_rate' => env('ALERT_LOW_SUCCESS_RATE', 0.5),
+        'pipeline_stalled_hours' => env('ALERT_PIPELINE_STALLED_HOURS', 6),
+        'queue_backlog' => env('ALERT_QUEUE_BACKLOG', 1000),
+    ],
 ];
