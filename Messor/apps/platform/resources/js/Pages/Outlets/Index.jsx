@@ -38,6 +38,50 @@ import { useEffect, useMemo, useState } from 'react';
 const PRIORITY_LABELS = { 1: 'High', 2: 'Medium', 3: 'Low' };
 const PRIORITY_COLORS = { 1: 'error', 2: 'warning', 3: 'default' };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
+// Relative "time ago" for a last-scraped ISO timestamp (or "—" when never).
+function relativeTime(iso) {
+    if (!iso) {
+        return '—';
+    }
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) {
+        return '—';
+    }
+    const diff = Date.now() - then;
+    const mins = Math.round(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.round(days / 7);
+    return `${weeks}w ago`;
+}
+
+// Health is derived from the active flag + recency of the last scrape. We do
+// NOT show a success rate: Curator's public.articles only holds successful
+// scrapes, so attempts/failures (a true rate) live in Messor's run history (B4).
+function outletHealth(outlet) {
+    if (!outlet.active) {
+        return { label: 'Inactive', color: 'default' };
+    }
+    if (!outlet.last_scraped || (outlet.article_count ?? 0) === 0) {
+        return { label: 'Never', color: 'warning' };
+    }
+    const age = Date.now() - new Date(outlet.last_scraped).getTime();
+    if (age < DAY_MS) {
+        return { label: 'Healthy', color: 'success' };
+    }
+    if (age < WEEK_MS) {
+        return { label: 'Stale', color: 'warning' };
+    }
+    return { label: 'Old', color: 'error' };
+}
+
 const emptyOutlet = {
     id: '',
     name: '',
@@ -159,13 +203,17 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                             <TableCell>Vertical</TableCell>
                             <TableCell>Priority</TableCell>
                             <TableCell>Active</TableCell>
+                            <TableCell align="right">Articles</TableCell>
+                            <TableCell align="right">Events</TableCell>
+                            <TableCell>Last scraped</TableCell>
+                            <TableCell>Health</TableCell>
                             <TableCell align="right">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {sortedOutlets.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8}>
+                                <TableCell colSpan={12}>
                                     <Typography
                                         variant="body2"
                                         color="text.secondary"
@@ -238,6 +286,52 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                                                     : 'outlined'
                                             }
                                         />
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Typography variant="body2">
+                                            {outlet.article_count ?? 0}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Typography variant="body2">
+                                            {outlet.events_contributed ?? 0}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Tooltip
+                                            title={
+                                                outlet.last_scraped ??
+                                                'Never scraped'
+                                            }
+                                        >
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                            >
+                                                {relativeTime(
+                                                    outlet.last_scraped,
+                                                )}
+                                            </Typography>
+                                        </Tooltip>
+                                    </TableCell>
+                                    <TableCell>
+                                        {(() => {
+                                            const health =
+                                                outletHealth(outlet);
+                                            return (
+                                                <Chip
+                                                    size="small"
+                                                    label={health.label}
+                                                    color={health.color}
+                                                    variant={
+                                                        health.color ===
+                                                        'default'
+                                                            ? 'outlined'
+                                                            : 'filled'
+                                                    }
+                                                />
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell align="right">
                                         {isOperator ? (

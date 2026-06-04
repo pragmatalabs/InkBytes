@@ -305,3 +305,26 @@ Role changes go through `UserController::updateRole`, which blocks demoting the
 DB constraint, and audited as `user.role_changed`. Role itself is a plain string
 validated against `User::ROLES` (not a Postgres CHECK) so SQLite and Postgres
 behave identically and the allowed set lives in one constant.
+
+### B3 outlet health — "success rate" needs Messor, not Curator
+The obvious "success rate" column for outlets is **not computable from the
+Backoffice**. Curator's `public.articles` only stores articles that scraped
+*successfully*; it has no record of attempts or failures. A true success rate
+(succeeded / attempted) requires Messor's per-cycle run history — which is a
+separate, future backlog item (B4). So B3 deliberately shows **volume +
+recency + events contributed** (article count, last-scraped relative time,
+distinct events the outlet fed) plus a **health chip** derived from
+active-flag + recency, and explicitly does NOT fake a rate. Lesson: before
+adding a "rate" metric, check that *both* numerator and denominator actually
+live in the table you're reading — a partial table (successes only) silently
+turns any rate into a meaningless 100%.
+
+### Cross-schema stats: one grouped query + try/catch fallback, keyed by slug
+Per-outlet stats join `public.articles.outlet_id = public.outlets.id` (the
+TEXT slug, not an int). One `GROUP BY outlet_id` query (count, max(scraped_at),
+count(distinct event_id)) is fetched once and attached to each outlet by id in
+PHP — no N+1. The whole read is wrapped in try/catch returning `[]` so the page
+renders with null/0 stats when `public.articles` is absent (SQLite suite /
+un-migrated Curator) — same defensive pattern as the moderation and cost
+dashboards. Tests assert the fallback under SQLite; the populated payload is
+Postgres-only and tinker-verified (apnews art=158/evt=132, bbc 0/null).

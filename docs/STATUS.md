@@ -140,7 +140,8 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      Cost & Usage; deepened the Control Center with **live pipeline metrics** (articles/
      enriched/events/pages/spend/last-harvest via cross-schema reads); rebranded
      Laravel→InkBytes (logo + "InkBytes Backoffice"). 40 tests pass; verified in-browser.
-     Next: gap-analysis P0s — ~~B1 audit log~~ (DONE), ~~B2 RBAC~~ (DONE).
+     Next: gap-analysis P0s — ~~B1 audit log~~ (DONE), ~~B2 RBAC~~ (DONE);
+     P1s — ~~B3 outlet health~~ (DONE).
    - **B1 audit log DONE** (branch `backend/b1-audit-log`): records *who did what to
      which target, with before/after* for every state-changing admin action. New
      Backoffice-owned table **`backoffice.audit_logs`** (Laravel migration; columns
@@ -183,6 +184,27 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      against Postgres: `users.role` present, seed admin=`admin`, role-change
      audit row written; `public` counts unchanged (articles=309, events=220,
      pages=29, outlets=31).
+   - **B3 outlet health columns DONE** (branch `backend/b3-outlet-health`):
+     the Outlets index now shows per-outlet **Articles**, **Events
+     contributed**, **Last scraped** (relative time), and a **Health chip**.
+     `OutletController@index` runs ONE grouped cross-schema query against
+     Curator's `public.articles` (`GROUP BY outlet_id`, joined to
+     `public.outlets.id` — the slug; ADR-0003 read-only, never writes
+     `public.*`), wrapped in try/catch so the page still renders (stats null/0)
+     if the table is absent (SQLite tests / un-migrated Curator). **No success
+     rate is shown** — `public.articles` only holds successfully-scraped
+     articles, so attempts/failures (a true rate) need Messor run history (B4);
+     we surface volume + recency + events instead. Health derives from
+     active-flag + recency: inactive→grey "Inactive", active+never-scraped→
+     yellow "Never", <24h→green "Healthy", <7d→amber "Stale", else→red "Old".
+     CRUD/validation and B1 audit / B2 RBAC (role-gated Edit/Delete) untouched.
+     **64 Laravel tests pass** (1 new `OutletHealthTest` asserting the defensive
+     empty-stats fallback; full enriched payload verified against Postgres via
+     tinker: apnews art=158/evt=132/recent last_scraped, bbc 0/null);
+     `npm run build` green; `public` counts unchanged (articles=309, events=220,
+     pages=29, outlets=31). *SQLite caveat: the populated join is Postgres-only;
+     the test exercises the fallback, the live payload is tinker-verified — same
+     approach as B1/B2.*
    - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
      retained: verify re-synthesize against a throwaway event, never live data.*

@@ -6,10 +6,12 @@ use App\Models\AuditLog;
 use App\Models\Outlet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * CRUD for the shared `public.outlets` catalogue.
@@ -26,15 +28,71 @@ class OutletController extends Controller
 
     public function index(): Response
     {
+        $stats = $this->outletStats();
+
         return Inertia::render('Outlets/Index', [
             'outlets' => Outlet::query()
                 ->orderBy('priority')
                 ->orderBy('display_name')
                 ->get()
-                ->map(fn (Outlet $outlet): array => $this->present($outlet))
+                ->map(function (Outlet $outlet) use ($stats): array {
+                    $row = $stats[$outlet->id] ?? null;
+
+                    return $this->present($outlet) + [
+                        'article_count' => $row['article_count'] ?? 0,
+                        'events_contributed' => $row['events_contributed'] ?? 0,
+                        'last_scraped' => $row['last_scraped'] ?? null,
+                    ];
+                })
                 ->values(),
             'options' => $this->options(),
         ]);
+    }
+
+    /**
+     * Per-outlet harvest stats, joined cross-schema from Curator's
+     * `public.articles` (ADR-0003 — read-only; the Backoffice never writes it).
+     *
+     * Join key: `public.articles.outlet_id = public.outlets.id` (the slug).
+     *
+     * NOTE: this is article *volume + recency + events contributed*, not a
+     * success rate. Curator's `public.articles` only holds successfully-scraped
+     * articles; scrape attempts/failures live in Messor's run history (a future
+     * B4), so a true success rate is not computable here.
+     *
+     * Defensive: if `public.articles` is unreachable (a non-Postgres test DB, or
+     * Curator's schema not yet migrated) we return an empty map and the page
+     * still renders with null/0 stats — mirrors the moderation/cost fallbacks.
+     *
+     * @return array<string, array{article_count:int, events_contributed:int, last_scraped:?string}>
+     */
+    private function outletStats(): array
+    {
+        try {
+            $rows = DB::table('public.articles')
+                ->select('outlet_id')
+                ->selectRaw('count(*) AS article_count')
+                ->selectRaw('max(scraped_at) AS last_scraped')
+                ->selectRaw('count(DISTINCT event_id) AS events_contributed')
+                ->groupBy('outlet_id')
+                ->get();
+        } catch (Throwable $e) {
+            return [];
+        }
+
+        $stats = [];
+
+        foreach ($rows as $row) {
+            $stats[$row->outlet_id] = [
+                'article_count' => (int) $row->article_count,
+                'events_contributed' => (int) $row->events_contributed,
+                'last_scraped' => $row->last_scraped
+                    ? \Illuminate\Support\Carbon::parse($row->last_scraped)->toIso8601String()
+                    : null,
+            ];
+        }
+
+        return $stats;
     }
 
     public function store(Request $request): RedirectResponse
