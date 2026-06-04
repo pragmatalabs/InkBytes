@@ -85,7 +85,7 @@ class ScrapeRunOptionsTest extends TestCase
     public function test_arg_builder_outlets_only_is_escaped(): void
     {
         $this->assertSame(
-            "--scrape --outlets='apnews,bbc'",
+            "--scrape='--outlets=apnews,bbc'",
             RunScrapingWorker::composeScrapeArgs(['outlet_slugs' => ['apnews', 'bbc']])
         );
     }
@@ -93,7 +93,7 @@ class ScrapeRunOptionsTest extends TestCase
     public function test_arg_builder_outlets_and_limit(): void
     {
         $this->assertSame(
-            "--scrape --outlets='bbc,cnbc' --limit=5",
+            "--scrape='--outlets=bbc,cnbc --limit=5'",
             RunScrapingWorker::composeScrapeArgs([
                 'outlet_slugs' => ['bbc', 'cnbc'],
                 'limit' => 5,
@@ -109,7 +109,7 @@ class ScrapeRunOptionsTest extends TestCase
             'outlet_slugs' => ['bbc', 'bbc; rm -rf /'],
         ]);
 
-        $this->assertSame("--scrape --outlets='bbc'", $args);
+        $this->assertSame("--scrape='--outlets=bbc'", $args);
         $this->assertStringNotContainsString('rm -rf', $args);
     }
 

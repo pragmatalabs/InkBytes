@@ -204,8 +204,8 @@ class RunScrapingWorker implements ShouldQueue
      * Mapping (mirrors Messor's command_processor parsing):
      *   none                       → --scrape                 (all outlets)
      *   {limit:N}                  → --scrape=--limit=N
-     *   {outlet_slugs:[a,b]}       → --scrape --outlets='a,b'
-     *   {outlet_slugs:[a], limit:N}→ --scrape --outlets='a' --limit=N
+     *   {outlet_slugs:[a,b]}       → --scrape=--outlets=a,b
+     *   {outlet_slugs:[a], limit:N}→ --scrape='--outlets=a --limit=N'
      *
      * @param  array<string, mixed>|null  $options
      */
@@ -242,14 +242,18 @@ class RunScrapingWorker implements ShouldQueue
             return '--scrape';
         }
 
-        // Outlet subset: escape the CSV; append --limit as a separate token.
+        // Outlet subset: Messor's main.py only knows --scrape; --outlets/--limit are
+        // parsed from its VALUE (not as top-level flags). Fold them into a single
+        // --scrape=<value> token, escapeshellarg'd because the value may contain a
+        // space between --outlets and --limit. (Slugs are already allowlist+regex
+        // validated, so the only thing escaping guards is that space.)
         $csv = implode(',', $slugs);
-        $args = '--scrape --outlets='.escapeshellarg($csv);
+        $inner = '--outlets='.$csv;
         if ($limit !== null) {
-            $args .= ' --limit='.$limit;
+            $inner .= ' --limit='.$limit;
         }
 
-        return $args;
+        return '--scrape='.escapeshellarg($inner);
     }
 
     private function localLogPath(int $scrapingJobId): string
