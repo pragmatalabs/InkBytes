@@ -179,9 +179,33 @@ Postgres-free; it emits a `scrape.session.completed` event on its `messor` topic
   `python main.py … --scrape` not exercised (an existing Messor instance owns :8050;
   the synthetic round-trip covers the same emit→consume path).
 
-### B12.2 — Backoffice Scrape Results browser (PHP half, remaining)
+### B12.2 — Backoffice Scrape Results browser (PHP half) ✅ DONE
 Read-only (cross-schema, ADR-0003): sessions list + per-session detail reading
 `public.scrape_sessions`. Reuse B7 pagination mechanics.
+**Shipped (branch `backend/b12.2-scrape-results-browser`):**
+- **Model** `ScrapeSession` bound to `public.scrape_sessions` (string PK
+  `session_id`, `$incrementing=false`, `outlets` cast to array, `$guarded=['*']`,
+  no timestamps — Curator's trigger manages them). Read-only; never writes `public.*`.
+- **`ScrapeResultsController`**: `@index` server-paginates via the **B7 trait**
+  (`PaginatesQueries`) — list columns started_at / total·successful·failed·duplicate
+  articles / success_rate / total_outlets / duration; **sortable** started_at·
+  success_rate·total_articles·total_outlets; **search** by session_id. `@show`
+  returns the per-session `outlets[]` breakdown as JSON (lazy-loaded into a detail
+  dialog). **Defensive** try/catch → empty paginator + `reachable=false` when the
+  table is unreachable; renders correctly with the 0 rows it holds today.
+- **Routes** `GET /scrape-results` + `GET /scrape-results/{session}`, all-authenticated
+  (B2 read pages). **Nav** "Scrape Results" under the observability group (next to Run
+  History).
+- **Page** `ScrapeResults/Index.jsx` reuses the B7 React kit (`useListQuery`/
+  `SortableTableCell`/`ListSearchField`/`ListPagination`); clear empty state; per-session
+  detail dialog.
+- **Tests** (9, `ScrapeResultsTest`): empty-state (catch path, no 500), list with a
+  seeded row, search, sort-desc, outlets detail, 404 on unknown id, unauth→302, viewer
+  access. Cross-schema reproduced via `ATTACH DATABASE … AS public` (DatabaseMigrations,
+  no shipped DDL). Full suite **126 green**; `npm run build` green.
+- **Verified live (Postgres):** empty index total=0/reachable=true (no 500); probe row →
+  index total=1 / success_rate_pct=95.2 / detail outlets=2 with duplicate counts; **probe
+  deleted → scrape_sessions back to 0**. `public` unchanged (309/220/29/31).
 
 ### B12.3 — decommission (remaining)
 Verify the trigger path end-to-end → delete `Messor/client/` + its launch configs + the
@@ -238,7 +262,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 3 | **B7** pagination/search/bulk ✅ DONE | M | ✅ shared trait + composable React pieces |
 | 4 | **B8** one-active + rotation view ✅ DONE | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting ✅ DONE | M | ✅ scheduled evaluator + alerts table + in-app bell (email deferred) |
-| 6 | **B12** client consolidation — B12.1 ✅ DONE (emit→consume); B12.2/B12.3 remain | M/L | ✅ (b) decided: Option B (ADR-0006) |
+| 6 | **B12** client consolidation — B12.1 ✅ DONE (emit→consume); B12.2 ✅ DONE (browser); B12.3 remains | M/L | ✅ (b) decided: Option B (ADR-0006) |
 | 7 | **B13** UX polish | M | — |
 
 **Cheapest first value:** **B9 → B10** (both S, no blocking decision). Both gating

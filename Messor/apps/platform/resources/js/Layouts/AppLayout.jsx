@@ -2,6 +2,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Link, usePage } from '@inertiajs/react';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
 import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
@@ -63,6 +64,12 @@ const navigationItems = [
         routeName: 'run-history.index',
         match: 'run-history.*',
         icon: TimelineRoundedIcon,
+    },
+    {
+        label: 'Scrape Results',
+        routeName: 'scrape-results.index',
+        match: 'scrape-results.*',
+        icon: FactCheckRoundedIcon,
     },
     {
         label: 'Runtime',

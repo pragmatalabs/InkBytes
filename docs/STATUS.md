@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B12.1 shipped)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B12.2 shipped)*
 
 ## TL;DR
 
@@ -304,6 +304,33 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B12.2 Scrape Results browser DONE** (branch `backend/b12.2-scrape-results-browser`,
+     [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md)): the **PHP half** —
+     a read-only Backoffice screen for the per-session/per-outlet harvest results, the one
+     feature the legacy :5174 client had that the Backoffice didn't (makes B12.3
+     decommission safe). **Read-only cross-schema** over Curator's `public.scrape_sessions`
+     (ADR-0003): new Eloquent model `ScrapeSession` (`$table='public.scrape_sessions'`,
+     string PK, `outlets` cast to array, `$guarded=['*']` — never writes any `public.*`).
+     `ScrapeResultsController@index` server-paginates via the **B7 trait**
+     (`PaginatesQueries`) — columns started_at / total·successful·failed·duplicate articles
+     / success_rate / total_outlets / duration; **sortable** by started_at·success_rate·
+     total_articles·total_outlets; **search** by session_id. `@show` returns the
+     per-session `outlets[]` breakdown as JSON (lazy-loaded into a detail dialog).
+     **Defensive**: the read is try/catch-wrapped → renders an **empty state** (empty
+     paginator + `reachable=false`) if `public.scrape_sessions` is unreachable, and looks
+     right with the **0 rows it holds today**. Route `GET /scrape-results` (+`/{session}`),
+     all-authenticated (B2). Nav entry "Scrape Results" under the observability group (next
+     to Run History). Page `ScrapeResults/Index.jsx` reuses the B7 React kit
+     (`useListQuery`/`SortableTableCell`/`ListSearchField`/`ListPagination`). **Tests** (9,
+     `ScrapeResultsTest`): empty-state (catch path, no 500), list with a seeded row, search,
+     sort-desc, outlets detail, 404 on unknown id, auth-gating (unauth→302), viewer access.
+     Cross-schema `public.scrape_sessions` reproduced via `ATTACH DATABASE … AS public`
+     (DatabaseMigrations, no shipped DDL — Curator owns it). **Verified live (Postgres):**
+     empty index → total=0/reachable=true (no 500); probe row inserted → index total=1,
+     success_rate_pct=95.2, detail outlets=2 with duplicate counts; **probe row deleted →
+     scrape_sessions back to 0**. Full suite **126 green**; `npm run build` green. **`public`
+     counts unchanged** (articles=309, events=220, pages=29, outlets=31). **B12.3**
+     (decommission `Messor/client/` + dead `:8050 /api/scrape*`) remains.
    - **B12.1 durable scrape sessions DONE** (branch `backend/b12.1-scrape-sessions`,
      [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md) refined): the **Python
      half** of folding the Messor :5174 client into the Backoffice — per-run scrape

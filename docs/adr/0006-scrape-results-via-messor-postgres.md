@@ -77,8 +77,13 @@ publishing) and keeps the DB owner (Curator) as the sole writer, matching the ex
   Curator consumer (`consume_scrape_sessions` → `_handle_scrape_session` → upsert), and
   Messor emit (`publish_scrape_session_completed` + run-boundary accumulation in
   `scraper_service.execute_scraping_process`) all landed and round-trip-verified on live
-  infra. **B12.2** (Backoffice read-only Scrape Results browser) and **B12.3**
-  (decommission `Messor/client/` + dead `:8050 /api/scrape*` endpoints) remain.
+  infra.
+- **B12.2 done.** Backoffice read-only **Scrape Results** browser: `ScrapeSession` model
+  (bound to `public.scrape_sessions`, read-only), `ScrapeResultsController` (B7-paginated
+  list + per-session `outlets[]` detail, defensive empty-state), `GET /scrape-results`
+  (all-authenticated), nav entry, `ScrapeResults/Index.jsx`. Empty + populated paths
+  verified live (probe row inserted then deleted; table left at 0). **B12.3** (decommission
+  `Messor/client/` + dead `:8050 /api/scrape*` endpoints) remains.
 
 ## Alternatives considered
 - **A (proxy :8050)** — rejected as the durable answer (couples to a flaky service +

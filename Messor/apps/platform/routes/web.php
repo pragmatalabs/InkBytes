@@ -12,6 +12,7 @@ use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RunHistoryController;
 use App\Http\Controllers\RuntimeController;
+use App\Http\Controllers\ScrapeResultsController;
 use App\Http\Controllers\ScrapingJobController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +46,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Scraping run history / time-series (B4) — read-only observability over
     // Messor's recent scrape sessions (live-read, defensive fetch). All roles.
     Route::get('/run-history', [RunHistoryController::class, 'index'])->name('run-history.index');
+
+    // Scrape Results browser (B12.2) — read-only, cross-schema over Curator's
+    // durable public.scrape_sessions (ADR-0006): per-session list + per-session
+    // per-outlet detail. All authenticated roles; no mutations, no secrets.
+    Route::get('/scrape-results', [ScrapeResultsController::class, 'index'])->name('scrape-results.index');
+    Route::get('/scrape-results/{session}', [ScrapeResultsController::class, 'show'])->name('scrape-results.show');
 
     // Unified health dashboard (B6) — read-only observability across Postgres /
     // Curator / Messor / RabbitMQ. All authenticated roles; no role gate.
