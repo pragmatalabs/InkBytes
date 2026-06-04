@@ -39,6 +39,10 @@ class CuratorSettingController extends Controller
                 'entity_overlap_min' => (int) $settings->entity_overlap_min,
                 'min_sources_to_publish' => (int) $settings->min_sources_to_publish,
                 'recent_window_hours' => (int) $settings->recent_window_hours,
+                // B5: monthly budget (USD). Null when unset → budget widget hides.
+                'monthly_budget_usd' => $settings->monthly_budget_usd !== null
+                    ? (float) $settings->monthly_budget_usd
+                    : null,
                 'updated_at' => $settings->updated_at?->toIso8601String(),
             ],
             'modelSuggestions' => self::KNOWN_MODELS,
@@ -57,6 +61,9 @@ class CuratorSettingController extends Controller
             'entity_overlap_min' => ['required', 'integer', 'between:0,20'],
             'min_sources_to_publish' => ['required', 'integer', 'between:1,20'],
             'recent_window_hours' => ['required', 'integer', 'between:1,720'],
+            // B5: optional monthly budget in USD. Nullable (no budget) and
+            // small budgets allowed (tests use $0.001), so min is 0.
+            'monthly_budget_usd' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
         $settings = CuratorSetting::current();

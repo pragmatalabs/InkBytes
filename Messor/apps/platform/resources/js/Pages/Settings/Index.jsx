@@ -38,6 +38,12 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
         entity_overlap_min: settings.entity_overlap_min ?? 1,
         min_sources_to_publish: settings.min_sources_to_publish ?? 2,
         recent_window_hours: settings.recent_window_hours ?? 48,
+        // B5: monthly LLM-spend budget (USD). Empty string = unset (sent as null).
+        monthly_budget_usd:
+            settings.monthly_budget_usd === null ||
+            settings.monthly_budget_usd === undefined
+                ? ''
+                : settings.monthly_budget_usd,
     });
 
     const num = (field) => (event) =>
@@ -45,7 +51,13 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
 
     const submit = (event) => {
         event.preventDefault();
-        form.put(route('settings.update'));
+        // Send an empty budget as null (unset) rather than '' so the
+        // `nullable|numeric` rule passes and the widget hides.
+        form.transform((data) => ({
+            ...data,
+            monthly_budget_usd:
+                data.monthly_budget_usd === '' ? null : data.monthly_budget_usd,
+        })).put(route('settings.update'));
     };
 
     const numberField = (field, label, helper, step = 1) => (
@@ -188,6 +200,24 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                                     'recent_window_hours',
                                     'Recent window (hours)',
                                     'Cluster lookback window'
+                                )}
+                            </Grid>
+                        </Grid>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                        <Typography variant="h6" gutterBottom>
+                            Cost
+                        </Typography>
+                        <Grid container spacing={2.5}>
+                            <Grid size={{ xs: 12, md: 4 }}>
+                                {numberField(
+                                    'monthly_budget_usd',
+                                    'Monthly budget (USD)',
+                                    'Month-to-date spend is checked against this on the Cost & Usage page. Leave blank for no budget.',
+                                    0.01
                                 )}
                             </Grid>
                         </Grid>

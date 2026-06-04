@@ -47,6 +47,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Model usage / cost dashboard — read-only aggregates over
     // backoffice.model_usage (Curator writes rows; Phase 2.2 / ADR-0003).
     Route::get('/model-usage', [ModelUsageController::class, 'index'])->name('model-usage.index');
+    // CSV export of the filtered rows (B5). Same access as the cost page (all
+    // authenticated roles); honours the same from/to range. Streamed.
+    Route::get('/model-usage/export', [ModelUsageController::class, 'export'])->name('model-usage.export');
 
     // ── Operator + admin: outlet / scraping / moderation MUTATIONS ───────────
     // (B2 RBAC — ADR-0005). Server middleware is the real gate; UI hiding is

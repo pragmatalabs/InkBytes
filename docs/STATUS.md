@@ -232,6 +232,36 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      pointing `CURATOR_URL` at a dead port → `unreachable` in 9ms, total request
      82ms, Messor still up; `public` counts unchanged (articles=309, events=220,
      pages=29, published=29).
+   - **B5 cost dashboard upgrades DONE** (branch `backend/b5-cost-upgrades`): the
+     read-only **Cost & Usage** screen gained four computable upgrades over
+     `backoffice.model_usage`. (1) **Date-range filter** — `from`/`to` query
+     params scope **every** aggregate (summary cards, by-model, by-skill, by-day,
+     by-event); default is the **last 30 days**; per-1k-articles / per-page
+     denominators still come from live `public.articles`/`public.pages`. (2)
+     **CSV export** — `GET /model-usage/export` (`model-usage.export`, all
+     authenticated roles, same as the page) streams the **filtered** rows via
+     `streamDownload`+`chunk` (cols: created_at, call_label, model, input_tokens,
+     output_tokens, cost_usd, event_id). (3) **Budget threshold + alert** — a new
+     **nullable `monthly_budget_usd`** column on `backoffice.curator_settings`
+     (admin-only edit via the existing B1-audited Settings form; **Curator does
+     not read it** — Backoffice-only display knob, no ADR-0004 contract change);
+     the page shows **month-to-date spend vs budget** with a progress bar and an
+     **over-budget alert banner** when MTD > budget; widget **hidden when unset**.
+     (4) **By-event drill-down** — synth rows (event_id NOT NULL) grouped by event
+     with cost/token totals, joined **defensively** to `public.pages` for the
+     headline (ADR-0003 read-only cross-schema; degrades to null headline);
+     enrich rows (event_id NULL) aggregated separately as "Unattributed".
+     **DEFERRED — by-outlet & per-API-key cost:** `model_usage` carries neither
+     `outlet_id` nor `api_key_id`, so those breakdowns can't be computed without
+     Curator first writing those columns (noted in code + gap-analysis B5).
+     **72 Laravel tests pass** (6 new in `ModelUsageTest`: date-range scoping,
+     CSV export, budget over/under/unset, budget-change audit); `npm run build`
+     green. Live payload **tinker-verified on Postgres**: wide range $0.006951/1
+     call, narrow (Jan) $0/0; by-event headline "Six killed in Iowa family
+     shooting…" joined for `01KT5E6AYJW4014BEYM5V0Z6B7`; budget $0.001 → over,
+     $100 → within, null → hidden. **`public` counts unchanged** (articles=309,
+     events=220, pages=29, published=29); **`model_usage` row count unchanged (1)**
+     — read-only.
    - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
      retained: verify re-synthesize against a throwaway event, never live data.*

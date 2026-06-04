@@ -27,6 +27,9 @@ class CuratorSetting extends Model
         'entity_overlap_min',
         'min_sources_to_publish',
         'recent_window_hours',
+        // B5: admin-editable monthly LLM-spend budget (USD). NULL = unset.
+        // Backoffice-only display knob; Curator does not read it (ADR-0004).
+        'monthly_budget_usd',
     ];
 
     protected $casts = [
@@ -37,6 +40,7 @@ class CuratorSetting extends Model
         'entity_overlap_min' => 'integer',
         'min_sources_to_publish' => 'integer',
         'recent_window_hours' => 'integer',
+        'monthly_budget_usd' => 'float',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
