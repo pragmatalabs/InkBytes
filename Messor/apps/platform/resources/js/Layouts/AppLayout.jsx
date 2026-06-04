@@ -1,6 +1,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
@@ -78,6 +79,12 @@ const navigationItems = [
         routeName: 'api-keys.index',
         match: 'api-keys.*',
         icon: KeyRoundedIcon,
+    },
+    {
+        label: 'Audit Log',
+        routeName: 'audit-log.index',
+        match: 'audit-log.*',
+        icon: HistoryRoundedIcon,
     },
     {
         label: 'Profile',

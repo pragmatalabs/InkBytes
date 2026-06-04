@@ -60,7 +60,7 @@ Effort: S ≈ <½ day · M ≈ ~1 day · L ≈ multi-day. Priority P0 (do first)
 
 | # | Pri | Item | Gap | Effort | Why / payoff |
 |---|----|------|-----|--------|--------------|
-| B1 | **P0** | **Audit log** — record actor + action + target + before/after for every mutation (moderation, settings, key rotation, outlet CRUD) | 3 | M | Accountability for cost- and content-affecting actions; foundation for everything else |
+| B1 | ✅ **DONE** | **Audit log** — record actor + action + target + before/after for every mutation (moderation, settings, key rotation, outlet CRUD) | 3 | M | Accountability for cost- and content-affecting actions; foundation for everything else |
 | B2 | **P0** | **RBAC** — roles (admin / operator / viewer) gating dangerous routes (keys, settings, moderation, scrape trigger) | 3 | M | Stops any logged-in user from rotating keys / dropping pages |
 | B3 | **P1** | **Outlet health columns** — last-scraped, article count, success rate, events contributed (read from Curator `public`) | 1,2 | M | Restores visibility deleted in 1.2; makes Outlets actionable |
 | B4 | **P1** | **Scraping run history / time-series** — per-cycle articles, dedup ratio, success rate over time | 2 | L | Replaces the deleted Runs analytics; core ops insight |

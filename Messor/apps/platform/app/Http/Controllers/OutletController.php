@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Outlet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,7 +41,9 @@ class OutletController extends Controller
     {
         $data = $this->validateOutlet($request, null);
 
-        Outlet::query()->create($data);
+        $outlet = Outlet::query()->create($data);
+
+        AuditLog::record('outlet.created', 'outlet', (string) $outlet->id, null, $this->present($outlet));
 
         return redirect()
             ->route('outlets.index')
@@ -51,11 +54,15 @@ class OutletController extends Controller
     {
         $model = Outlet::query()->findOrFail($outlet);
 
+        $before = $this->present($model);
+
         $data = $this->validateOutlet($request, $model->id);
 
         // The slug (id) is the natural key Curator/Messor join on — keep it stable.
         unset($data['id']);
         $model->update($data);
+
+        AuditLog::record('outlet.updated', 'outlet', (string) $model->id, $before, $this->present($model->refresh()));
 
         return redirect()
             ->route('outlets.index')
@@ -66,7 +73,11 @@ class OutletController extends Controller
     {
         $model = Outlet::query()->findOrFail($outlet);
         $name = $model->display_name;
+        $before = $this->present($model);
+        $id = (string) $model->id;
         $model->delete();
+
+        AuditLog::record('outlet.deleted', 'outlet', $id, $before, null);
 
         return redirect()
             ->route('outlets.index')

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\CuratorSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -59,7 +60,16 @@ class CuratorSettingController extends Controller
         ]);
 
         $settings = CuratorSetting::current();
+        $before = $settings->only(array_keys($data));
         $settings->fill($data)->save();
+
+        AuditLog::record(
+            'settings.updated',
+            'settings',
+            (string) $settings->getKey(),
+            $before,
+            $settings->only(array_keys($data)),
+        );
 
         return redirect()
             ->route('settings.edit')

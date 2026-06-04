@@ -140,7 +140,26 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      Cost & Usage; deepened the Control Center with **live pipeline metrics** (articles/
      enriched/events/pages/spend/last-harvest via cross-schema reads); rebranded
      Laravel→InkBytes (logo + "InkBytes Backoffice"). 40 tests pass; verified in-browser.
-     Next: gap-analysis P0s — **B1 audit log, B2 RBAC**.
+     Next: gap-analysis P0s — ~~B1 audit log~~ (DONE), **B2 RBAC**.
+   - **B1 audit log DONE** (branch `backend/b1-audit-log`): records *who did what to
+     which target, with before/after* for every state-changing admin action. New
+     Backoffice-owned table **`backoffice.audit_logs`** (Laravel migration; columns
+     `actor_id`/`actor_name`/`actor_email` snapshots, `action`, `target_type`,
+     `target_id`, `before`/`after` jsonb, `ip`, `created_at` timestamptz; indexed on
+     `action`, `(target_type,target_id)`, `created_at`). `App\Models\AuditLog::record()`
+     is a **best-effort** static recorder (try/catch + `Log::warning` — an audit hiccup
+     never 500s the underlying action) that snapshots the authed user + request IP.
+     Wired into every mutation: Outlets (created/updated/deleted), API Keys
+     (created/updated/deleted — **secret-free**: only provider/label/masked last-4/active,
+     never raw or encrypted key), Curator Settings (updated, before/after diff), and
+     Moderation commands (`page.published`/`unpublished`/`dropped`,
+     `event.resynthesize`/`recluster`). New read-only **Audit Log** screen
+     (`/audit-log`, nav entry) with newest-first table, expandable before/after JSON,
+     server-side pagination (25/page), and filter by action and/or actor. **45 Laravel
+     tests pass** (5 new, incl. one asserting key material is never persisted); frontend
+     builds (manifest includes the page); verified the recorder + apikey/outlet wiring
+     against Postgres via tinker; `public` counts unchanged (articles=309, events=220,
+     pages=29, outlets=31).
    - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
      retained: verify re-synthesize against a throwaway event, never live data.*

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApiKeyController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CuratorSettingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventModerationController;
@@ -62,6 +63,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
     Route::delete('/api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
     Route::post('/api-keys/{apiKey}/test', [ApiKeyController::class, 'test'])->name('api-keys.test');
+
+    // Audit log — read-only viewer of backoffice.audit_logs (who did what to
+    // which target, with before/after). Written best-effort by every mutation
+    // via AuditLog::record(). See gap-analysis B1.
+    Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
 });
 
 Route::middleware('auth')->group(function () {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApiKey;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,7 +48,10 @@ class ApiKeyController extends Controller
             'active' => ['required', 'boolean'],
         ]);
 
-        ApiKey::query()->create($data);
+        $key = ApiKey::query()->create($data);
+
+        // CRITICAL: never audit the raw/encrypted secret — only safe metadata.
+        AuditLog::record('apikey.created', 'apikey', (string) $key->id, null, $this->auditSnapshot($key));
 
         return redirect()
             ->route('api-keys.index')
@@ -70,7 +74,12 @@ class ApiKeyController extends Controller
             unset($data['value']);
         }
 
+        $before = $this->auditSnapshot($apiKey);
+
         $apiKey->fill($data)->save();
+
+        // CRITICAL: never audit the raw/encrypted secret — only safe metadata.
+        AuditLog::record('apikey.updated', 'apikey', (string) $apiKey->id, $before, $this->auditSnapshot($apiKey->refresh()));
 
         return redirect()
             ->route('api-keys.index')
@@ -80,7 +89,12 @@ class ApiKeyController extends Controller
     public function destroy(ApiKey $apiKey): RedirectResponse
     {
         $provider = $apiKey->provider;
+        $before = $this->auditSnapshot($apiKey);
+        $id = (string) $apiKey->id;
         $apiKey->delete();
+
+        // CRITICAL: never audit the raw/encrypted secret — only safe metadata.
+        AuditLog::record('apikey.deleted', 'apikey', $id, $before, null);
 
         return redirect()
             ->route('api-keys.index')
@@ -156,6 +170,23 @@ class ApiKeyController extends Controller
         }
 
         return [false, "Provider returned HTTP {$resp->status()}."];
+    }
+
+    /**
+     * Audit-safe snapshot of a key. Contains ONLY non-secret metadata —
+     * provider, label, masked last-4 and active flag. The raw/encrypted
+     * `value` is NEVER included so no key material ever lands in audit_logs.
+     *
+     * @return array<string, mixed>
+     */
+    private function auditSnapshot(ApiKey $key): array
+    {
+        return [
+            'provider' => $key->provider,
+            'label' => $key->label,
+            'masked' => $key->masked(),
+            'active' => (bool) $key->active,
+        ];
     }
 
     /**

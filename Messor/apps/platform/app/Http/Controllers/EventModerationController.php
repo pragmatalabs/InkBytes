@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Page;
 use App\Services\CuratorCommandService;
@@ -63,40 +64,47 @@ class EventModerationController extends Controller
     public function publishPage(string $page): RedirectResponse
     {
         return $this->dispatch(fn () => $this->commands->publishPage($page),
-            "Publish command sent for page {$page}.");
+            "Publish command sent for page {$page}.", 'page.published', 'page', $page);
     }
 
     public function unpublishPage(string $page): RedirectResponse
     {
         return $this->dispatch(fn () => $this->commands->unpublishPage($page),
-            "Unpublish command sent for page {$page}.");
+            "Unpublish command sent for page {$page}.", 'page.unpublished', 'page', $page);
     }
 
     public function dropPage(string $page): RedirectResponse
     {
         return $this->dispatch(fn () => $this->commands->dropPage($page),
-            "Drop command sent for page {$page}.");
+            "Drop command sent for page {$page}.", 'page.dropped', 'page', $page);
     }
 
     public function resynthesizeEvent(string $event): RedirectResponse
     {
         return $this->dispatch(fn () => $this->commands->resynthesizeEvent($event),
-            "Re-synthesize command sent for event {$event}.");
+            "Re-synthesize command sent for event {$event}.", 'event.resynthesize', 'event', $event);
     }
 
     public function reclusterEvent(string $event): RedirectResponse
     {
         return $this->dispatch(fn () => $this->commands->reclusterEvent($event),
-            "Re-cluster command sent for event {$event}.");
+            "Re-cluster command sent for event {$event}.", 'event.recluster', 'event', $event);
     }
 
     /**
      * Run a command publish and flash success/error. The command is async —
      * Curator applies it shortly after; we report that it was *sent*, not that
-     * the DB already changed.
+     * the DB already changed. On a successful send we audit the action (these
+     * are async commands, so we record intent — there is no before/after row to
+     * diff here).
      */
-    private function dispatch(callable $action, string $okMessage): RedirectResponse
-    {
+    private function dispatch(
+        callable $action,
+        string $okMessage,
+        string $auditAction,
+        string $targetType,
+        string $targetId,
+    ): RedirectResponse {
         try {
             $action();
         } catch (Throwable $e) {
@@ -104,6 +112,8 @@ class EventModerationController extends Controller
                 ->route('moderation.index')
                 ->with('error', 'Command could not be sent: '.$e->getMessage());
         }
+
+        AuditLog::record($auditAction, $targetType, $targetId);
 
         return redirect()
             ->route('moderation.index')

@@ -250,3 +250,34 @@ for sqlite. Same lesson for the cross-schema denominators: the dashboard reads
 which don't exist under the SQLite test DB, so those count reads are wrapped to
 fall back to 0 — the read-only dashboard renders instead of erroring. Both keep
 prod behaviour identical while letting the suite stay on SQLite.
+
+### B1 audit log — `public.outlets` can't be exercised over HTTP in SQLite tests
+The Backoffice `Outlet` model is bound to `protected $table = 'public.outlets'`
+(Curator owns that DDL; ADR-0003). Under the feature suite's **SQLite in-memory**
+DB there is no `public` schema — Laravel parses the dotted name as
+`connection.table`, so an outlet route under test fails with *"Database connection
+[public] not configured."* The apikey + settings audit paths *can* run over HTTP
+(those tables are Laravel-migrated into the test DB), so they assert the full
+controller→recorder wiring; the outlet path is instead covered by (a) a unit-style
+test that calls `AuditLog::record()` directly with outlet-shaped before/after and
+(b) a tinker run against real Postgres. Takeaway: any feature test that touches
+`public.*` tables over HTTP will not run on the SQLite suite — verify those paths
+against Postgres (tinker/feature-on-pgsql) and keep the SQLite suite to
+Laravel-owned tables.
+
+### Keep secret material out of `audit_logs` at the *caller*, not the model
+The audit recorder is generic (`record($action, $type, $id, $before, $after)`),
+so it can't know which fields are sensitive. The rule is enforced where secrets
+live: `ApiKeyController` has a dedicated `auditSnapshot()` returning only
+`provider` / `label` / `masked` (last-4) / `active` — never the raw or encrypted
+`value`. A feature test scans the **raw stored** `before`/`after` JSON columns for
+both the original and rotated secrets (and for the literal `sk-` prefix) and
+asserts neither is present, so a future refactor that accidentally widens the
+snapshot is caught.
+
+### Best-effort audit writes — wrap and warn, never 500 the real action
+`AuditLog::record()` wraps the insert in try/catch and logs a `WARNING` on
+failure (same philosophy as the cost-meter sink). An audit hiccup (DB blip,
+missing table) must never break the outlet/key/settings mutation it's recording.
+Verified by dropping the `audit_logs` table mid-test and asserting `record()`
+returns normally instead of throwing.
