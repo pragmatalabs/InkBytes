@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B7 shipped)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B8 shipped)*
 
 ## TL;DR
 
@@ -304,6 +304,29 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B8 API-key depth (reduced) DONE** (branch `backend/b8-apikey-depth`):
+     per [ADR-0004](./adr/0004-curator-config-from-db-keys-via-env.md) **KEEP env
+     keys**, so B8 = two things. (1) **One-active-per-provider**:
+     `ApiKeyController@store`/`@update` deactivate the prior active key of the same
+     provider then activate the new one in one transaction; the demoted key is
+     audited as **`apikey.deactivated`** (B1, secret-free). DB safety net: a
+     migration adds a **partial unique index `(provider) WHERE active`** on
+     `backoffice.api_keys` (driver-aware Postgres + SQLite) so the invariant can't
+     be violated by a race. (2) **Rotation/change history view**: `GET
+     /api-keys/history` (admin-only) — a **server-paginated filtered view of
+     `audit_logs WHERE target_type='apikey'`** (reuses the B7 `PaginatesQueries`
+     trait + `useListQuery`/`SortableTableCell`/`ListPagination`), expandable
+     before/after, no key material. **last-used + spend-per-key = N/A by design**
+     (Curator uses env keys, never reads the DB rows — ADR-0004); the UI says so
+     instead of showing empty columns. **104 Laravel tests pass** (10 in
+     `ApiKeysTest`, +6 new: supersede+audit, update-supersede, two-provider
+     independence, partial-index blocks 2nd active, history paginated+secret-free,
+     history admin-only); `npm run build` green. Verified live: index present
+     (`\d backoffice.api_keys` → `… WHERE active`); A→B supersede left anthropic
+     active=1 + a masked-only `apikey.deactivated` audit row; anthropic+openai both
+     active=1; history rows had no `sk-`/`eyJ`. **Probe keys + audit rows removed**
+     (`backoffice.api_keys` back to prior state); **`public` counts unchanged**
+     (309/220/29/31).
    - **B7 pagination / search / sort / bulk DONE** (branch
      `backend/b7-pagination-search-bulk`): server-side list scaling on the
      growth-prone screens via **shared mechanics**. Server: a `PaginatesQueries`

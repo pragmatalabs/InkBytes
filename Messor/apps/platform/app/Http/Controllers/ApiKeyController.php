@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\PaginatesQueries;
 use App\Models\ApiKey;
 use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -24,7 +26,17 @@ use Throwable;
  */
 class ApiKeyController extends Controller
 {
+    use PaginatesQueries;
+
     private const PROVIDERS = ['anthropic', 'openai'];
+
+    /** The apikey.* audit actions B1 records — the history view's filter set. */
+    private const HISTORY_ACTIONS = [
+        'apikey.created',
+        'apikey.updated',
+        'apikey.deactivated',
+        'apikey.deleted',
+    ];
 
     public function index(): Response
     {
@@ -36,6 +48,46 @@ class ApiKeyController extends Controller
                 ->map(fn (ApiKey $key): array => $this->present($key))
                 ->values(),
             'providers' => self::PROVIDERS,
+            // UI honesty (B8 §3): last-used / spend-per-key are N/A by design —
+            // Curator uses env keys (ADR-0004), so nothing stamps a "used at" or
+            // ties spend to a DB key. Surface that, don't show empty columns.
+            'tracking' => [
+                'last_used' => false,
+                'spend_per_key' => false,
+                'note' => 'Not tracked — Curator uses env keys (ADR-0004).',
+            ],
+        ]);
+    }
+
+    /**
+     * Read-only rotation / change history for API keys (B8 §2): a filtered view
+     * of backoffice.audit_logs where target_type='apikey'. B1 already records
+     * create / update / delete / deactivate with ONLY non-secret metadata
+     * (provider / label / masked last-4 / active), so no key material is ever
+     * present in these rows. Server-paginated (B7 trait) + filterable by action.
+     */
+    public function history(Request $request): Response
+    {
+        $sortable = ['created_at', 'action'];
+        [$sort, $dir] = $this->resolveSort($request, $sortable, 'created_at', 'desc');
+        $perPage = $this->resolvePerPage($request);
+
+        $query = AuditLog::query()->where('target_type', 'apikey');
+
+        $action = trim((string) $request->query('action', ''));
+        if ($action !== '' && in_array($action, self::HISTORY_ACTIONS, true)) {
+            $query->where('action', $action);
+        }
+
+        // Stable tiebreaker so equal timestamps order deterministically.
+        $logs = $this->paginateList($request, $query, ['action', 'actor_name', 'actor_email'], $sort, $dir, $perPage)
+            ->through(fn (AuditLog $log): array => $this->presentHistory($log));
+
+        return Inertia::render('ApiKeys/History', [
+            'logs' => $logs,
+            'state' => $this->listState($request, $sort, $dir, $perPage),
+            'action' => $action,
+            'actions' => self::HISTORY_ACTIONS,
         ]);
     }
 
@@ -48,7 +100,17 @@ class ApiKeyController extends Controller
             'active' => ['required', 'boolean'],
         ]);
 
-        $key = ApiKey::query()->create($data);
+        // One-active-per-provider (B8 §1): if this key comes in active, demote
+        // the currently-active key of the same provider first, in one
+        // transaction. Deactivate-then-activate so we never trip the partial
+        // unique index `(provider) WHERE active`.
+        $key = DB::transaction(function () use ($data): ApiKey {
+            if ($data['active']) {
+                $this->deactivateActiveFor($data['provider']);
+            }
+
+            return ApiKey::query()->create($data);
+        });
 
         // CRITICAL: never audit the raw/encrypted secret — only safe metadata.
         AuditLog::record('apikey.created', 'apikey', (string) $key->id, null, $this->auditSnapshot($key));
@@ -76,7 +138,18 @@ class ApiKeyController extends Controller
 
         $before = $this->auditSnapshot($apiKey);
 
-        $apiKey->fill($data)->save();
+        // One-active-per-provider (B8 §1): if this update activates the key,
+        // demote the previously-active key of the same provider first, in one
+        // transaction. Deactivate-then-activate so we never trip the partial
+        // unique index. A no-op when this key was already the active one (it's
+        // excluded from the demotion) or when active=false.
+        DB::transaction(function () use ($apiKey, $data): void {
+            if (! empty($data['active'])) {
+                $this->deactivateActiveFor($apiKey->provider, $apiKey->id);
+            }
+
+            $apiKey->fill($data)->save();
+        });
 
         // CRITICAL: never audit the raw/encrypted secret — only safe metadata.
         AuditLog::record('apikey.updated', 'apikey', (string) $apiKey->id, $before, $this->auditSnapshot($apiKey->refresh()));
@@ -170,6 +243,52 @@ class ApiKeyController extends Controller
         }
 
         return [false, "Provider returned HTTP {$resp->status()}."];
+    }
+
+    /**
+     * Demote the currently-active key of a provider so the new/updated key can
+     * become the sole active one. Each demoted key is audited as
+     * `apikey.deactivated` (superseded), secret-free. Optionally excludes a key
+     * id (the one being activated) so we don't deactivate then re-activate it.
+     *
+     * Must run inside the caller's transaction.
+     */
+    private function deactivateActiveFor(string $provider, ?int $exceptId = null): void
+    {
+        $superseded = ApiKey::query()
+            ->where('provider', $provider)
+            ->where('active', true)
+            ->when($exceptId !== null, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->get();
+
+        foreach ($superseded as $old) {
+            $before = $this->auditSnapshot($old);
+            $old->forceFill(['active' => false])->save();
+
+            // CRITICAL: never audit the raw/encrypted secret — only safe metadata.
+            AuditLog::record('apikey.deactivated', 'apikey', (string) $old->id, $before, $this->auditSnapshot($old->refresh()));
+        }
+    }
+
+    /**
+     * History-row projection of an audit log. The B1 before/after snapshots are
+     * already secret-free (provider / label / masked last-4 / active) — there is
+     * no raw or encrypted key material anywhere in audit_logs.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentHistory(AuditLog $log): array
+    {
+        return [
+            'id' => $log->id,
+            'actor_name' => $log->actor_name,
+            'actor_email' => $log->actor_email,
+            'action' => $log->action,
+            'target_id' => $log->target_id,
+            'before' => $log->before,
+            'after' => $log->after,
+            'created_at' => $log->created_at?->toIso8601String(),
+        ];
     }
 
     /**

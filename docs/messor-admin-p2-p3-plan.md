@@ -65,14 +65,41 @@ trait + small composable React pieces, so each page keeps its bespoke row render
   restored to 28, probe audit rows removed**. `public` counts unchanged (309/220/29/31). Full suite
   **98 green**; `npm run build` green.
 
-## B8 — API-key depth (P2 · **reduced/blocked** — see decision (a))
-| Sub-feature | Feasible now? |
-|---|---|
-| One-active-per-provider | ✅ constraint + UI |
-| Rotation history | ⚠️ already audited (B1); a dedicated view is easy |
-| Last-used timestamp | ❌ Curator uses env keys (ADR-0004) |
-| Spend-per-key | ❌ `model_usage` has no `api_key_id` |
-*Default:* ship one-active-per-provider + a rotation-history view (S); defer last-used/spend pending **decision (a)**.
+## B8 — API-key depth (P2 · reduced per decision (a)) ✅ DONE
+| Sub-feature | Feasible now? | Shipped |
+|---|---|---|
+| One-active-per-provider | ✅ constraint + UI | ✅ |
+| Rotation history | ⚠️ already audited (B1); a dedicated view is easy | ✅ |
+| Last-used timestamp | ❌ Curator uses env keys (ADR-0004) | N/A by design |
+| Spend-per-key | ❌ `model_usage` has no `api_key_id` | N/A by design |
+
+**Shipped (branch `backend/b8-apikey-depth`):**
+- **One-active-per-provider.** `ApiKeyController@store`/`@update` wrap a transaction
+  that **deactivates the previously-active key of the same provider, then activates the
+  new one** (`deactivateActiveFor()` excludes the key being activated so it never
+  self-trips). DB safety net: migration `…000001_add_one_active_per_provider_index…`
+  adds a **partial unique index `(provider) WHERE active`** (driver-aware: Postgres +
+  SQLite) on `backoffice.api_keys` so the invariant holds even under a race. The
+  auto-deactivation is audited as **`apikey.deactivated`** (B1), secret-free
+  (provider/label/masked last-4/active only).
+- **Rotation/change history view.** `GET /api-keys/history` (admin-only) renders
+  `ApiKeys/History.jsx` — a **server-paginated, filtered view of
+  `audit_logs WHERE target_type='apikey'`** (reuses B7's `PaginatesQueries` +
+  `useListQuery`/`SortableTableCell`/`ListPagination`). Sortable by when/action,
+  action filter, expandable before/after. No key material — the B1 snapshots are
+  already secret-free.
+- **UI honesty.** Index + History pages carry a "Not tracked — Curator uses env keys
+  (ADR-0004); last-used/spend N/A by design" note instead of empty columns.
+- **Tests** (10 in `ApiKeysTest`, +6 for B8): create→active→supersede deactivates prior +
+  audits `apikey.deactivated`; update→active supersedes; two providers each keep one
+  active; partial unique index blocks a second active row per provider; history view
+  paginated + secret-free (no `sk-`/`eyJ`); history admin-only. Full suite **104 green**;
+  `npm run build` green.
+- **Verification (live Postgres):** index present (`\d backoffice.api_keys` →
+  `api_keys_one_active_per_provider UNIQUE … WHERE active`); A→B supersede gave anthropic
+  active=1 with an `apikey.deactivated` masked-only audit row; anthropic+openai both
+  active=1 (total 2); history rows contained no `sk-`/`eyJ`. **Probe keys + audit rows
+  removed**, `backoffice.api_keys` back to 0; `public` counts unchanged (309/220/29/31).
 
 ## B9 — Settings safety (P2 · S) ✅ DONE
 **Diff:** change-history ✅ (audit). Remaining: (a) validate model names against an **allowlist** so a typo can't reach the pipeline; (b) **reset-to-defaults** (defaults from Curator `config.py`).
@@ -156,7 +183,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 1 | **B9** settings safety ✅ DONE | S | ✅ allowlist = Laravel config |
 | 2 | **B10** outlet import/export ✅ DONE | S | ✅ export = download |
 | 3 | **B7** pagination/search/bulk ✅ DONE | M | ✅ shared trait + composable React pieces |
-| 4 | **B8** one-active + rotation view | S | ✅ (a) decided: KEEP — ship reduced |
+| 4 | **B8** one-active + rotation view ✅ DONE | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting | M | channel + scheduler |
 | 6 | **B12** client consolidation | M/L | ✅ (b) decided: Option B (ADR-0006) |
 | 7 | **B13** UX polish | M | — |

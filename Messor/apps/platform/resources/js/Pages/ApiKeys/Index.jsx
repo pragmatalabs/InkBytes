@@ -1,8 +1,9 @@
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
 import {
@@ -44,7 +45,7 @@ const emptyKey = {
     active: true,
 };
 
-export default function ApiKeysIndex({ keys = [], providers = [] }) {
+export default function ApiKeysIndex({ keys = [], providers = [], tracking = null }) {
     const { flash } = usePage().props;
     const providerOptions = providers.length ? providers : ['anthropic', 'openai'];
 
@@ -140,7 +141,28 @@ export default function ApiKeysIndex({ keys = [], providers = [] }) {
         >
             <Head title="API Keys" />
 
-            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
+            <Alert severity="info" icon={false} sx={{ mb: 2 }}>
+                <strong>One active key per provider.</strong> Activating a key
+                automatically deactivates the previously-active key of the same
+                provider (audited).{' '}
+                {tracking?.note ?? 'Not tracked — Curator uses env keys (ADR-0004).'}{' '}
+                Last-used timestamps and spend-per-key are N/A by design.
+            </Alert>
+
+            <Stack
+                direction="row"
+                justifyContent="flex-end"
+                spacing={1}
+                sx={{ mb: 2 }}
+            >
+                <Button
+                    component={Link}
+                    href={route('api-keys.history')}
+                    variant="outlined"
+                    startIcon={<HistoryRoundedIcon />}
+                >
+                    History
+                </Button>
                 <Button
                     variant="contained"
                     startIcon={<AddRoundedIcon />}

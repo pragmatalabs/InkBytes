@@ -101,6 +101,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Provider API keys — encrypted-at-rest vault for store/rotate/mask/test.
         // Curator does NOT read these (it loads real keys from env — ADR-0004).
         Route::get('/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
+        // B8: read-only rotation / change history (filtered audit_logs view).
+        Route::get('/api-keys/history', [ApiKeyController::class, 'history'])->name('api-keys.history');
         Route::post('/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
         Route::put('/api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
         Route::delete('/api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
