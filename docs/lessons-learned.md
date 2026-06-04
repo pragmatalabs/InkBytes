@@ -328,3 +328,24 @@ renders with null/0 stats when `public.articles` is absent (SQLite suite /
 un-migrated Curator) — same defensive pattern as the moderation and cost
 dashboards. Tests assert the fallback under SQLite; the populated payload is
 Postgres-only and tinker-verified (apnews art=158/evt=132, bbc 0/null).
+
+### B6 unified health — defensive probes, a non-standard Messor reachability check, creds stay server-side
+The health dashboard's only real complexity is *not letting one dead service
+break the page*. Each component (Postgres / Curator / Messor / RabbitMQ) is its
+own method with a **~2s `Http::timeout()` + try/catch**, returning
+`up`/`down`/`unreachable` rather than throwing. Verified by pointing
+`CURATOR_URL` at a dead port: connection-refused returns in ~9ms and the total
+request was 82ms with the other services still green — the timeout caps a
+*slow* (vs refused) service so the page can't hang. Two non-obvious points:
+(1) **Messor has no `/health`** (it 404s), so reachability is probed with the
+cheapest real read, `GET /api/scrapesessions?page=1&limit=1` — when probing a
+service for liveness, confirm the health endpoint actually exists before relying
+on it, and fall back to a known-cheap 200 route. (2) **RabbitMQ creds reuse the
+existing `services.curator.rabbitmq.*` config** (same as `CuratorCommandService`
+— don't duplicate creds) and are used only to build the server-side basic-auth
+client; the returned payload contains only `status`/`latency_ms`/`queues`, so no
+user, password, or `:15672` mgmt URL ever reaches the Inertia props (asserted by
+a test that scans the rendered response for the secret + a tinker check of the
+component payload). Lesson: when a screen exists to *observe* infra, the
+observation must be cheaper and safer than what it observes — bounded time, no
+500s, and no leakage of the credentials used to reach it.

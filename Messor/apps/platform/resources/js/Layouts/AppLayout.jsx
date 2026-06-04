@@ -7,6 +7,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
+import MonitorHeartRoundedIcon from '@mui/icons-material/MonitorHeartRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
@@ -58,6 +59,12 @@ const navigationItems = [
         routeName: 'runtime.index',
         match: 'runtime.*',
         icon: MemoryRoundedIcon,
+    },
+    {
+        label: 'System Health',
+        routeName: 'health.index',
+        match: 'health.*',
+        icon: MonitorHeartRoundedIcon,
     },
     {
         label: 'Curator Settings',

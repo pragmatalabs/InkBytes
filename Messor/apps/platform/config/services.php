@@ -45,6 +45,8 @@ return [
     | and docs/lessons-learned.md.
     */
     'curator' => [
+        // Curator FastAPI base — health + pipeline status probe (B6).
+        'url' => env('CURATOR_URL', 'http://localhost:8060'),
         'rabbitmq' => [
             // Management HTTP API base (note: port 15672, not the AMQP 5672).
             'management_url' => env('RABBITMQ_MANAGEMENT_URL', 'http://localhost:15672'),
@@ -53,6 +55,15 @@ return [
             'vhost' => env('RABBITMQ_VHOST', '/'),
             'commands_exchange' => env('CURATOR_COMMANDS_EXCHANGE', 'curator.commands'),
         ],
+    ],
+
+    /*
+    | Messor harvester FastAPI base — reachability probe for the unified health
+    | dashboard (B6). Messor exposes no /health, so the controller probes a cheap
+    | read endpoint (GET /api/scrapesessions?page=1&limit=1).
+    */
+    'messor' => [
+        'url' => env('MESSOR_URL', 'http://localhost:8050'),
     ],
 
 ];

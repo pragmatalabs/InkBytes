@@ -205,6 +205,33 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      pages=29, outlets=31). *SQLite caveat: the populated join is Postgres-only;
      the test exercises the fallback, the live payload is tinker-verified — same
      approach as B1/B2.*
+   - **B6 unified health dashboard DONE** (branch `backend/b6-health-dashboard`):
+     new read-only **System Health** screen (`/health`, `health.index`, nav
+     entry; **all authenticated roles**, no role gate) answering "is the
+     pipeline alive?" at a glance. `HealthController@index` builds a structured
+     payload with **four independently defensive** components — every external
+     call has a **~2s timeout + try/catch** so a down/slow service degrades to
+     `down`/`unreachable` (never a 500, never a hang): **postgres** (cross-schema
+     `public.*` counts + `MAX(scraped_at)`, ADR-0003 read-only), **curator** (GET
+     :8060/status, articles/events/pages_published + latency), **messor**
+     (reachability via GET :8050/api/scrapesessions?page=1&limit=1 — no /health
+     exists — + latency), **rabbitmq** (mgmt /api/overview + /api/queues, per-queue
+     depth for `curator.articles-scraped`/`articles-scraped`/`curator.commands` +
+     latency). New config `services.curator.url` / `services.messor.url`
+     (`CURATOR_URL`/`MESSOR_URL` in `.env.example`); RabbitMQ creds **reuse the
+     existing `services.curator.rabbitmq.*`** (same as `CuratorCommandService`)
+     and stay **server-side only** — the Inertia props carry just
+     statuses/metrics/queue depths, never creds or the mgmt URL. React page
+     (`Pages/Health/Index.jsx`): one status card per service (green up / red
+     down / grey unknown) with its key metric + latency, plus a queue-depth
+     table. **68 Laravel tests pass** (4 new `HealthDashboardTest` via
+     `Http::fake()` — all-up, a Curator-down graceful-degradation case, a
+     no-creds-in-props assertion, and an auth gate); `npm run build` green.
+     Live payload verified via tinker (all four up: pg 309/309/220/29/29, curator
+     309/220/29, messor up, rabbit queues 2024/1/0); degradation verified by
+     pointing `CURATOR_URL` at a dead port → `unreachable` in 9ms, total request
+     82ms, Messor still up; `public` counts unchanged (articles=309, events=220,
+     pages=29, published=29).
    - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
      retained: verify re-synthesize against a throwaway event, never live data.*

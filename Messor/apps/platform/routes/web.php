@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CuratorSettingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventModerationController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ModelUsageController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
@@ -35,6 +36,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/runtime', [RuntimeController::class, 'index'])->name('runtime.index');
     Route::get('/runtime/snapshot', [RuntimeController::class, 'snapshot'])->name('runtime.snapshot');
+
+    // Unified health dashboard (B6) — read-only observability across Postgres /
+    // Curator / Messor / RabbitMQ. All authenticated roles; no role gate.
+    Route::get('/health', [HealthController::class, 'index'])->name('health.index');
 
     // Moderation list is read-only review; the action POSTs below are operator+.
     Route::get('/moderation', [EventModerationController::class, 'index'])->name('moderation.index');
