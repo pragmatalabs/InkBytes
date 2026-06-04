@@ -72,9 +72,12 @@ Reconfirmed: the Backoffice already has **more** than the :5174 client (Scraping
 
 ## The two gating decisions (everything else has a clear default)
 
-These are the only items where real build work waits on a choice that's **yours to make** — both are architecture/security calls, not implementation details.
+> **DECIDED 2026-06-03:** (a) **KEEP** env keys (ADR-0004 reaffirmed) — B8 ships
+> one-active-per-provider + rotation history only. (b) **B12 = Option B**
+> (Messor → Postgres `scrape_sessions`) — see [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md).
+> Both items are now unblocked for implementation.
 
-### Decision (a) — ADR-0004: keep Curator on env keys, or reverse it?
+### Decision (a) — ADR-0004: keep Curator on env keys, or reverse it? → **KEEP**
 
 **What ADR-0004 says today:** Curator loads the real provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) from **environment variables**. The Backoffice `api_keys` table is **management-only** — it stores keys encrypted (Laravel `encrypted` cast), masks them in the UI, and can "test" them, but **Curator never reads or decrypts those DB rows**. It was decided this way to avoid cross-language crypto (Python re-implementing Laravel's AES-256-CBC envelope keyed on `APP_KEY`), which is fragile to maintain and bought nothing for v0.
 
@@ -89,7 +92,7 @@ These are the only items where real build work waits on a choice that's **yours 
 
 **Recommendation:** **KEEP** for now and ship the feasible B8 subset (one-active-per-provider + rotation-history view), marking last-used/spend "N/A by design." Reverse **only** when "which key cost how much / is this key still in use" becomes a real operational need (multiple keys, per-key billing). It's reversible later without rework — flipping it is additive.
 
-### Decision (b) — B12: data source for the scrape-results browser
+### Decision (b) — B12: data source for the scrape-results browser → **Option B**
 
 The only functional gap when folding the :5174 client into the Backoffice is the **per-session scrape-results browser** (each harvest session → per-outlet article counts, dedup stats, timestamps). Today that data lives in Messor's file-based staging (`data/scrapes/*.db.json`), surfaced only by the old client. Where should the Backoffice read it from?
 
@@ -109,9 +112,11 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 1 | **B9** settings safety | S | allowlist location (minor) |
 | 2 | **B10** outlet import/export | S | export = download (default) |
 | 3 | **B7** pagination/search/bulk | M | shared-table approach (minor) |
-| 4 | **B8** one-active + rotation view | S | **(a) ADR-0004** for the rest |
+| 4 | **B8** one-active + rotation view | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting | M | channel + scheduler |
-| 6 | **B12** client consolidation | M/L | **(b) A/B/C** |
+| 6 | **B12** client consolidation | M/L | ✅ (b) decided: Option B (ADR-0006) |
 | 7 | **B13** UX polish | M | — |
 
-**Cheapest first value:** **B9 → B10** (both S, no blocking decision). The two gating decisions above only block the *full* B8 and B12.
+**Cheapest first value:** **B9 → B10** (both S, no blocking decision). Both gating
+decisions are now made (KEEP env keys; B12 = Messor→Postgres), so the whole P2/P3
+sequence is unblocked.
