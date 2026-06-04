@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\PaginatesQueries;
 use App\Models\AuditLog;
 use App\Models\Outlet;
 use Illuminate\Http\RedirectResponse;
@@ -25,18 +26,38 @@ use Throwable;
  */
 class OutletController extends Controller
 {
+    use PaginatesQueries;
+
     private const REGIONS = ['global', 'latam-dr', 'latam-mx', 'latam-co', 'latam-ar'];
 
     private const VERTICALS = ['general', 'business', 'tech', 'politics'];
 
-    public function index(): Response
+    /** Columns the outlet list may sort on (B7). */
+    private const SORTABLE = ['display_name', 'id', 'region', 'language', 'vertical', 'priority', 'active'];
+
+    public function index(Request $request): Response
     {
         $stats = $this->outletStats();
 
+        // B7: server-side search (name/slug/url) + allowlisted sort. The catalogue
+        // is small (~31 today) so we render the full filtered set without
+        // pagination — keeping bulk-select-across-the-list simple — but search and
+        // sort run in SQL so they scale and stay consistent with the other lists.
+        [$sort, $dir] = $this->resolveSort($request, self::SORTABLE, 'priority', 'asc');
+
+        $query = Outlet::query();
+        $this->applySearch($query, $request->query('q'), ['name', 'id', 'url', 'display_name']);
+
+        if ($sort !== null) {
+            $query->orderBy($sort, $dir);
+            // Stable secondary order so equal sort keys are deterministic.
+            if ($sort !== 'display_name') {
+                $query->orderBy('display_name');
+            }
+        }
+
         return Inertia::render('Outlets/Index', [
-            'outlets' => Outlet::query()
-                ->orderBy('priority')
-                ->orderBy('display_name')
+            'outlets' => $query
                 ->get()
                 ->map(function (Outlet $outlet) use ($stats): array {
                     $row = $stats[$outlet->id] ?? null;
@@ -49,7 +70,86 @@ class OutletController extends Controller
                 })
                 ->values(),
             'options' => $this->options(),
+            'filters' => $this->listState($request, $sort, $dir, $this->resolvePerPage($request, 25)),
         ]);
+    }
+
+    /**
+     * Bulk activate / deactivate / delete selected outlets (B7).
+     *
+     * Operator+ (gated in routes), audited (B1). The action is applied in a
+     * single transaction over the validated id list; each affected row gets a
+     * per-row audit entry (outlet.updated / outlet.deleted) PLUS a summary row
+     * (outlet.bulk_activated / outlet.bulk_deactivated / outlet.bulk_deleted)
+     * carrying the affected ids — so the audit trail shows both the rollup and
+     * the individual changes. Never alters DDL.
+     */
+    public function bulk(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['activate', 'deactivate', 'delete'])],
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['string', 'max:120'],
+        ]);
+
+        $action = $validated['action'];
+        // De-dupe + only operate on ids that actually exist.
+        $ids = array_values(array_unique($validated['ids']));
+        $outlets = Outlet::query()->whereIn('id', $ids)->get();
+
+        if ($outlets->isEmpty()) {
+            return back()->with('error', 'No matching outlets to update.');
+        }
+
+        $affected = [];
+
+        DB::transaction(function () use ($action, $outlets, &$affected): void {
+            foreach ($outlets as $outlet) {
+                $id = (string) $outlet->id;
+
+                if ($action === 'delete') {
+                    $before = $this->present($outlet);
+                    $outlet->delete();
+                    AuditLog::record('outlet.deleted', 'outlet', $id, $before, null);
+                    $affected[] = $id;
+
+                    continue;
+                }
+
+                $next = $action === 'activate';
+                // Skip no-op toggles so the audit trail isn't noise.
+                if ((bool) $outlet->active === $next) {
+                    continue;
+                }
+
+                $before = $this->present($outlet);
+                $outlet->active = $next;
+                $outlet->save();
+                AuditLog::record('outlet.updated', 'outlet', $id, $before, $this->present($outlet->refresh()));
+                $affected[] = $id;
+            }
+        });
+
+        $summaryAction = match ($action) {
+            'activate' => 'outlet.bulk_activated',
+            'deactivate' => 'outlet.bulk_deactivated',
+            'delete' => 'outlet.bulk_deleted',
+        };
+
+        AuditLog::record($summaryAction, 'outlet', null, null, [
+            'ids' => $affected,
+            'count' => count($affected),
+        ]);
+
+        $verb = match ($action) {
+            'activate' => 'activated',
+            'deactivate' => 'deactivated',
+            'delete' => 'deleted',
+        };
+
+        return redirect()
+            ->route('outlets.index')
+            ->with('success', count($affected)." outlet(s) {$verb}.");
     }
 
     /**

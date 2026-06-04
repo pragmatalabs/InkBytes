@@ -127,7 +127,8 @@ class ModelUsageTest extends TestCase
                 ->where('summary.total_cost_usd', fn ($v) => (float) $v === 0.0)
                 ->where('summary.total_calls', 0)
                 ->has('byModel', 0)
-                ->has('byEvent.events', 0)
+                // byEvent is now a server paginator (B7): rows live under .data.
+                ->has('byEvent.events.data', 0)
             );
 
         // Range capturing ONLY the 2026-06-03 row → just the synth row.
@@ -136,8 +137,8 @@ class ModelUsageTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('summary.total_cost_usd', 0.006)
                 ->where('summary.total_calls', 1)
-                ->has('byEvent.events', 1)
-                ->where('byEvent.events.0.event_id', 'evt-1')
+                ->has('byEvent.events.data', 1)
+                ->where('byEvent.events.data.0.event_id', 'evt-1')
             );
     }
 

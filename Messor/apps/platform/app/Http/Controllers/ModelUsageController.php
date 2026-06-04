@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\PaginatesQueries;
 use App\Models\CuratorSetting;
 use App\Models\ModelUsage;
 use Carbon\CarbonImmutable;
@@ -35,6 +36,8 @@ use Throwable;
  */
 class ModelUsageController extends Controller
 {
+    use PaginatesQueries;
+
     public function index(Request $request): Response
     {
         [$from, $to] = $this->resolveRange($request);
@@ -138,7 +141,7 @@ class ModelUsageController extends Controller
             'byModel' => $byModel,
             'byLabel' => $byLabel,
             'byDay' => $byDay,
-            'byEvent' => $this->byEvent($from, $to),
+            'byEvent' => $this->byEvent($request, $from, $to),
         ]);
     }
 
@@ -282,20 +285,26 @@ class ModelUsageController extends Controller
     }
 
     /**
-     * By-event drill-down (B5). Groups synth rows (event_id NOT NULL) within the
-     * range by event_id with cost + token totals, joined defensively to
-     * public.pages for the headline. Enrich calls (event_id NULL) carry no event
-     * and are surfaced separately by the UI via the by-skill table — here we only
-     * return the per-event synth rows plus an aggregate of the NULL-event rows.
+     * By-event drill-down (B5; B7 paginates it). Groups synth rows (event_id NOT
+     * NULL) within the range by event_id with cost + token totals, joined
+     * defensively to public.pages for the headline. Enrich calls (event_id NULL)
+     * carry no event and are surfaced separately by the UI via the by-skill table
+     * — here we only return the per-event synth rows (now SERVER-PAGINATED so the
+     * table scales as model_usage grows) plus an aggregate of the NULL-event rows.
      *
-     * @return array{events: array<int, array<string, mixed>>, unattributed: array<string, mixed>}
+     * Uses its own `event_page` page name so it never collides with other lists.
+     * The headline join only resolves the current page's event ids.
+     *
+     * @return array{events: array<string, mixed>, unattributed: array<string, mixed>}
      */
-    private function byEvent(CarbonImmutable $from, CarbonImmutable $to): array
+    private function byEvent(Request $request, CarbonImmutable $from, CarbonImmutable $to): array
     {
-        // Per-event totals (synth rows). Computed Backoffice-side; the headline
-        // join is done in a second, defensive read so a missing public.pages
-        // (test DB) degrades to null headlines instead of 500-ing.
-        $rows = ModelUsage::query()
+        $perPage = $this->resolvePerPage($request, 25);
+
+        // Per-event totals (synth rows), paginated. The aggregate is grouped by
+        // event_id; Laravel paginates the grouped result and runs an accurate
+        // count of the distinct groups.
+        $paginator = ModelUsage::query()
             ->whereNotNull('event_id')
             ->where('created_at', '>=', $from)
             ->where('created_at', '<=', $to)
@@ -306,19 +315,21 @@ class ModelUsageController extends Controller
                 sum(cost_usd) as cost_usd')
             ->groupBy('event_id')
             ->orderByDesc('cost_usd')
-            ->limit(100)
-            ->get();
+            ->paginate($perPage, ['*'], 'event_page')
+            ->withQueryString();
 
-        $headlines = $this->headlinesFor($rows->pluck('event_id')->all());
+        // Headline join for the current page only (defensive: missing
+        // public.pages degrades to null headlines instead of 500-ing).
+        $headlines = $this->headlinesFor($paginator->getCollection()->pluck('event_id')->all());
 
-        $events = $rows->map(fn ($row): array => [
+        $paginator->through(fn ($row): array => [
             'event_id' => $row->event_id,
             'headline' => $headlines[$row->event_id] ?? null,
             'calls' => (int) $row->calls,
             'input_tokens' => (int) $row->input_tokens,
             'output_tokens' => (int) $row->output_tokens,
             'cost_usd' => round((float) $row->cost_usd, 6),
-        ])->values()->all();
+        ]);
 
         // Aggregate of rows with no event (enrich calls run pre-clustering).
         $unattributed = ModelUsage::query()
@@ -332,7 +343,7 @@ class ModelUsageController extends Controller
             ->first();
 
         return [
-            'events' => $events,
+            'events' => $paginator,
             'unattributed' => [
                 'calls' => (int) ($unattributed->calls ?? 0),
                 'input_tokens' => (int) ($unattributed->input_tokens ?? 0),

@@ -69,6 +69,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/outlets/{outlet}', [OutletController::class, 'update'])->name('outlets.update');
         Route::delete('/outlets/{outlet}', [OutletController::class, 'destroy'])->name('outlets.destroy');
 
+        // Bulk activate / deactivate / delete selected outlets (B7). Audited (B1).
+        Route::post('/outlets/bulk', [OutletController::class, 'bulk'])->name('outlets.bulk');
+
         // Import (B10): upload → preview (no write) → apply (upsert-by-id, audited).
         Route::post('/outlets/import/preview', [OutletController::class, 'importPreview'])->name('outlets.import.preview');
         Route::post('/outlets/import/apply', [OutletController::class, 'importApply'])->name('outlets.import.apply');

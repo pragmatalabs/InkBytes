@@ -1,5 +1,9 @@
 import AppLayout from '@/Layouts/AppLayout';
+import ListPagination from '@/Components/ListPagination';
+import ListSearchField from '@/Components/ListSearchField';
+import SortableTableCell from '@/Components/SortableTableCell';
 import { useAuthRole } from '@/Hooks/useAuthRole';
+import { useListQuery } from '@/Hooks/useListQuery';
 import { Head, router, usePage } from '@inertiajs/react';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
@@ -8,7 +12,12 @@ import {
     Box,
     Button,
     Chip,
+    FormControl,
+    Grid,
+    InputLabel,
+    MenuItem,
     Paper,
+    Select,
     Snackbar,
     Stack,
     Table,
@@ -30,11 +39,22 @@ const STATUS_COLORS = {
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
 
-export default function ModerationIndex({ events = [], stats = {} }) {
+export default function ModerationIndex({
+    events = { data: [], total: 0, per_page: 25, current_page: 1 },
+    stats = {},
+    filters = { q: '', sort: 'last_updated_at', dir: 'desc', per_page: 25, status: '' },
+    statuses = [],
+}) {
     const { flash } = usePage().props;
     const { isOperator } = useAuthRole();
     const [snack, setSnack] = useState(null);
     const [busy, setBusy] = useState(null); // `${kind}:${id}` while a command is in-flight
+
+    const list = useListQuery('moderation.index', filters, {
+        status: filters.status ?? '',
+    });
+
+    const rows = events.data ?? [];
 
     useEffect(() => {
         if (flash?.success) {
@@ -73,21 +93,76 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                 />
             </Stack>
 
+            <Grid container spacing={2} sx={{ mb: 2.5 }}>
+                <Grid size={{ xs: 12, sm: 7, md: 6 }}>
+                    <ListSearchField
+                        value={filters.q}
+                        onSearch={list.search}
+                        label="Search headline"
+                        placeholder="Headline contains… (press Enter)"
+                    />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 5, md: 4 }}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel id="mod-status-label">Status</InputLabel>
+                        <Select
+                            labelId="mod-status-label"
+                            label="Status"
+                            value={filters.status ?? ''}
+                            onChange={(event) =>
+                                list.setExtra({ status: event.target.value })
+                            }
+                        >
+                            <MenuItem value="">
+                                <em>All statuses</em>
+                            </MenuItem>
+                            {statuses.map((s) => (
+                                <MenuItem key={s} value={s}>
+                                    {s}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+            </Grid>
+
             <TableContainer component={Paper}>
                 <Table size="small">
                     <TableHead>
                         <TableRow>
                             <TableCell>Headline / Event</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell align="right">Sources</TableCell>
-                            <TableCell>Freshness</TableCell>
+                            <SortableTableCell
+                                column="status"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Status
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="source_count"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                                align="right"
+                            >
+                                Sources
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="last_updated_at"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Freshness
+                            </SortableTableCell>
                             <TableCell>Published</TableCell>
                             <TableCell align="right">Cost</TableCell>
                             <TableCell align="right">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {events.length === 0 ? (
+                        {rows.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7}>
                                     <Typography
@@ -95,12 +170,12 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                                         color="text.secondary"
                                         sx={{ py: 2, textAlign: 'center' }}
                                     >
-                                        No events yet.
+                                        No events match.
                                     </Typography>
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            events.map((event) => {
+                            rows.map((event) => {
                                 const page = event.page;
                                 const pid = page?.id;
                                 const published = Boolean(page?.is_published);
@@ -280,6 +355,11 @@ export default function ModerationIndex({ events = [], stats = {} }) {
                         )}
                     </TableBody>
                 </Table>
+                <ListPagination
+                    paginator={events}
+                    onChangePage={list.changePage}
+                    onChangePerPage={list.changePerPage}
+                />
             </TableContainer>
 
             <Snackbar

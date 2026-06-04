@@ -1,15 +1,21 @@
 import AppLayout from '@/Layouts/AppLayout';
+import ListSearchField from '@/Components/ListSearchField';
+import SortableTableCell from '@/Components/SortableTableCell';
 import { useAuthRole } from '@/Hooks/useAuthRole';
+import { useListQuery } from '@/Hooks/useListQuery';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import ToggleOffRoundedIcon from '@mui/icons-material/ToggleOffRounded';
+import ToggleOnRoundedIcon from '@mui/icons-material/ToggleOnRounded';
 import UploadRoundedIcon from '@mui/icons-material/UploadRounded';
 import {
     Alert,
     Box,
     Button,
+    Checkbox,
     Chip,
     Dialog,
     DialogActions,
@@ -32,6 +38,7 @@ import {
     TableHead,
     TableRow,
     TextField,
+    Toolbar,
     Tooltip,
     Typography,
 } from '@mui/material';
@@ -96,16 +103,28 @@ const emptyOutlet = {
     active: true,
 };
 
-export default function OutletsIndex({ outlets = [], options = {} }) {
+export default function OutletsIndex({
+    outlets = [],
+    options = {},
+    filters = { q: '', sort: 'priority', dir: 'asc' },
+}) {
     const { flash } = usePage().props;
     const { isOperator } = useAuthRole();
     const regions = options.regions ?? ['global'];
     const verticals = options.verticals ?? ['general'];
 
+    const list = useListQuery('outlets.index', filters);
+
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [snack, setSnack] = useState(null);
+
+    // Bulk selection (B7). `selected` is a Set of outlet ids; `confirmBulk`
+    // holds a pending { action } awaiting confirmation for destructive ops.
+    const [selected, setSelected] = useState(() => new Set());
+    const [confirmBulk, setConfirmBulk] = useState(null);
+    const [bulkBusy, setBulkBusy] = useState(false);
 
     // Import (B10): file picker → preview dialog → apply.
     const fileInputRef = useRef(null);
@@ -213,6 +232,54 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
 
     const sortedOutlets = useMemo(() => outlets, [outlets]);
 
+    // ── Bulk selection helpers (B7) ──────────────────────────────────────────
+    const visibleIds = useMemo(() => outlets.map((o) => o.id), [outlets]);
+
+    // Drop selections that are no longer in the (re-filtered) list.
+    useEffect(() => {
+        setSelected((prev) => {
+            const next = new Set();
+            visibleIds.forEach((id) => {
+                if (prev.has(id)) next.add(id);
+            });
+            return next.size === prev.size ? prev : next;
+        });
+    }, [visibleIds]);
+
+    const allSelected =
+        visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+    const someSelected = selected.size > 0 && !allSelected;
+
+    const toggleOne = (id) =>
+        setSelected((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+
+    const toggleAll = () =>
+        setSelected(() => (allSelected ? new Set() : new Set(visibleIds)));
+
+    const runBulk = (action) => {
+        const ids = Array.from(selected);
+        if (ids.length === 0) {
+            return;
+        }
+        router.post(
+            route('outlets.bulk'),
+            { action, ids },
+            {
+                preserveScroll: true,
+                onStart: () => setBulkBusy(true),
+                onFinish: () => {
+                    setBulkBusy(false);
+                    setConfirmBulk(null);
+                    setSelected(new Set());
+                },
+            },
+        );
+    };
+
     return (
         <AppLayout
             title="Outlets"
@@ -265,17 +332,132 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                 ) : null}
             </Stack>
 
+            <Box sx={{ mb: 2 }}>
+                <ListSearchField
+                    value={filters.q}
+                    onSearch={list.search}
+                    label="Search outlets"
+                    placeholder="Name, slug or URL… (press Enter)"
+                    sx={{ maxWidth: 420 }}
+                />
+            </Box>
+
+            {/* Bulk action bar (B7) — only when rows are selected; operator+. */}
+            {isOperator && selected.size > 0 ? (
+                <Toolbar
+                    disableGutters
+                    sx={{
+                        mb: 1.5,
+                        px: 2,
+                        borderRadius: 1,
+                        bgcolor: 'action.selected',
+                        gap: 1,
+                    }}
+                >
+                    <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                        {selected.size} selected
+                    </Typography>
+                    <Button
+                        size="small"
+                        startIcon={<ToggleOnRoundedIcon />}
+                        disabled={bulkBusy}
+                        onClick={() => runBulk('activate')}
+                    >
+                        Activate
+                    </Button>
+                    <Button
+                        size="small"
+                        startIcon={<ToggleOffRoundedIcon />}
+                        disabled={bulkBusy}
+                        onClick={() => runBulk('deactivate')}
+                    >
+                        Deactivate
+                    </Button>
+                    <Button
+                        size="small"
+                        color="error"
+                        startIcon={<DeleteOutlineRoundedIcon />}
+                        disabled={bulkBusy}
+                        onClick={() => setConfirmBulk({ action: 'delete' })}
+                    >
+                        Delete
+                    </Button>
+                </Toolbar>
+            ) : null}
+
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Outlet</TableCell>
-                            <TableCell>Slug</TableCell>
-                            <TableCell>Region</TableCell>
-                            <TableCell>Lang</TableCell>
-                            <TableCell>Vertical</TableCell>
-                            <TableCell>Priority</TableCell>
-                            <TableCell>Active</TableCell>
+                            {isOperator ? (
+                                <TableCell padding="checkbox">
+                                    <Checkbox
+                                        size="small"
+                                        checked={allSelected}
+                                        indeterminate={someSelected}
+                                        onChange={toggleAll}
+                                        inputProps={{
+                                            'aria-label': 'select all outlets',
+                                        }}
+                                    />
+                                </TableCell>
+                            ) : null}
+                            <SortableTableCell
+                                column="display_name"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Outlet
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="id"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Slug
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="region"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Region
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="language"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Lang
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="vertical"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Vertical
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="priority"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Priority
+                            </SortableTableCell>
+                            <SortableTableCell
+                                column="active"
+                                sort={filters.sort}
+                                dir={filters.dir}
+                                onSort={list.toggleSort}
+                            >
+                                Active
+                            </SortableTableCell>
                             <TableCell align="right">Articles</TableCell>
                             <TableCell align="right">Events</TableCell>
                             <TableCell>Last scraped</TableCell>
@@ -286,19 +468,39 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                     <TableBody>
                         {sortedOutlets.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={12}>
+                                <TableCell colSpan={isOperator ? 13 : 12}>
                                     <Typography
                                         variant="body2"
                                         color="text.secondary"
                                         sx={{ py: 2, textAlign: 'center' }}
                                     >
-                                        No outlets yet. Add one to get started.
+                                        {filters.q
+                                            ? 'No outlets match your search.'
+                                            : 'No outlets yet. Add one to get started.'}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             sortedOutlets.map((outlet) => (
-                                <TableRow key={outlet.id} hover>
+                                <TableRow
+                                    key={outlet.id}
+                                    hover
+                                    selected={selected.has(outlet.id)}
+                                >
+                                    {isOperator ? (
+                                        <TableCell padding="checkbox">
+                                            <Checkbox
+                                                size="small"
+                                                checked={selected.has(outlet.id)}
+                                                onChange={() =>
+                                                    toggleOne(outlet.id)
+                                                }
+                                                inputProps={{
+                                                    'aria-label': `select ${outlet.id}`,
+                                                }}
+                                            />
+                                        </TableCell>
+                                    ) : null}
                                     <TableCell>
                                         <Typography
                                             variant="body2"
@@ -612,6 +814,37 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                     <Button onClick={() => setConfirmDelete(null)}>Cancel</Button>
                     <Button color="error" variant="contained" onClick={doDelete}>
                         Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Bulk delete confirmation (B7) */}
+            <Dialog
+                open={Boolean(confirmBulk)}
+                onClose={() => (bulkBusy ? null : setConfirmBulk(null))}
+            >
+                <DialogTitle>Delete selected outlets?</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2">
+                        This removes <strong>{selected.size}</strong> outlet(s)
+                        from the catalogue. Curator and Messor will stop
+                        harvesting them. This cannot be undone.
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button
+                        onClick={() => setConfirmBulk(null)}
+                        disabled={bulkBusy}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        color="error"
+                        variant="contained"
+                        disabled={bulkBusy}
+                        onClick={() => runBulk('delete')}
+                    >
+                        Delete {selected.size}
                     </Button>
                 </DialogActions>
             </Dialog>

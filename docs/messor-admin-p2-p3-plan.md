@@ -21,8 +21,8 @@
 
 ---
 
-## B7 — Pagination / search / sort / bulk (P2 · M)
-**Diff:** AuditLog ✅ server-paginated; all other lists render every row client-side.
+## B7 — Pagination / search / sort / bulk (P2 · M) ✅ DONE
+**Diff:** AuditLog ✅ server-paginated; all other lists rendered every row client-side.
 
 | Page | Need | Priority |
 |---|---|---|
@@ -31,8 +31,39 @@
 | Outlets (31 today) | search + sort + **bulk activate/deactivate/delete** | med |
 | Users / API Keys (small) | low | low |
 
-**Open decision (minor):** one reusable server-paginated `<PaginatedTable>` (search+sort+page) + a Laravel pagination/search trait, vs per-page hand-rolling. *Default: shared component.*
-**Steps:** shared table + trait → apply to Moderation, Model-Usage, Outlets → bulk endpoints (operator+, audited) → tests.
+**Decision (resolved):** shared mechanics (not a monolithic `<PaginatedTable>`) — a Laravel
+trait + small composable React pieces, so each page keeps its bespoke row rendering.
+**Shipped (branch `backend/b7-pagination-search-bulk`):**
+- **Server:** `App\Http\Controllers\Concerns\PaginatesQueries` — `resolvePerPage` (allowlist
+  `[10,25,50,100]`), `resolveSort` (column allowlist + asc/desc), `applySearch` (case-insensitive
+  LIKE over caller-declared columns), `applySort`, `listState`. Every knob allowlisted so an
+  arbitrary `?sort=`/`?per_page=` can't reach raw SQL. Mirrors AuditLog (paginate + withQueryString).
+- **React:** `Hooks/useListQuery.js` (search/toggleSort/changePage/changePerPage → `router.get`,
+  query-string preserved), `Components/SortableTableCell.jsx`, `Components/ListSearchField.jsx`
+  (Enter-to-submit), `Components/ListPagination.jsx` (Laravel paginator → MUI `TablePagination`).
+- **Moderation** (`/moderation`): server-paginates `public.events`; **headline search** via
+  `whereHas('page')` against `public.pages` (defensive — no hard JOIN that 500s without the schema);
+  **status filter** (draft/published/dropped); sortable status/sources/freshness. Per-event
+  publish/unpublish/drop/resynthesize/recluster actions unchanged + operator-gated. Empty-paginator
+  fallback when `public.*` is unreachable.
+- **Model-Usage** (`/model-usage`): the **by-event** table is server-paginated under its own
+  `event_page` param (headline join resolves the current page only). B5 date-range + budget widget
+  intact; **CSV export still streams the full filtered range** (chunked, not one page).
+- **Outlets** (`/outlets`): **search** (name/slug/url) + **sortable columns**; **bulk
+  activate/deactivate/delete** of selected rows via `POST /outlets/bulk` (operator+, B2). Audited
+  (B1): per-row `outlet.updated`/`outlet.deleted` + a summary `outlet.bulk_activated`/
+  `outlet.bulk_deactivated`/`outlet.bulk_deleted` carrying the affected ids + count. No-op toggles
+  skipped (no audit noise). B3 health columns + B10 import/export untouched.
+- **Tests** (`PaginationSearchBulkTest`, 9): moderation pagination metadata + headline search +
+  status filter; outlets search + sort-desc; bulk deactivate flips `active` + audits; bulk
+  activate(no-op skip)/delete; bulk operator-gated; unknown-action rejected. Cross-schema reads
+  reproduced via `ATTACH DATABASE … AS public` (DatabaseMigrations, no shipped DDL). ModelUsage
+  test updated for the paginated `byEvent.events.data` shape.
+- **Verification:** live Postgres — Moderation total=220/per_page=25, `q` narrows, published=29/
+  draft=191; Model-Usage byEvent paginated + CSV rows == table rows (MATCH); Outlets search `cnn`→1,
+  sort display_name desc → Wired/WSJ/Guardian; **bulk deactivate exercised live (28→26) then
+  restored to 28, probe audit rows removed**. `public` counts unchanged (309/220/29/31). Full suite
+  **98 green**; `npm run build` green.
 
 ## B8 — API-key depth (P2 · **reduced/blocked** — see decision (a))
 | Sub-feature | Feasible now? |
@@ -124,7 +155,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 |---|---|---|---|
 | 1 | **B9** settings safety ✅ DONE | S | ✅ allowlist = Laravel config |
 | 2 | **B10** outlet import/export ✅ DONE | S | ✅ export = download |
-| 3 | **B7** pagination/search/bulk | M | shared-table approach (minor) |
+| 3 | **B7** pagination/search/bulk ✅ DONE | M | ✅ shared trait + composable React pieces |
 | 4 | **B8** one-active + rotation view | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting | M | channel + scheduler |
 | 6 | **B12** client consolidation | M/L | ✅ (b) decided: Option B (ADR-0006) |

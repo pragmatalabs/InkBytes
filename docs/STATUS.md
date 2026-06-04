@@ -304,6 +304,31 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B7 pagination / search / sort / bulk DONE** (branch
+     `backend/b7-pagination-search-bulk`): server-side list scaling on the
+     growth-prone screens via **shared mechanics**. Server: a `PaginatesQueries`
+     controller trait (page / per_page / q / sort / dir, every knob allowlisted,
+     paginate + withQueryString — mirrors AuditLog). React: `useListQuery` hook +
+     `SortableTableCell` / `ListSearchField` / `ListPagination` components (each
+     page keeps its bespoke rows). (1) **Moderation** server-paginates
+     `public.events`, **headline search** (`whereHas` against `public.pages`,
+     defensive — degrades to an empty paginator if `public.*` is absent), **status
+     filter** (draft/published/dropped), sortable columns; per-event actions
+     unchanged + operator-gated. (2) **Model-Usage** by-event table server-paginated
+     under its own `event_page` param; **CSV export still spans the full filtered
+     range** (chunked stream, not one page); B5 date-range + budget intact. (3)
+     **Outlets** search (name/slug/url) + sortable columns + **bulk
+     activate/deactivate/delete** (`POST /outlets/bulk`, operator+ B2, B1-audited:
+     per-row `outlet.updated`/`outlet.deleted` + a `outlet.bulk_*` summary with the
+     affected ids; no-op toggles skipped). B3 health + B10 import/export untouched.
+     **98 Laravel tests pass** (9 new in `PaginationSearchBulkTest`; cross-schema
+     reads reproduced via `ATTACH DATABASE … AS public`, no shipped DDL); `npm run
+     build` green. Verified live: Moderation total=220/per_page=25, `q` narrows,
+     published=29/draft=191; Model-Usage byEvent paginated + CSV rows == table rows;
+     Outlets search `cnn`→1, sort display_name desc → Wired/WSJ/Guardian; **bulk
+     deactivate exercised live (28→26) then restored to 28, probe audit rows
+     removed**. **`public` counts unchanged** (articles=309, events=220, pages=29,
+     outlets=31).
    - **B4 scraping run history DONE** (branch `backend/b4-run-history`): read-only
      **Run History** screen (`/run-history`, `run-history.index`, **all
      authenticated roles** — no role gate; observability only). Live-reads Messor

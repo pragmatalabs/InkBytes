@@ -1,4 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
+import ListPagination from '@/Components/ListPagination';
 import { Head, router } from '@inertiajs/react';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import {
@@ -110,7 +111,7 @@ export default function ModelUsageIndex({
     byModel = [],
     byLabel = [],
     byDay = [],
-    byEvent = { events: [], unattributed: {} },
+    byEvent = { events: { data: [], total: 0, per_page: 25, current_page: 1 }, unattributed: {} },
 }) {
     const [from, setFrom] = useState(filters.from ?? '');
     const [to, setTo] = useState(filters.to ?? '');
@@ -123,6 +124,21 @@ export default function ModelUsageIndex({
             { preserveState: true, preserveScroll: true, replace: true }
         );
     };
+
+    // The by-event drill-down is server-paginated (B7) under its own
+    // `event_page` param. Carry the active date range so paging keeps the scope.
+    const eventRows = byEvent.events?.data ?? [];
+    const navEvents = (overrides) => {
+        router.get(
+            route('model-usage.index'),
+            { from: filters.from, to: filters.to, ...overrides },
+            { preserveState: true, preserveScroll: true, replace: true }
+        );
+    };
+    const onEventPage = (zeroBasedPage) =>
+        navEvents({ event_page: zeroBasedPage + 1, per_page: byEvent.events?.per_page });
+    const onEventPerPage = (perPage) =>
+        navEvents({ event_page: 1, per_page: perPage });
 
     const exportUrl = route('model-usage.export', { from, to });
 
@@ -346,7 +362,7 @@ export default function ModelUsageIndex({
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {byEvent.events.length === 0 ? (
+                                {eventRows.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center">
                                             <Typography
@@ -360,7 +376,7 @@ export default function ModelUsageIndex({
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    byEvent.events.map((row) => (
+                                    eventRows.map((row) => (
                                         <TableRow key={row.event_id}>
                                             <TableCell>
                                                 <Typography variant="body2">
@@ -430,6 +446,11 @@ export default function ModelUsageIndex({
                                 ) : null}
                             </TableBody>
                         </Table>
+                        <ListPagination
+                            paginator={byEvent.events}
+                            onChangePage={onEventPage}
+                            onChangePerPage={onEventPerPage}
+                        />
                     </TableContainer>
                 </Box>
 

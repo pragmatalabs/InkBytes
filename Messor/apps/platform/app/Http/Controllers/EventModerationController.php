@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\PaginatesQueries;
 use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Page;
 use App\Services\CuratorCommandService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -25,25 +28,51 @@ use Throwable;
  */
 class EventModerationController extends Controller
 {
+    use PaginatesQueries;
+
+    private const STATUSES = ['published', 'draft', 'dropped'];
+
+    /** Event columns the moderation list may sort on. */
+    private const SORTABLE = ['status', 'topic', 'language', 'source_count', 'article_count', 'last_updated_at'];
+
     public function __construct(private readonly CuratorCommandService $commands)
     {
     }
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        [$sort, $dir] = $this->resolveSort($request, self::SORTABLE, 'last_updated_at', 'desc');
+        $perPage = $this->resolvePerPage($request, 25);
+        $status = (string) $request->query('status', '');
+        $q = trim((string) $request->query('q', ''));
+
         // Read Curator's pipeline tables cross-schema (search_path =
         // backoffice,public). Defensive: if `public.events`/`public.pages` are
         // unreachable (a non-Postgres test DB, or Curator's schema not yet
-        // migrated) we render an empty list rather than 500-ing — mirrors the
-        // cost dashboard's read-only fallback.
+        // migrated) we render an empty paginator rather than 500-ing — mirrors
+        // the cost dashboard's read-only fallback.
         try {
-            $events = Event::query()
-                ->with('page')
-                ->orderByDesc('last_updated_at')
-                ->limit(500)
-                ->get()
-                ->map(fn (Event $event): array => $this->present($event))
-                ->values();
+            $query = Event::query()->with('page');
+
+            // Filter by event status (published / draft / dropped).
+            if (in_array($status, self::STATUSES, true)) {
+                $query->where('status', $status);
+            }
+
+            // Search by PAGE HEADLINE — a correlated EXISTS against public.pages
+            // keeps the read defensive (no hard JOIN that 500s if the schema is
+            // absent) while still narrowing to events whose page matches.
+            if ($q !== '') {
+                $needle = '%'.$q.'%';
+                $query->whereHas('page', fn ($p) => $p->where('headline', 'like', $needle));
+            }
+
+            $this->applySort($query, $sort, $dir);
+
+            $events = $query
+                ->paginate($perPage)
+                ->withQueryString()
+                ->through(fn (Event $event): array => $this->present($event));
 
             $stats = [
                 'event_count' => Event::query()->count(),
@@ -51,13 +80,22 @@ class EventModerationController extends Controller
                 'published_count' => Page::query()->whereNotNull('published_at')->count(),
             ];
         } catch (Throwable $e) {
-            $events = collect();
+            // No public schema (test DB / fresh pipeline): hand-build an empty
+            // paginator so the page renders the same shape as a live read.
+            $events = new LengthAwarePaginator([], 0, $perPage, 1, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]);
             $stats = ['event_count' => 0, 'page_count' => 0, 'published_count' => 0];
         }
 
         return Inertia::render('Moderation/Index', [
             'events' => $events,
             'stats' => $stats,
+            'filters' => $this->listState($request, $sort, $dir, $perPage) + [
+                'status' => in_array($status, self::STATUSES, true) ? $status : '',
+            ],
+            'statuses' => self::STATUSES,
         ]);
     }
 
