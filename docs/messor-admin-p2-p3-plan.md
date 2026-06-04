@@ -142,8 +142,51 @@ trait + small composable React pieces, so each page keeps its bespoke row render
 
 ## B12 — React client (:5174) fate (P3 · M/L — see decision (b))
 Reconfirmed: the Backoffice already has **more** than the :5174 client (Scraping trigger + SSE logs + Postgres run history + full Outlets CRUD). **The one real gap is the per-session scrape-results browser** (per-outlet article counts / dedup / timestamps); the rest is decommission.
-**Gating decision (b):** results-browser data source — A / B / C (below).
-**Steps:** pick A/B/C → build results browser → verify the trigger path end-to-end → delete `Messor/client/` + its launch configs + the now-dead `:8050 /api/scrape*` endpoints (verify sole consumer) → ADR extending ADR-0001. Net-new consolidation, independent of Phase 3.
+**Gating decision (b):** Option B (Messor → Postgres) — see [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md).
+**Split into three sub-items:**
+
+### B12.1 — durable scrape sessions (Python half) ✅ DONE
+**Mechanism (ADR-0006 refined): Messor emits, Curator persists.** Messor stays
+Postgres-free; it emits a `scrape.session.completed` event on its `messor` topic exchange
+(routing key `event.scrape.session.completed`), and Curator consumes + upserts
+`public.scrape_sessions`.
+**Shipped (branch `backend/b12.1-scrape-sessions`):**
+- **Curator migration** `db/migrations/004_scrape_sessions.sql` → `public.scrape_sessions`
+  (`session_id` PK, started/ended_at, total/successful/failed_articles, duplicates_total,
+  success_rate `NUMERIC(5,4)`, duration_seconds, `outlets` jsonb [{name,slug,articles,
+  successful,failed,duplicates}], total_outlets, created/updated_at + `set_updated_at`
+  trigger). Registered in the applier's `TABLE_GUARDS` (sentinel table `scrape_sessions`);
+  idempotent (`IF NOT EXISTS`).
+- **Curator consumer** `MessageService.consume_scrape_sessions` (own queue
+  `curator.scrape-sessions` bound to the existing `messor` exchange on
+  `event.scrape.session.completed` — never competes with the per-article consumer) →
+  `Application._handle_scrape_session` (defensive: malformed payload / DB error logs +
+  ACKs, never wedges) → `DatabaseService.upsert_scrape_session`
+  (`ON CONFLICT (session_id) DO UPDATE`). Wired into `run_consumer`; focused harness
+  `--consume-sessions` (no :8060 bind, like `--consume-commands`).
+- **Messor emit** `MessageService.publish_scrape_session_completed` (best-effort, emit-only,
+  no DB) + run-boundary accumulation in `ScraperService.execute_scraping_process`
+  (`_outlet_stats_from_session` reads the per-outlet stats Messor already computes;
+  `_emit_session_completed` aggregates into the run-level summary and emits once).
+- **Granularity:** one event per run, keyed `session-<unix_ts>` (matches the
+  `/api/scrapesessions` run-level view); upsert key = `session_id`.
+- **Verified (live infra):** migration applied (`\d public.scrape_sessions` shows table +
+  PK + started_at index + updated_at trigger); synthetic round-trip through Messor's real
+  emit path → Curator's real consumer/writer persisted a row with correct numbers; same
+  session_id re-emitted with changed numbers → still 1 row, updated (upsert + trigger);
+  all three Curator consumers (article / scrape-session / command) bind without error;
+  synthetic row cleaned; `public` counts unchanged (309/220/29/31). Real
+  `python main.py … --scrape` not exercised (an existing Messor instance owns :8050;
+  the synthetic round-trip covers the same emit→consume path).
+
+### B12.2 — Backoffice Scrape Results browser (PHP half, remaining)
+Read-only (cross-schema, ADR-0003): sessions list + per-session detail reading
+`public.scrape_sessions`. Reuse B7 pagination mechanics.
+
+### B12.3 — decommission (remaining)
+Verify the trigger path end-to-end → delete `Messor/client/` + its launch configs + the
+now-dead `:8050 /api/scrape*` endpoints (verify sole consumer first) → ADR extending
+ADR-0001 ("one admin").
 
 ## B13 — UX polish (P3 · M)
 **Diff:** a toast/flash pattern exists in ~6 files but isn't standardized; empty/loading/error states inconsistent; mobile unverified.
@@ -195,7 +238,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 3 | **B7** pagination/search/bulk ✅ DONE | M | ✅ shared trait + composable React pieces |
 | 4 | **B8** one-active + rotation view ✅ DONE | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting ✅ DONE | M | ✅ scheduled evaluator + alerts table + in-app bell (email deferred) |
-| 6 | **B12** client consolidation | M/L | ✅ (b) decided: Option B (ADR-0006) |
+| 6 | **B12** client consolidation — B12.1 ✅ DONE (emit→consume); B12.2/B12.3 remain | M/L | ✅ (b) decided: Option B (ADR-0006) |
 | 7 | **B13** UX polish | M | — |
 
 **Cheapest first value:** **B9 → B10** (both S, no blocking decision). Both gating

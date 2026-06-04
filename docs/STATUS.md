@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B11 shipped)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B12.1 shipped)*
 
 ## TL;DR
 
@@ -304,6 +304,35 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B12.1 durable scrape sessions DONE** (branch `backend/b12.1-scrape-sessions`,
+     [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md) refined): the **Python
+     half** of folding the Messor :5174 client into the Backoffice — per-run scrape
+     results are now durable in Postgres. **Mechanism = emit→consume** (Messor stays
+     Postgres-free): Messor **emits** a `scrape.session.completed` event on its `messor`
+     topic exchange (routing key `event.scrape.session.completed`); **Curator consumes +
+     upserts** the **Curator-owned** table `public.scrape_sessions`. **Curator migration
+     `004_scrape_sessions.sql`** (`session_id` PK, started/ended_at, total/successful/
+     failed_articles, duplicates_total, success_rate `NUMERIC(5,4)`, duration_seconds,
+     `outlets` jsonb, total_outlets, timestamps + `set_updated_at` trigger; registered in
+     the applier's `TABLE_GUARDS`). **Curator consumer**: `consume_scrape_sessions` (own
+     queue `curator.scrape-sessions` on the existing `messor` exchange — never competes
+     with the per-article stream) → `_handle_scrape_session` (defensive: bad payload / DB
+     error logs + ACKs, never wedges) → `upsert_scrape_session`
+     (`ON CONFLICT (session_id) DO UPDATE`); wired into `run_consumer`; harness
+     `--consume-sessions` (no :8060 bind). **Messor emit**:
+     `publish_scrape_session_completed` (best-effort, no DB) + run-boundary accumulation
+     in `execute_scraping_process` (`_outlet_stats_from_session` reads the per-outlet
+     stats Messor already computes; `_emit_session_completed` aggregates once per run).
+     **Granularity:** one event per run, key `session-<unix_ts>` (matches the
+     `/api/scrapesessions` run-level view). **Verified live**: migration applied
+     (`\d public.scrape_sessions`); synthetic round-trip through Messor's **real** emit
+     path → Curator's real consumer/writer persisted correct numbers; re-emit of the same
+     session_id with changed values → still 1 row, updated (upsert + trigger); all three
+     Curator consumers (article/session/command) bind without error; synthetic row
+     cleaned. **`public` counts unchanged** (articles=309, events=220, pages=29,
+     outlets=31). Pydantic boundaries kept (Messor v1, Curator v2; contract = the RabbitMQ
+     JSON). **B12.2** (Backoffice read-only Scrape Results browser) + **B12.3**
+     (decommission `Messor/client/` + dead `:8050 /api/scrape*`) remain.
    - **B11 alerting DONE** (branch `backend/b11-alerting`): a **scheduled
      evaluator** that pushes problems instead of waiting to be asked.
      New Backoffice-owned table **`backoffice.alerts`** (`type, severity, title,

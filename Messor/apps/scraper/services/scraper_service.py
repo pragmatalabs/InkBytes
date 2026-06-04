@@ -12,8 +12,9 @@ Copyright: © 2025 InkBytes Technologies
 import concurrent.futures
 import json
 import os
-from typing import List, Generator
-from datetime import datetime
+import time
+from typing import List, Generator, Dict, Any, Optional
+from datetime import datetime, timezone
 from core.scraper import scrape_outlet
 from inkbytes.models.outlets import OutletsDataSource, OutletsSource
 
@@ -122,6 +123,80 @@ class ScraperService:
         except Exception as e:
             self.logger.error(f"Error handling completed session: {e}")
     
+    def _outlet_stats_from_session(self, scraping_session) -> Optional[Dict[str, Any]]:
+        """Pull Messor's already-computed per-outlet stats off a session.
+
+        Returns a per-outlet dict matching the `/api/scrapesessions` outlets[]
+        shape (plus the dedup breakdown Messor owns), or None if the session has
+        no usable data. Pure read of values Messor already computed — no NLP, no
+        new dedup logic (ADR-0005).
+        """
+        try:
+            info = scraping_session.to_json()
+        except Exception:
+            return None
+        data = (info or {}).get("data") or {}
+        if not data:
+            return None
+
+        outlet_name = data.get("outlet") or data.get("outlet_name") or "unknown"
+        slug = str(outlet_name).lower().replace(" ", "-")
+        successful = int(data.get("successful_articles") or 0)
+        failed = int(data.get("failed_articles") or 0)
+        total = int(data.get("total_articles") or (successful + failed))
+        dups = int(data.get("total_duplicates")
+                   or (int(data.get("duplicates_current_batch") or 0)
+                       + int(data.get("duplicates_previous_scrapes") or 0)))
+        return {
+            "name":        outlet_name,
+            "slug":        slug,
+            "articles":    successful,   # matches /api/scrapesessions (staged = successes)
+            "successful":  successful,
+            "failed":      failed,
+            "total":       total,
+            "duplicates":  dups,
+        }
+
+    def _emit_session_completed(self, run_id: str, started_at, ended_at,
+                                duration: float, per_outlet: List[Dict[str, Any]]) -> None:
+        """Aggregate per-outlet stats into a run-level summary and emit it.
+
+        Emit-only (ADR-0006): Curator consumes and persists. Best-effort — a
+        publish failure is logged and never aborts the harvest.
+        """
+        if not self.message_service:
+            return
+        total_articles = sum(o["total"] for o in per_outlet)
+        successful = sum(o["successful"] for o in per_outlet)
+        failed = sum(o["failed"] for o in per_outlet)
+        duplicates = sum(o["duplicates"] for o in per_outlet)
+        attempted = successful + failed
+        success_rate = (successful / attempted) if attempted > 0 else (
+            1.0 if successful > 0 else 0.0)
+
+        # Strip the internal-only `total` key from the published per-outlet rows.
+        outlets_payload = [
+            {k: v for k, v in o.items() if k != "total"} for o in per_outlet
+        ]
+
+        session = {
+            "session_id":          run_id,
+            "started_at":          started_at.isoformat(),
+            "ended_at":            ended_at.isoformat(),
+            "duration":            round(duration, 2),
+            "total_articles":      total_articles,
+            "successful_articles": successful,
+            "failed_articles":     failed,
+            "duplicates_total":    duplicates,
+            "success_rate":        round(success_rate, 4),
+            "outlets":             outlets_payload,
+            "total_outlets":       len(per_outlet),
+        }
+        try:
+            self.message_service.publish_scrape_session_completed(session)
+        except Exception as e:
+            self.logger.error(f"Failed to emit scrape.session.completed: {e}")
+
     def generate_outlets_scraping_sessions(self, outlets: List[OutletsSource]) -> Generator:
         """Scrape multiple outlets concurrently using a thread pool."""
         self.logger.info("Starting perform_concurrent_scraping")
@@ -172,7 +247,29 @@ class ScraperService:
                     outlets = outlets[:limit]
                 
             self.logger.info(f"Starting scraping process for {len(outlets)} outlets/sources")
+            # Run boundary: one harvest run across all outlets. Key by a stable
+            # unix-ts run id (matches /api/scrapesessions' `session-<ts>`) so a
+            # re-emit upserts the same Curator row (B12.1 / ADR-0006).
+            run_started = datetime.now(timezone.utc)
+            run_id = f"session-{int(run_started.timestamp())}"
+            t0 = time.time()
+
             result = list(self.generate_outlets_scraping_sessions(outlets))
+
+            run_ended = datetime.now(timezone.utc)
+            duration = time.time() - t0
+
+            # Accumulate the per-outlet stats Messor already computed, then emit
+            # a single run-level summary for Curator to persist.
+            per_outlet = [
+                s for s in (self._outlet_stats_from_session(sess) for sess in result)
+                if s is not None
+            ]
+            if per_outlet:
+                self._emit_session_completed(
+                    run_id, run_started, run_ended, duration, per_outlet
+                )
+
             self.logger.info("Completed execute_scraping_process")
             return result
         except Exception as e:

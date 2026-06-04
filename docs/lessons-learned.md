@@ -380,3 +380,36 @@ catch-all in `setUp` (use only `Http::preventStrayRequests()`); let each test
 register its own fakes **first**, so its specific-pattern-then-`*` ordering
 actually applies. Tinker-reproduced both the broken merge and the fix before
 trusting the suite.
+
+### B12.1 durable scrape sessions — "emit→consume" beats "give the harvester a DB", and the asyncpg timestamptz cast trap
+ADR-0006 said "Messor persists scrape sessions to Postgres." Implementing it, the
+better mechanism was **Messor emits, Curator persists**: Messor already owns
+RabbitMQ publishing (`event.article.scraped`), so a sibling
+`scrape.session.completed` event on the same `messor` exchange costs nothing new
+and keeps Messor **Postgres-free**, while the DB owner (Curator) stays the sole
+writer to `public.scrape_sessions`. We refined the ADR to record the accurate
+mechanism rather than leave the doc saying "Messor persists." Lesson: when an ADR
+fixes the *decision* (Option B: durable in Postgres, one owner of dedup) but the
+*mechanism* line is loose, implementing it is the right time to tighten the
+mechanism — same decision, accurate words.
+
+**Granularity:** Messor completes work **per outlet** (`create_outlet_scraping_session`
+in a thread pool), but the run-level view `/api/scrapesessions` shows **one row per
+run across outlets** (grouped by the file timestamp prefix). So we emit **once per
+run** at the run boundary (`execute_scraping_process`), keyed `session-<unix_ts>`,
+accumulating the per-outlet stats Messor already computed into an `outlets[]` array —
+not one event per outlet. Curator upserts `ON CONFLICT (session_id)` so a re-emit
+refreshes the same row. Matching the existing view's key shape means the future
+Backoffice browser (B12.2) reads the same identifiers the old client showed.
+
+**The asyncpg gotcha that cost a round-trip:** passing an **ISO-8601 string** for a
+`timestamptz` column fails with `TypeError: expected a datetime.date or
+datetime.datetime instance, got 'str'` — and a `$2::timestamptz` **cast in the SQL
+does not help**, because asyncpg encodes each parameter against the column's type
+*before* the server-side cast runs. Fix: parse the string to a real `datetime` in
+Python before binding (`datetime.fromisoformat`, after swapping a trailing `Z` for
+`+00:00` since <3.11 rejects `Z`). The defensive handler caught it (logged + ACKed,
+never wedged the consumer), which is exactly why the consumer is wrapped that way —
+a malformed/unstorable run summary is non-fatal history, never a pipeline stop.
+Lesson: for asyncpg, coerce types in Python; SQL casts are not a substitute for the
+client-side codec.

@@ -72,6 +72,8 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_consumer()
         elif args.consume_commands:
             await app.run_command_consumer()
+        elif args.consume_sessions:
+            await app.run_session_consumer()
         elif args.api_only:
             assert api_task is not None
             await api_task
@@ -95,6 +97,7 @@ def main() -> int:
     grp = parser.add_mutually_exclusive_group()
     grp.add_argument("--consume", action="store_true", help="Consume RabbitMQ events forever (needs DB)")
     grp.add_argument("--consume-commands", action="store_true", help="Consume only Backoffice moderation commands (needs DB; no FastAPI port)")
+    grp.add_argument("--consume-sessions", action="store_true", help="Consume only Messor scrape-session run summaries (B12.1; needs DB; no FastAPI port)")
     grp.add_argument("--fixture", metavar="PATH", help="Process one fixture event end-to-end (needs DB)")
     grp.add_argument("--dry-run", metavar="PATH", help="Run ENRICH+embed only on a fixture; no DB required")
     grp.add_argument("--api-only", action="store_true", help="Run only the FastAPI surface (needs DB)")

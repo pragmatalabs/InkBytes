@@ -147,6 +147,10 @@ class Application:
         """Run forever, consuming RabbitMQ events + Backoffice commands."""
         await self.mq.connect()
         await self.mq.consume(self._handle_event)
+        # Messor harvest run summaries (B12.1 / ADR-0006): one event per run on
+        # the same `messor` exchange. Curator upserts public.scrape_sessions so
+        # the Backoffice has durable run history independent of Messor's :8050.
+        await self.mq.consume_scrape_sessions(self._handle_scrape_session)
         # Backoffice moderation commands (Phase 2.3): publish/unpublish/drop and
         # re-synthesize/re-cluster. Curator owns the writes to public.events /
         # public.pages; the Backoffice only issues these commands (ADR-0003).
@@ -167,6 +171,65 @@ class Application:
         await self.mq.connect()
         await self.mq.consume_commands(self._handle_command)
         await asyncio.Future()
+
+    async def run_session_consumer(self) -> None:
+        """Consume ONLY Messor's scrape-session run summaries (B12.1 harness).
+
+        Like `run_command_consumer`, this does NOT bind the FastAPI port 8060,
+        so it can run alongside an existing `--api-only` Curator instance for
+        focused round-trip testing of `scrape.session.completed` → DB upsert.
+        """
+        await self.mq.connect()
+        await self.mq.consume_scrape_sessions(self._handle_scrape_session)
+        await asyncio.Future()
+
+    # ─────────────────────────────────────── scrape sessions ────────
+    async def _handle_scrape_session(self, payload: dict[str, Any]) -> None:
+        """Upsert one Messor harvest run into public.scrape_sessions (B12.1).
+
+        Defensive by design: a malformed payload or a DB hiccup logs + returns
+        (the caller ACKs regardless). A run summary is history — losing one must
+        never wedge the consumer or affect the article pipeline.
+        """
+        data = (payload or {}).get("data") if isinstance(payload, dict) else None
+        if not isinstance(data, dict):
+            logger.error("scrape.session: no 'data' object — payload=%s", str(payload)[:300])
+            return
+        session_id = data.get("session_id") or data.get("id")
+        if not session_id:
+            logger.error("scrape.session: missing session_id — data=%s", str(data)[:300])
+            return
+
+        outlets = data.get("outlets") or []
+        if not isinstance(outlets, list):
+            outlets = []
+
+        try:
+            await self.db.upsert_scrape_session(
+                session_id=str(session_id),
+                started_at=data.get("started_at") or data.get("start_time"),
+                ended_at=data.get("ended_at") or data.get("end_time"),
+                total_articles=int(data.get("total_articles") or 0),
+                successful_articles=int(data.get("successful_articles") or 0),
+                failed_articles=int(data.get("failed_articles") or 0),
+                duplicates_total=int(data.get("duplicates_total") or 0),
+                success_rate=float(data.get("success_rate") or 0.0),
+                duration_seconds=(
+                    float(data["duration"])
+                    if data.get("duration") is not None else None
+                ),
+                outlets=outlets,
+                total_outlets=int(data.get("total_outlets") or len(outlets)),
+            )
+            logger.info(
+                "✓ scrape_sessions upsert %s | outlets=%d total=%d new=%d dup=%d",
+                session_id, int(data.get("total_outlets") or len(outlets)),
+                int(data.get("total_articles") or 0),
+                int(data.get("successful_articles") or 0),
+                int(data.get("duplicates_total") or 0),
+            )
+        except Exception:
+            logger.exception("scrape.session: DB upsert failed for %s", session_id)
 
     # ─────────────────────────────────────────── commands ───────────
     async def _handle_command(self, routing_key: str, payload: dict[str, Any]) -> None:

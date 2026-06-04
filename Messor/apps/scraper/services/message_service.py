@@ -361,5 +361,80 @@ class MessageService:
                     self.logger.error("Error publishing article event after reconnect: %s", exc2)
             return False
 
+    def publish_scrape_session_completed(self, session: Dict[str, Any]) -> bool:
+        """Publish one run-level `scrape.session.completed` event (B12.1 / ADR-0006).
+
+        Messor stays Postgres-free: it EMITS the already-computed per-session +
+        per-outlet stats on the `messor` topic exchange (routing key
+        `event.scrape.session.completed`); Curator consumes and upserts
+        `public.scrape_sessions`. Messor never opens a DB connection.
+
+        `session` is the run-level dict the harvester accumulates across outlets
+        — matching the shape `GET /api/scrapesessions` returns (session_id,
+        start/end times, total/successful/failed, duplicates, success_rate,
+        duration, outlets[], total_outlets).
+
+        Best-effort: returns False (and logs) if RabbitMQ is unavailable. A lost
+        run summary is non-fatal history; it must never abort a harvest.
+        """
+        payload = {
+            "schema": "inkbytes.scrape_session.v1",
+            "event_type": "scrape.session.completed",
+            "timestamp": datetime.utcnow().isoformat(),
+            "data": {
+                "session_id":          session.get("session_id"),
+                "started_at":          session.get("started_at"),
+                "ended_at":            session.get("ended_at"),
+                "total_articles":      session.get("total_articles", 0),
+                "successful_articles": session.get("successful_articles", 0),
+                "failed_articles":     session.get("failed_articles", 0),
+                "duplicates_total":    session.get("duplicates_total", 0),
+                "success_rate":        session.get("success_rate", 0.0),
+                "duration":            session.get("duration"),
+                "outlets":             session.get("outlets", []),
+                "total_outlets":       session.get("total_outlets", 0),
+            },
+        }
+
+        if not self._check_connection_health():
+            self.logger.error(
+                "RabbitMQ unavailable; skipping scrape.session.completed publish"
+            )
+            return False
+
+        body = json.dumps(payload, default=str)
+        props = pika.BasicProperties(delivery_mode=2, content_type='application/json')
+        try:
+            self.channel.basic_publish(
+                exchange=self._article_exchange,
+                routing_key="event.scrape.session.completed",
+                body=body,
+                properties=props,
+            )
+            self.logger.info(
+                "Published scrape.session.completed: %s (%d outlets, %d articles)",
+                payload["data"]["session_id"],
+                payload["data"]["total_outlets"],
+                payload["data"]["total_articles"],
+            )
+            return True
+        except Exception as exc:
+            self.logger.error("Error publishing scrape.session.completed: %s", exc)
+            if self.connect():
+                try:
+                    self.channel.basic_publish(
+                        exchange=self._article_exchange,
+                        routing_key="event.scrape.session.completed",
+                        body=body,
+                        properties=props,
+                    )
+                    return True
+                except Exception as exc2:
+                    self.logger.error(
+                        "Error publishing scrape.session.completed after reconnect: %s",
+                        exc2,
+                    )
+            return False
+
     # Note: publish_topics_extracted_event() lived here in pre-ADR-0005
     # Messor. Removed — that's Curator's responsibility now.

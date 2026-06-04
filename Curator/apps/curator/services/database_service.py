@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,8 +49,9 @@ class DatabaseService:
         """
         # sentinel table for each numbered table-creating migration
         TABLE_GUARDS: dict[str, str] = {
-            "001_initial_schema.sql": "articles",
-            "002_outlets_table.sql":  "outlets",
+            "001_initial_schema.sql":   "articles",
+            "002_outlets_table.sql":    "outlets",
+            "004_scrape_sessions.sql":  "scrape_sessions",
         }
         # boolean SQL guard for each ALTER-style migration: TRUE → already applied
         ALTER_GUARDS: dict[str, str] = {
@@ -309,6 +311,67 @@ class DatabaseService:
             )
         return [dict(r) for r in rows]
 
+    # ─────────────────────────────────────────── scrape sessions ──
+    async def upsert_scrape_session(
+        self,
+        *,
+        session_id: str,
+        started_at: str | None,
+        ended_at: str | None,
+        total_articles: int,
+        successful_articles: int,
+        failed_articles: int,
+        duplicates_total: int,
+        success_rate: float,
+        duration_seconds: float | None,
+        outlets: list[dict[str, Any]],
+        total_outlets: int,
+    ) -> None:
+        """Persist one Messor harvest run into `public.scrape_sessions` (B12.1).
+
+        Keyed by `session_id` (a stable run id) with ON CONFLICT DO UPDATE so a
+        re-emitted session refreshes the existing row instead of duplicating it
+        (Messor may re-publish if an outlet completes late, or a run replays).
+
+        This is a DATA write to a Curator-owned table (ADR-0006): Messor stays
+        Postgres-free and only EMITS the event; Curator owns the DDL + write.
+        The caller (`_handle_scrape_session`) wraps this defensively so a DB
+        hiccup can never wedge the consumer.
+        """
+        if not self.pool:
+            raise RuntimeError("DB pool not initialised")
+        # asyncpg pre-encodes params against the column type, so a `::timestamptz`
+        # cast in SQL won't rescue an ISO *string* — parse to datetime here.
+        started_dt = _parse_ts(started_at)
+        ended_dt = _parse_ts(ended_at)
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                """
+                INSERT INTO scrape_sessions
+                    (session_id, started_at, ended_at, total_articles,
+                     successful_articles, failed_articles, duplicates_total,
+                     success_rate, duration_seconds, outlets, total_outlets,
+                     created_at, updated_at)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,NOW(),NOW())
+                ON CONFLICT (session_id) DO UPDATE SET
+                    started_at          = EXCLUDED.started_at,
+                    ended_at            = EXCLUDED.ended_at,
+                    total_articles      = EXCLUDED.total_articles,
+                    successful_articles = EXCLUDED.successful_articles,
+                    failed_articles     = EXCLUDED.failed_articles,
+                    duplicates_total    = EXCLUDED.duplicates_total,
+                    success_rate        = EXCLUDED.success_rate,
+                    duration_seconds    = EXCLUDED.duration_seconds,
+                    outlets             = EXCLUDED.outlets,
+                    total_outlets       = EXCLUDED.total_outlets,
+                    updated_at          = NOW()
+                """,
+                session_id, started_dt, ended_dt, int(total_articles),
+                int(successful_articles), int(failed_articles),
+                int(duplicates_total), float(success_rate), duration_seconds,
+                json.dumps(outlets or []), int(total_outlets),
+            )
+
     # ─────────────────────────────────────────── article CRUD ──────
     async def upsert_article_raw(self, art: dict[str, Any], spaces_key: str | None) -> None:
         """Insert the article shell (Messor's v1 fields). Enrichment fills the rest later.
@@ -380,3 +443,22 @@ class DatabaseService:
 def _vector_literal(v: list[float]) -> str:
     """asyncpg has no native vector type; pgvector accepts text literal `[…]`."""
     return "[" + ",".join(f"{x:.6f}" for x in v) + "]"
+
+
+def _parse_ts(value: Any):
+    """Coerce an ISO-8601 string (or datetime/None) to a datetime for asyncpg.
+
+    asyncpg encodes a timestamptz param against the column type *before* any
+    SQL-level cast runs, so a bare ISO string raises. Handles a trailing 'Z'
+    (Python <3.11 fromisoformat rejects it). Returns None on empty/unparseable
+    input so the column stays NULL rather than failing the whole upsert.
+    """
+    if value is None or isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return None
+    s = value.strip().replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None

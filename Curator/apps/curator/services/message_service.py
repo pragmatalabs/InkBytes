@@ -61,6 +61,44 @@ class MessageService:
             self.cfg.consume_exchange, self.cfg.consume_queue, self.cfg.consume_routing_key,
         )
 
+    async def consume_scrape_sessions(self, handler: MessageHandler) -> None:
+        """Subscribe to Messor's `scrape.session.completed` run summaries (B12.1).
+
+        Same `messor` topic exchange as the per-article stream, but a dedicated
+        queue + routing key so it never competes with the article consumer. Bad
+        payloads are logged and ACKed (never requeued) so one malformed summary
+        can't wedge the queue — a missed run summary is harmless (Messor
+        re-emits / it's just history).
+        """
+        assert self.channel
+        exchange = await self.channel.declare_exchange(
+            self.cfg.consume_exchange, aio_pika.ExchangeType.TOPIC, durable=True
+        )
+        queue = await self.channel.declare_queue(self.cfg.sessions_queue, durable=True)
+        await queue.bind(exchange, routing_key=self.cfg.sessions_routing_key)
+
+        async def _on_session(msg: AbstractIncomingMessage) -> None:
+            async with msg.process(requeue=False):
+                try:
+                    payload = json.loads(msg.body.decode("utf-8")) if msg.body else {}
+                except Exception:
+                    logger.exception(
+                        "scrape.session message has non-JSON body — dropping"
+                    )
+                    return
+                try:
+                    await handler(payload)
+                except Exception:
+                    logger.exception("scrape.session handler failed — dropping")
+                    # swallow + ACK: a lost run summary is non-fatal history.
+
+        await queue.consume(_on_session)
+        logger.info(
+            "Consuming scrape-sessions exchange=%s queue=%s routing=%s",
+            self.cfg.consume_exchange, self.cfg.sessions_queue,
+            self.cfg.sessions_routing_key,
+        )
+
     async def consume_commands(self, handler: CommandHandler) -> None:
         """Subscribe to the Backoffice command exchange (Phase 2.3).
 

@@ -31,15 +31,30 @@ The open question was where the Backoffice should read it from:
 
 ## Decision
 
-**Option B.** Messor persists per-session scrape results to a Messor-owned
+**Option B.** Per-session scrape results become durable in a
 **`public.scrape_sessions`** table (Postgres), and the Backoffice reads it (cross-schema
 read, no writes — consistent with how it reads Curator's `public` tables under ADR-0003).
 
-- **Messor stays the single owner of dedup logic** — it computes new/duplicate/total
-  per outlet exactly as today and writes the result; the Backoffice only displays.
-- The table lives in `public` (Messor/Curator pipeline domain), Backoffice-read-only.
+**Mechanism (refined 2026-06-04, B12.1): Messor emits, Curator persists.**
+Rather than give Messor a Postgres connection, Messor **emits** a
+`scrape.session.completed` event over its existing RabbitMQ `messor` topic exchange
+(routing key `event.scrape.session.completed`); **Curator consumes it and upserts
+`public.scrape_sessions`**. This keeps Messor Postgres-free (it already owns RabbitMQ
+publishing) and keeps the DB owner (Curator) as the sole writer, matching the existing
+`event.article.scraped` emit→consume pattern.
+
+- **Messor stays the single owner of dedup/result computation** — it computes
+  new/duplicate/total per outlet exactly as today and emits the result; **Curator**
+  writes the row; the Backoffice only displays.
+- The table lives in `public` (Messor/Curator pipeline domain), DDL owned by a
+  **Curator migration** (`004_scrape_sessions.sql`), Backoffice-read-only.
 - Decouples the results browser from the flaky `:8050` API and from file-staging
   retention; gives durable history.
+- **Granularity:** one event per harvest *run* (across all outlets), keyed by a stable
+  run id `session-<unix_ts>` (matching the `/api/scrapesessions` run-level view, with a
+  per-outlet `outlets[]` array). Curator upserts `ON CONFLICT (session_id)` so a re-emit
+  refreshes the same row. Messor accumulates per-outlet stats at the run boundary
+  (`execute_scraping_process`) and emits once at the end.
 
 ## Consequences
 
@@ -50,9 +65,20 @@ read, no writes — consistent with how it reads Curator's `public` tables under
 - Unblocks decommissioning `Messor/client/` and the dead `:8050 /api/scrape*` endpoints.
 
 **Negative / cost**
-- A real **Messor change**: it's file-based today, so Messor must also write sessions to
-  Postgres (a new `scrape_sessions` writer + schema/migration on the Messor/Curator side).
-- Two write paths during transition (files + DB) until the file staging is retired.
+- A real **Messor change**: Messor must emit a new run-level event (a `scrape_sessions`
+  emitter on the existing publish path). The schema/migration + the actual write live on
+  the **Curator** side (Curator owns `public` DDL + is the consumer). Messor gains **no**
+  Postgres dependency.
+- Two record paths during transition (file staging + the emitted event → DB) until the
+  file staging is retired.
+
+## Status update (2026-06-04)
+- **B12.1 done.** Curator migration `004_scrape_sessions.sql` (+ applier registration),
+  Curator consumer (`consume_scrape_sessions` → `_handle_scrape_session` → upsert), and
+  Messor emit (`publish_scrape_session_completed` + run-boundary accumulation in
+  `scraper_service.execute_scraping_process`) all landed and round-trip-verified on live
+  infra. **B12.2** (Backoffice read-only Scrape Results browser) and **B12.3**
+  (decommission `Messor/client/` + dead `:8050 /api/scrape*` endpoints) remain.
 
 ## Alternatives considered
 - **A (proxy :8050)** — rejected as the durable answer (couples to a flaky service +

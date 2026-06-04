@@ -102,6 +102,12 @@ class RmqCfg(BaseModel):
     consume_exchange: str = "messor"
     consume_queue: str = "curator.articles-scraped"
     consume_routing_key: str = "event.article.scraped"
+    # Scrape-session run summaries (B12.1 / ADR-0006). Messor emits one event
+    # per harvest run on the same `messor` exchange; Curator upserts
+    # public.scrape_sessions. Bound on a dedicated queue so it never competes
+    # with the per-article consumer.
+    sessions_queue: str = "curator.scrape-sessions"
+    sessions_routing_key: str = "event.scrape.session.completed"
     publish_exchange: str = "curator"
     # Backoffice → Curator moderation commands (Phase 2.3). The Laravel admin
     # publishes page.publish / page.unpublish / page.drop / event.resynthesize
