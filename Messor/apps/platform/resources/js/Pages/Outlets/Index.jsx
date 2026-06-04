@@ -3,7 +3,9 @@ import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import UploadRoundedIcon from '@mui/icons-material/UploadRounded';
 import {
     Alert,
     Box,
@@ -33,7 +35,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const PRIORITY_LABELS = { 1: 'High', 2: 'Medium', 3: 'Low' };
 const PRIORITY_COLORS = { 1: 'error', 2: 'warning', 3: 'default' };
@@ -105,13 +107,55 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [snack, setSnack] = useState(null);
 
+    // Import (B10): file picker → preview dialog → apply.
+    const fileInputRef = useRef(null);
+    const [preview, setPreview] = useState(null);
+    const [importing, setImporting] = useState(false);
+
     useEffect(() => {
         if (flash?.success) {
             setSnack({ severity: 'success', message: flash.success });
         } else if (flash?.error) {
             setSnack({ severity: 'error', message: flash.error });
         }
+        // The server flashes the diff preview on the redirect after an upload.
+        if (flash?.importPreview) {
+            setPreview(flash.importPreview);
+        }
     }, [flash]);
+
+    const onPickFile = (event) => {
+        const file = event.target.files?.[0];
+        // Reset the input so picking the same file again re-fires onChange.
+        event.target.value = '';
+        if (!file) {
+            return;
+        }
+        router.post(
+            route('outlets.import.preview'),
+            { file },
+            { forceFormData: true, preserveScroll: true },
+        );
+    };
+
+    const applyImport = () => {
+        if (!preview) {
+            return;
+        }
+        const outlets = preview.rows.map((r) => r.data);
+        router.post(
+            route('outlets.import.apply'),
+            { outlets },
+            {
+                preserveScroll: true,
+                onStart: () => setImporting(true),
+                onFinish: () => {
+                    setImporting(false);
+                    setPreview(null);
+                },
+            },
+        );
+    };
 
     const form = useForm({ ...emptyOutlet });
     const isEditing = editingId !== null;
@@ -176,21 +220,50 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
         >
             <Head title="Outlets" />
 
-            {isOperator ? (
-                <Stack
-                    direction="row"
-                    justifyContent="flex-end"
-                    sx={{ mb: 2 }}
+            <Stack
+                direction="row"
+                spacing={1.5}
+                justifyContent="flex-end"
+                alignItems="center"
+                sx={{ mb: 2 }}
+            >
+                {/* Export is read-only — available to every authenticated role.
+                    Plain anchor so the browser handles the streamed download. */}
+                <Button
+                    variant="outlined"
+                    startIcon={<DownloadRoundedIcon />}
+                    component="a"
+                    href={route('outlets.export')}
                 >
-                    <Button
-                        variant="contained"
-                        startIcon={<AddRoundedIcon />}
-                        onClick={openCreate}
-                    >
-                        Add Outlet
-                    </Button>
-                </Stack>
-            ) : null}
+                    Export JSON
+                </Button>
+
+                {isOperator ? (
+                    <>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="application/json,.json"
+                            style={{ display: 'none' }}
+                            onChange={onPickFile}
+                        />
+                        <Button
+                            variant="outlined"
+                            startIcon={<UploadRoundedIcon />}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            Import JSON
+                        </Button>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddRoundedIcon />}
+                            onClick={openCreate}
+                        >
+                            Add Outlet
+                        </Button>
+                    </>
+                ) : null}
+            </Stack>
 
             <TableContainer component={Paper}>
                 <Table>
@@ -539,6 +612,175 @@ export default function OutletsIndex({ outlets = [], options = {} }) {
                     <Button onClick={() => setConfirmDelete(null)}>Cancel</Button>
                     <Button color="error" variant="contained" onClick={doDelete}>
                         Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Import diff preview → Apply (B10) */}
+            <Dialog
+                open={Boolean(preview)}
+                onClose={() => (importing ? null : setPreview(null))}
+                fullWidth
+                maxWidth="md"
+            >
+                <DialogTitle>Import preview</DialogTitle>
+                <DialogContent dividers>
+                    {preview ? (
+                        <Stack spacing={2}>
+                            <Stack direction="row" spacing={1}>
+                                <Chip
+                                    color="success"
+                                    label={`${preview.summary.create} to create`}
+                                />
+                                <Chip
+                                    color="info"
+                                    label={`${preview.summary.update} to update`}
+                                />
+                                <Chip
+                                    color={
+                                        preview.summary.error > 0
+                                            ? 'error'
+                                            : 'default'
+                                    }
+                                    variant={
+                                        preview.summary.error > 0
+                                            ? 'filled'
+                                            : 'outlined'
+                                    }
+                                    label={`${preview.summary.error} invalid`}
+                                />
+                            </Stack>
+
+                            {preview.summary.error > 0 ? (
+                                <Alert severity="error">
+                                    Fix the invalid rows below and re-upload —
+                                    nothing can be applied while any row is
+                                    invalid.
+                                </Alert>
+                            ) : null}
+
+                            {preview.errors.length > 0 ? (
+                                <TableContainer
+                                    component={Paper}
+                                    variant="outlined"
+                                >
+                                    <Table size="small">
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Row</TableCell>
+                                                <TableCell>Slug</TableCell>
+                                                <TableCell>Errors</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {preview.errors.map((e) => (
+                                                <TableRow
+                                                    key={`err-${e.index}`}
+                                                >
+                                                    <TableCell>
+                                                        {e.index + 1}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {e.id ?? '—'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            variant="caption"
+                                                            color="error"
+                                                        >
+                                                            {e.messages.join(
+                                                                '; ',
+                                                            )}
+                                                        </Typography>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : null}
+
+                            {preview.rows.length > 0 ? (
+                                <TableContainer
+                                    component={Paper}
+                                    variant="outlined"
+                                    sx={{ maxHeight: 340 }}
+                                >
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Action</TableCell>
+                                                <TableCell>Slug</TableCell>
+                                                <TableCell>Name</TableCell>
+                                                <TableCell>Region</TableCell>
+                                                <TableCell>Active</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {preview.rows.map((r) => (
+                                                <TableRow key={r.data.id}>
+                                                    <TableCell>
+                                                        <Chip
+                                                            size="small"
+                                                            label={r.action}
+                                                            color={
+                                                                r.action ===
+                                                                'create'
+                                                                    ? 'success'
+                                                                    : 'info'
+                                                            }
+                                                            variant="outlined"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                fontFamily:
+                                                                    'monospace',
+                                                            }}
+                                                        >
+                                                            {r.data.id}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {r.data.display_name}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {r.data.region}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {r.data.active
+                                                            ? 'yes'
+                                                            : 'no'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : null}
+                        </Stack>
+                    ) : null}
+                </DialogContent>
+                <DialogActions>
+                    <Button
+                        onClick={() => setPreview(null)}
+                        disabled={importing}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={applyImport}
+                        disabled={
+                            importing ||
+                            !preview ||
+                            preview.summary.error > 0 ||
+                            preview.rows.length === 0
+                        }
+                    >
+                        Apply ({preview ? preview.rows.length : 0})
                     </Button>
                 </DialogActions>
             </Dialog>

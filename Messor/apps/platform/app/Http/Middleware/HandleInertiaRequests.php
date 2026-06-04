@@ -43,6 +43,10 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                // Outlet import diff preview (B10): create/update/error counts +
+                // rows, flashed by OutletController@importPreview for the confirm
+                // step. Transient — only present on the redirect after an upload.
+                'importPreview' => fn () => $request->session()->get('importPreview'),
             ],
         ];
     }

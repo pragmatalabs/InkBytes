@@ -54,10 +54,17 @@
 - **Single source of truth:** the create-table migration seeds from `config('curator.defaults')`, so seed + reset can't drift.
 - Tests: allowlist rejection, allowlisted accept, temperature>1 reject, min_sources<1 reject, reset-restores-defaults+audited. Full suite 82 green; `npm run build` green; `public` counts unchanged (309/220/29/31).
 
-## B10 — Outlet import/export (P2 · S)
+## B10 — Outlet import/export (P2 · S) ✅ DONE
 **Diff:** outlets in `public.outlets` (Curator owns DDL; Backoffice CRUDs data). Seed file: `Messor/apps/scraper/data/outlets/outlets.json`.
-**Open decision:** export = **download JSON** (recommended) vs write back to the seed file (couples admin to Messor's FS). Import = upload → validate → **diff preview → upsert** (audited).
-**Steps:** export endpoint (stream JSON of `public.outlets`) → import (parse/validate/diff/upsert by `id` slug, admin/operator, audited) → tests. Don't break columns Curator/Messor read.
+**Decision (resolved):** export = **download JSON** (chosen — no coupling to Messor's FS). Import = upload → validate → **diff preview → upsert by `id`** (operator+, audited).
+**Shipped (branch `backend/b10-outlet-import-export`):**
+- `GET /outlets/export` (any authenticated role) streams `application/json` of all `public.outlets` rows in the exact seed shape — `id, name, display_name, url, region, language, vertical, active, priority` (no timestamps), pretty-printed + unescaped slashes — so the file **round-trips** and can replace `outlets.json`.
+- `POST /outlets/import/preview` (operator+) parses the upload, rejects a non-list/malformed file wholesale, validates each entry against the **same enums/ranges as the CRUD** (id slug regex, region/vertical `Rule::in`, priority 1–3, boolean active, url), and flashes a **diff preview** (create/update/error counts + rows) **without writing**.
+- `POST /outlets/import/apply` (operator+) re-validates server-side, aborts if any row is invalid, then **upserts by `id`** in a transaction — known columns only, `updated_at` stamped, **no DDL**. Audited (B1): per-row `outlet.created`/`outlet.updated` + an `outlet.imported` summary (`{created,updated}`).
+- `buildPreview()` is shared by preview + apply so the diff the admin sees can't diverge from what's applied.
+- UI: Outlets page gains **Export JSON** (download, all roles) + **Import JSON** (file picker → preview-diff dialog with create/update/invalid tables → **Apply**, disabled while any row is invalid), import controls gated to operator+.
+- Tests (7, `OutletImportExportTest`): export shape/round-trip + all-roles access, preview create=1/update=1/error=1 without writing, malformed-file rejection, apply upsert + B1 audit rows, apply-aborts-on-invalid, viewer-forbidden. The Curator-owned `public.outlets` is reproduced in tests via an `ATTACH DATABASE … AS public` (DatabaseMigrations, no shipped DDL) so the upsert runs against the real Eloquent model.
+- **Verification:** export = 31 rows, field set matches `outlets.json` (MATCH: YES). Live apply exercised against Postgres (create→32 + update npr) then **restored to 31** with npr reverted. Full suite **89 green**; `npm run build` green.
 
 ## B11 — Alerting (P2 · M — builds on B3/B4/B5)
 **Diff:** signals exist (B3 health, B4 success rate, B5 budget, B6 queue) but nothing pushes. No `Notifications` dir; `MAIL_*` configured.
@@ -116,7 +123,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | Order | Item | Effort | Decision needed first? |
 |---|---|---|---|
 | 1 | **B9** settings safety ✅ DONE | S | ✅ allowlist = Laravel config |
-| 2 | **B10** outlet import/export | S | export = download (default) |
+| 2 | **B10** outlet import/export ✅ DONE | S | ✅ export = download |
 | 3 | **B7** pagination/search/bulk | M | shared-table approach (minor) |
 | 4 | **B8** one-active + rotation view | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting | M | channel + scheduler |

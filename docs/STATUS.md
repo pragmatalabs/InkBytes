@@ -281,6 +281,29 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      min_sources<1 reject, reset-restores-defaults+audited); `npm run build`
      green. Live row tinker-verified at canonical defaults; **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B10 outlet import/export DONE** (branch `backend/b10-outlet-import-export`):
+     bridges the Messor seed file and the live catalogue. (1) **Export** —
+     `GET /outlets/export` (any authenticated role) streams `application/json` of
+     all `public.outlets` rows in the **exact `outlets.json` seed shape** (`id,
+     name, display_name, url, region, language, vertical, active, priority` — no
+     timestamps), pretty-printed + unescaped slashes, so the file **round-trips**
+     and can replace the seed. We never write the seed file on disk — pure
+     download. (2) **Import** — two steps, operator+ (B2): `POST
+     /outlets/import/preview` parses the upload, rejects a malformed/non-list file
+     wholesale, validates each entry against the **same enums/ranges as the CRUD**,
+     and returns a **create/update/error diff WITHOUT writing**; `POST
+     /outlets/import/apply` re-validates, aborts if any row is invalid, then
+     **upserts by `id`** (known columns only, `updated_at` stamped, **no DDL**) in a
+     transaction. Audited (B1): per-row `outlet.created`/`outlet.updated` + an
+     `outlet.imported` summary. A shared `buildPreview()` keeps preview and apply in
+     lockstep. (3) **UI** — Outlets page gains **Export JSON** (download) + **Import
+     JSON** (file picker → preview-diff dialog → **Apply**, blocked while any row is
+     invalid), import gated to operator+. **89 Laravel tests pass** (7 new in
+     `OutletImportExportTest`; the Curator-owned `public.outlets` is reproduced via
+     `ATTACH DATABASE … AS public`, no shipped DDL); `npm run build` green. Verified:
+     export = 31 rows, field set matches `outlets.json`; live apply exercised on
+     Postgres (create→32 + update) then **restored to 31**. **`public` counts
+     unchanged** (articles=309, events=220, pages=29, outlets=31).
    - **B4 scraping run history DONE** (branch `backend/b4-run-history`): read-only
      **Run History** screen (`/run-history`, `run-history.index`, **all
      authenticated roles** — no role gate; observability only). Live-reads Messor
