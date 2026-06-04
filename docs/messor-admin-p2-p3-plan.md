@@ -207,10 +207,29 @@ Read-only (cross-schema, ADR-0003): sessions list + per-session detail reading
   index total=1 / success_rate_pct=95.2 / detail outlets=2 with duplicate counts; **probe
   deleted → scrape_sessions back to 0**. `public` unchanged (309/220/29/31).
 
-### B12.3 — decommission (remaining)
-Verify the trigger path end-to-end → delete `Messor/client/` + its launch configs + the
-now-dead `:8050 /api/scrape*` endpoints (verify sole consumer first) → ADR extending
-ADR-0001 ("one admin").
+### B12.3 — decommission ✅ DONE
+Sole-consumer reconfirmed: the Backoffice consumes only `/api/scrapesessions` (run
+history B4, health B6, alerts B11) + `/api/outlets`; everything else on the `:8050`
+scrape router was client-only.
+**Shipped (branch `backend/b12.3-decommission-client`):**
+- **Deleted `Messor/client/`** (the React/MUI dashboard, 33 tracked files) via `git rm -r`.
+- **Removed its launch configs**: the `messor-client` entry in root `/.claude/launch.json`
+  (reader / messor-api / curator-api / backoffice left intact) and the lone `client` entry
+  in `/Messor/.claude/launch.json` (now an empty `configurations: []`).
+- **Trimmed the dead `:8050` endpoints** from `Messor/apps/scraper/api/routers/scrape.py`:
+  removed the WebSocket trigger `/api/scrape/ws` + its helpers (`ConnectionManager`,
+  `manager`, `_WsLogger`, `_queue_processor`, `_run_scrape`), `/api/scrape/status`,
+  `/api/scrape/session/{id}/view`, `/api/scrape/results`, and the now-unused
+  `_session_views` dict + `WebSocket`/`asyncio`/`threading`/`time`/`queue` imports.
+  **Kept** `/api/scrapesessions` (`list_sessions`), `/api/outlets` (`list_outlets`), and
+  the shared helper `_read_staging_sessions()`. `list_sessions` keeps its exact response
+  shape, now emitting `views: 0` / `last_viewed: null` directly (no writer remained).
+- **Verified (live infra):** trimmed router imports cleanly (`import api.routers.scrape`,
+  `import api.main`); restarted Messor `:8050` serves `/api/scrapesessions` → **200** and
+  `/api/outlets` → **200**, while removed endpoints (`/api/scrape/status`,
+  `/api/scrape/results`) now **404**; both launch.json files valid JSON; no dangling
+  references to removed symbols in live code; `public` counts unchanged (309/220/29/31).
+- **ADR-0001 + ADR-0006 updated** ("one admin" fully realized; B12.3 done).
 
 ## B13 — UX polish (P3 · M)
 **Diff:** a toast/flash pattern exists in ~6 files but isn't standardized; empty/loading/error states inconsistent; mobile unverified.
@@ -262,7 +281,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 3 | **B7** pagination/search/bulk ✅ DONE | M | ✅ shared trait + composable React pieces |
 | 4 | **B8** one-active + rotation view ✅ DONE | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting ✅ DONE | M | ✅ scheduled evaluator + alerts table + in-app bell (email deferred) |
-| 6 | **B12** client consolidation — B12.1 ✅ DONE (emit→consume); B12.2 ✅ DONE (browser); B12.3 remains | M/L | ✅ (b) decided: Option B (ADR-0006) |
+| 6 | **B12** client consolidation ✅ DONE — B12.1 (emit→consume), B12.2 (browser), B12.3 (decommission client + dead `:8050` endpoints) | M/L | ✅ (b) decided: Option B (ADR-0006) |
 | 7 | **B13** UX polish | M | — |
 
 **Cheapest first value:** **B9 → B10** (both S, no blocking decision). Both gating

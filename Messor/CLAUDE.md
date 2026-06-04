@@ -81,26 +81,25 @@ Smoke check:
 bash /Volumes/Pragmata/Projects/InkBytes/Messor/scripts/dev-smoke.sh
 ```
 
-## Messor admin client
+## Messor admin (retired client → Backoffice)
 
-A React + TypeScript + MUI dashboard lives at `Messor/client/`. It connects
-to the FastAPI at `:8050` via WebSocket and REST.
+The legacy React/MUI dashboard that lived at `Messor/client/` (:5174) was
+**retired in B12.3** — the InkBytes **Laravel Backoffice** is now the single
+admin (ADR-0001 "one admin"; see `docs/adr/0001`/`0006`). With it went the
+client-only `:8050` endpoints (`/api/scrape/ws`, `/api/scrape/status`,
+`/api/scrape/results`, `/api/scrape/session/{id}/view`).
 
-```bash
-# start the client dev server (requires main.py already running on :8050)
-cd /Volumes/Pragmata/Projects/InkBytes/Messor/client
-npm run dev -- --port 5174
-# → http://localhost:5174
-```
+The FastAPI `:8050` surface now serves only what the Backoffice consumes:
+- `GET /api/scrapesessions` — paginated run history (reads `data/scrapes/*.db.json`)
+- `GET /api/outlets` — outlet catalogue (reads `data/outlets/outlets.json`)
 
-The client reads scraping sessions from `GET /api/scrapesessions` (reads
-`data/scrapes/*.db.json`), outlets from `GET /api/outlets` (reads
-`data/outlets/outlets.json`), and triggers scraping via WebSocket
-`start_scrape` command.
+Scrape triggering, live logs, run history, and Outlets CRUD all live in the
+Backoffice now; per-session results are durable in `public.scrape_sessions`
+(Messor emits `scrape.session.completed` → Curator persists; ADR-0006).
 
 **Do not** create a `standalone.py` or any bypass server — run everything
 through `main.py` exactly as production does. See `api/routers/scrape.py`
-for all endpoint implementations.
+for the remaining endpoint implementations.
 
 ## What Messor produces (the contract)
 

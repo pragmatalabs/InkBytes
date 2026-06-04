@@ -3,31 +3,30 @@ Messor scraper API router.
 
 Endpoints
 ---------
-WS  /api/scrape/ws             Real-time scrape trigger + log streaming
-GET /api/scrape/status         Real scraper state (running, last run, counts)
 GET /api/scrapesessions        Paginated scraping history from staging files
 GET /api/outlets               Outlet catalogue from outlets.json
-POST /api/scrape/session/{id}/view  View counter
+
+History
+-------
+The legacy Messor React client (`Messor/client`, :5174) and its WebSocket
+scrape-trigger / live-log endpoints were decommissioned in B12.3 once the
+Laravel Backoffice fully replaced them. The Backoffice consumes only
+`/api/scrapesessions` (run history B4, health B6, alerts B11) and
+`/api/outlets`. The client-only endpoints (`/api/scrape/ws`,
+`/api/scrape/status`, `/api/scrape/results`, `/api/scrape/session/{id}/view`)
+were removed. See docs/adr/0001 and docs/adr/0006.
 
 Author: juliandelarosa@icloud.com
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
-import threading
-import time
-import queue
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-
-import __main__
-from api.utils.api_security import _api_key_is_valid
+from fastapi import APIRouter, Request
 
 router = APIRouter()
 
@@ -35,8 +34,6 @@ router = APIRouter()
 
 SCRAPES_DIR  = Path(__file__).resolve().parents[2] / "data" / "scrapes"
 OUTLETS_FILE = Path(__file__).resolve().parents[2] / "data" / "outlets" / "outlets.json"
-
-_session_views: Dict[str, Dict] = {}
 
 
 def _read_staging_sessions() -> List[Dict[str, Any]]:
@@ -127,7 +124,6 @@ def _read_staging_sessions() -> List[Dict[str, Any]]:
         end_dt = datetime.fromtimestamp(s["ts"] + est_duration, tz=timezone.utc)
 
         session_id = f"session-{ts_str}"
-        views_info = _session_views.get(session_id, {})
 
         sessions.append({
             "id":                  session_id,
@@ -143,167 +139,14 @@ def _read_staging_sessions() -> List[Dict[str, Any]]:
                                    + (f" +{n_outlets - 3} more" if n_outlets > 3 else ""),
             "outlets":             s["outlets"],
             "total_outlets":       n_outlets,
-            "views":               views_info.get("views", 0),
-            "last_viewed":         views_info.get("last_viewed"),
+            "views":               0,
+            "last_viewed":         None,
         })
 
     return sessions
 
 
-# ── WebSocket (scrape trigger + live logs) ────────────────────────────────────
-
-class ConnectionManager:
-    def __init__(self) -> None:
-        self.active_connections: List[WebSocket] = []
-        self.message_queues: Dict[WebSocket, queue.Queue] = {}
-
-    async def connect(self, ws: WebSocket) -> None:
-        await ws.accept()
-        self.active_connections.append(ws)
-        self.message_queues[ws] = queue.Queue()
-
-    def disconnect(self, ws: WebSocket) -> None:
-        self.active_connections.discard(ws) if hasattr(self.active_connections, "discard") \
-            else (self.active_connections.remove(ws) if ws in self.active_connections else None)
-        self.message_queues.pop(ws, None)
-
-    def queue_message(self, msg: str, ws: WebSocket) -> None:
-        if ws in self.message_queues:
-            self.message_queues[ws].put(msg)
-
-    async def flush_queue(self, ws: WebSocket) -> None:
-        q = self.message_queues.get(ws)
-        if not q:
-            return
-        while not q.empty():
-            try:
-                await ws.send_text(q.get_nowait())
-                q.task_done()
-            except Exception:
-                break
-
-    async def send(self, msg: str, ws: WebSocket) -> None:
-        try:
-            await ws.send_text(msg)
-        except Exception:
-            pass
-
-
-manager = ConnectionManager()
-
-
-class _WsLogger:
-    """Intercepts scraper log calls and queues them for the WebSocket."""
-    def __init__(self, original, ws: WebSocket) -> None:
-        self._orig = original
-        self._ws = ws
-        self._n = 0
-
-    def _fwd(self, level: str, msg: str) -> None:
-        getattr(self._orig, level)(msg)
-        self._n += 1
-        manager.queue_message(f"{level.upper()} #{self._n}: {msg}", self._ws)
-
-    def info(self, msg: str) -> None:    self._fwd("info", msg)
-    def error(self, msg: str) -> None:   self._fwd("error", msg)
-    def warning(self, msg: str) -> None: self._fwd("warning", msg)
-
-
-async def _queue_processor(ws: WebSocket) -> None:
-    try:
-        while True:
-            await manager.flush_queue(ws)
-            await asyncio.sleep(0.1)
-    except asyncio.CancelledError:
-        await manager.flush_queue(ws)
-        raise
-
-
-async def _run_scrape(ws: WebSocket) -> None:
-    await manager.send("Scrape initiated", ws)
-    try:
-        scraper = __main__.app.command_processor.scraper_service
-        orig_logger = scraper.logger
-
-        def _work():
-            scraper.logger = _WsLogger(orig_logger, ws)
-            try:
-                return scraper.execute_scraping_process()
-            finally:
-                scraper.logger = orig_logger
-
-        t0 = time.time()
-        result = await asyncio.get_event_loop().run_in_executor(None, _work)
-        elapsed = time.time() - t0
-
-        await manager.send(f"Scraping completed in {elapsed:.1f}s", ws)
-        if result:
-            await manager.send(f"Scraped {len(result)} outlets", ws)
-    except Exception as exc:
-        await manager.send(f"Error: {exc}", ws)
-    finally:
-        await manager.send("Scraping process finished", ws)
-
-
-@router.websocket("/api/scrape/ws")
-async def ws_endpoint(websocket: WebSocket) -> None:
-    await manager.connect(websocket)
-    try:
-        api_key = websocket.query_params.get("api_key", "")
-        if not api_key or not _api_key_is_valid(api_key):
-            await manager.send("Invalid API key", websocket)
-            await websocket.close()
-            return
-
-        await manager.send("Connected to Messor scraper", websocket)
-        processor = asyncio.create_task(_queue_processor(websocket))
-
-        try:
-            while True:
-                try:
-                    data = await websocket.receive_text()
-                    if data == "start_scrape":
-                        await manager.send("Received start_scrape command", websocket)
-                        asyncio.create_task(_run_scrape(websocket))
-                        await manager.send("Scrape started in background", websocket)
-                    else:
-                        await manager.send(f"Unknown command: {data}", websocket)
-                except WebSocketDisconnect:
-                    break
-        finally:
-            processor.cancel()
-            try:
-                await processor
-            except asyncio.CancelledError:
-                pass
-    except Exception as exc:
-        pass
-    finally:
-        manager.disconnect(websocket)
-
-
 # ── REST endpoints ────────────────────────────────────────────────────────────
-
-@router.get("/api/scrape/status")
-async def scrape_status() -> Dict[str, Any]:
-    """Real scraper state: running flag, last run, totals."""
-    sessions = _read_staging_sessions()
-    running = False
-    try:
-        running = bool(__main__.app._scraping_active)
-    except AttributeError:
-        pass
-
-    last_session = sessions[0] if sessions else None
-    return {
-        "running":          running,
-        "last_run_at":      last_session["start_time"] if last_session else None,
-        "outlets_scraped":  last_session["total_outlets"] if last_session else 0,
-        "articles_collected": last_session["total_articles"] if last_session else 0,
-        "total_sessions":   len(sessions),
-        "status":           "Running" if running else ("Idle" if sessions else "No data yet"),
-    }
-
 
 @router.get("/api/scrapesessions")
 async def list_sessions(request: Request) -> Dict[str, Any]:
@@ -365,43 +208,3 @@ async def list_outlets() -> List[Dict[str, Any]]:
         return [o for o in data if o.get("active", True)]
     except Exception:
         return []
-
-
-@router.post("/api/scrape/session/{session_id}/view")
-async def record_view(session_id: str) -> Dict[str, Any]:
-    if session_id not in _session_views:
-        _session_views[session_id] = {"views": 0, "last_viewed": None}
-    _session_views[session_id]["views"] += 1
-    _session_views[session_id]["last_viewed"] = datetime.now(tz=timezone.utc).isoformat()
-    return {"session_id": session_id, **_session_views[session_id]}
-
-
-@router.get("/api/scrape/results")
-async def scrape_results() -> Dict[str, Any]:
-    """Latest scraping session — kept for backwards compatibility."""
-    sessions = _read_staging_sessions()
-    if not sessions:
-        return {"error": "No scraping sessions found. Run a scraping cycle first."}
-    s = sessions[0]
-    return {
-        "id":                    s["id"],
-        "start_time":            s["start_time"],
-        "end_time":              s["end_time"],
-        "total_outlets_scraped": s["total_outlets"],
-        "total_articles_scraped":s["total_articles"],
-        "overall_success_rate":  s["success_rate"],
-        "duration":              s["duration"],
-        "views":                 s["views"],
-        "last_viewed":           s["last_viewed"],
-        "results": [
-            {
-                "outlet": {"name": o["name"], "url": f"https://{o['slug']}.com", "type": "news"},
-                "total_articles":      o["articles"],
-                "successful_scrapes":  o["articles"],
-                "failed_scrapes":      0,
-                "duration":            s["duration"] / max(s["total_outlets"], 1),
-                "errors":              [],
-            }
-            for o in s["outlets"]
-        ],
-    }

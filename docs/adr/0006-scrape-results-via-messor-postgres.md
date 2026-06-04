@@ -82,8 +82,20 @@ publishing) and keeps the DB owner (Curator) as the sole writer, matching the ex
   (bound to `public.scrape_sessions`, read-only), `ScrapeResultsController` (B7-paginated
   list + per-session `outlets[]` detail, defensive empty-state), `GET /scrape-results`
   (all-authenticated), nav entry, `ScrapeResults/Index.jsx`. Empty + populated paths
-  verified live (probe row inserted then deleted; table left at 0). **B12.3** (decommission
-  `Messor/client/` + dead `:8050 /api/scrape*` endpoints) remains.
+  verified live (probe row inserted then deleted; table left at 0).
+- **B12.3 done.** Legacy Messor React client decommissioned: `git rm -r Messor/client`
+  (33 tracked files), `messor-client` removed from root `/.claude/launch.json` + the lone
+  `client` entry from `/Messor/.claude/launch.json`, and the dead client-only `:8050`
+  endpoints trimmed from `Messor/apps/scraper/api/routers/scrape.py` (`/api/scrape/ws` +
+  its WS helpers `ConnectionManager`/`manager`/`_WsLogger`/`_queue_processor`/`_run_scrape`,
+  `/api/scrape/status`, `/api/scrape/session/{id}/view`, `/api/scrape/results`, plus the
+  now-unused `_session_views` dict + imports). **Kept** `/api/scrapesessions`,
+  `/api/outlets`, and `_read_staging_sessions()` — the Backoffice's only consumers (B4 run
+  history, B6 health, B11 alerts). `list_sessions` keeps its exact shape, emitting
+  `views: 0`/`last_viewed: null` directly. Verified live: trimmed router imports cleanly;
+  restarted `:8050` serves `/api/scrapesessions` → 200, removed endpoints → 404; `public`
+  counts unchanged (309/220/29/31). Completes ADR-0001's "one admin"
+  (see its 2026-06-04 status update).
 
 ## Alternatives considered
 - **A (proxy :8050)** — rejected as the durable answer (couples to a flaky service +

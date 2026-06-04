@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B12.2 shipped)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B12.3 shipped — B12 complete, legacy Messor client retired)*
 
 ## TL;DR
 
@@ -304,6 +304,26 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B12.3 decommission DONE — B12 complete** (branch `backend/b12.3-decommission-client`,
+     [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md) + [ADR-0001](./adr/0001-consolidate-backend-into-laravel-backoffice.md)):
+     the **legacy Messor React client is retired**, completing ADR-0001's "one admin" (the
+     Reader `/admin` was already gone). Sole-consumer reconfirmed first: the Backoffice
+     consumes only `/api/scrapesessions` (B4 run history, B6 health, B11 alerts) + `/api/outlets`;
+     everything else on the `:8050` scrape router was client-only. **Deleted** `Messor/client/`
+     (33 tracked files, `git rm -r`); **removed** its launch configs (`messor-client` from root
+     `/.claude/launch.json` — reader/messor-api/curator-api/backoffice intact; the lone `client`
+     entry from `/Messor/.claude/launch.json`); **trimmed** the dead `:8050` endpoints from
+     `Messor/apps/scraper/api/routers/scrape.py` (`/api/scrape/ws` + its WS helpers
+     `ConnectionManager`/`manager`/`_WsLogger`/`_queue_processor`/`_run_scrape`, `/api/scrape/status`,
+     `/api/scrape/session/{id}/view`, `/api/scrape/results`, plus the now-unused `_session_views`
+     dict + `WebSocket`/`asyncio`/`threading`/`time`/`queue` imports). **Kept**
+     `/api/scrapesessions`, `/api/outlets`, and `_read_staging_sessions()`; `list_sessions` keeps
+     its exact response shape, now emitting `views: 0`/`last_viewed: null` directly.
+     **Verified live:** trimmed router imports cleanly (`api.routers.scrape`, `api.main`);
+     restarted Messor `:8050` serves `/api/scrapesessions` → **200** and `/api/outlets` → **200**,
+     removed endpoints (`/api/scrape/status`, `/api/scrape/results`) → **404**; both launch.json
+     valid JSON; no dangling references to removed symbols in live code. **`public` counts
+     unchanged** (articles=309, events=220, pages=29, outlets=31).
    - **B12.2 Scrape Results browser DONE** (branch `backend/b12.2-scrape-results-browser`,
      [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md)): the **PHP half** —
      a read-only Backoffice screen for the per-session/per-outlet harvest results, the one
@@ -329,8 +349,8 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      empty index → total=0/reachable=true (no 500); probe row inserted → index total=1,
      success_rate_pct=95.2, detail outlets=2 with duplicate counts; **probe row deleted →
      scrape_sessions back to 0**. Full suite **126 green**; `npm run build` green. **`public`
-     counts unchanged** (articles=309, events=220, pages=29, outlets=31). **B12.3**
-     (decommission `Messor/client/` + dead `:8050 /api/scrape*`) remains.
+     counts unchanged** (articles=309, events=220, pages=29, outlets=31). **B12.3** (decommission
+     `Messor/client/` + dead `:8050 /api/scrape*`) shipped — see the B12.3 entry above.
    - **B12.1 durable scrape sessions DONE** (branch `backend/b12.1-scrape-sessions`,
      [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md) refined): the **Python
      half** of folding the Messor :5174 client into the Backoffice — per-run scrape

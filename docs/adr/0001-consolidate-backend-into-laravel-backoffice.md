@@ -64,3 +64,20 @@ fallback.
 
 **Migration**: phased — (1) unify the DB and outlets, (2) Curator-as-worker +
 Curator admin screens, (3) business layer. See `docs/backend-architecture.md` §8.
+
+## Status update (2026-06-04) — "one admin" fully realized
+
+The single-admin mandate is now complete on the control-surface side:
+
+- The **Reader `/admin`** and its proxy were deleted earlier (decision §1).
+- The **legacy Messor React client** (`Messor/client`, :5174) is **retired** as of **B12.3**
+  (`git rm -r Messor/client` + its launch configs). The Backoffice already covered scrape
+  trigger, SSE logs, Postgres-backed run history, and full Outlets CRUD; the last gap —
+  the per-session scrape-results browser — landed in B12.1/B12.2 (Messor emits
+  `scrape.session.completed` → Curator upserts `public.scrape_sessions` → Backoffice reads
+  it; see [ADR-0006](./0006-scrape-results-via-messor-postgres.md)).
+- The dead client-only `:8050 /api/scrape*` endpoints (`ws`, `status`, `results`,
+  `session/{id}/view`) were trimmed from Messor's scrape router; only `/api/scrapesessions`
+  and `/api/outlets` (the Backoffice's sole consumers) remain.
+
+The **Laravel Backoffice is now the only admin/control plane**; there is no second UI.
