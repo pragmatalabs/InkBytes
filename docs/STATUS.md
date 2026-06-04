@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-03*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04*
 
 ## TL;DR
 
@@ -262,6 +262,25 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      $100 → within, null → hidden. **`public` counts unchanged** (articles=309,
      events=220, pages=29, published=29); **`model_usage` row count unchanged (1)**
      — read-only.
+   - **B9 settings safety DONE** (branch `backend/b9-settings-safety`): guards a
+     bad Curator config from reaching the live pipeline (Curator polls
+     `backoffice.curator_settings`, ADR-0004). (1) **Model allowlist** — new
+     `config/curator.php` holds `allowed_models.{enrich,synthesize}`
+     (`claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-5`);
+     `CuratorSettingController@update` validates both model fields with
+     `Rule::in()` (422 + clear allowlist message), and the Settings page now
+     renders them as **MUI Select dropdowns** (no free-text typos). (2)
+     **Numeric ranges** tightened (temperature 0–1, similarity 0–1, tokens
+     1–32000, entity_overlap ≥0, min_sources ≥1, recent_window ≥1, budget
+     nullable ≥0). (3) **Reset to defaults** — `POST /settings/reset`
+     (admin-only, B2) restores `config('curator.defaults')` behind a confirm
+     dialog, audited as `settings.reset` (B1). **Single source of truth:** the
+     create-table migration now seeds from the same `config('curator.defaults')`,
+     so seed + reset can't drift. **82 Laravel tests pass** (5 new in
+     `CuratorSettingsTest`: allowlist reject/accept, temperature>1 reject,
+     min_sources<1 reject, reset-restores-defaults+audited); `npm run build`
+     green. Live row tinker-verified at canonical defaults; **`public` counts
+     unchanged** (articles=309, events=220, pages=29, outlets=31).
    - **B4 scraping run history DONE** (branch `backend/b4-run-history`): read-only
      **Run History** screen (`/run-history`, `run-history.index`, **all
      authenticated roles** — no role gate; observability only). Live-reads Messor

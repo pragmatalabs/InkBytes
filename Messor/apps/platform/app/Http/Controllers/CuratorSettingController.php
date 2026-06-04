@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\CuratorSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,15 +16,15 @@ use Inertia\Response;
  * Curator polls this table and picks up changes within its refresh interval
  * (no redeploy needed — ADR-0004 / backend-architecture §6). This controller
  * only writes the row; it does not touch Curator's `public` pipeline tables.
+ *
+ * B9 (settings safety): model ids are validated against an allowlist in
+ * `config/curator.php` (a typo here would otherwise reach the live pipeline),
+ * numeric knobs are range-checked, and a "reset to defaults" action restores
+ * the canonical values from that same config (single source of truth shared
+ * with the create-table migration's seed).
  */
 class CuratorSettingController extends Controller
 {
-    private const KNOWN_MODELS = [
-        'claude-haiku-4-5',
-        'claude-sonnet-4-5',
-        'claude-opus-4-1',
-    ];
-
     public function edit(): Response
     {
         $settings = CuratorSetting::current();
@@ -45,18 +46,25 @@ class CuratorSettingController extends Controller
                     : null,
                 'updated_at' => $settings->updated_at?->toIso8601String(),
             ],
-            'modelSuggestions' => self::KNOWN_MODELS,
+            // B9: drive the model dropdowns from the allowlist (no free text).
+            'enrichModels' => config('curator.allowed_models.enrich'),
+            'synthesizeModels' => config('curator.allowed_models.synthesize'),
         ]);
     }
 
     public function update(Request $request): RedirectResponse
     {
+        $enrichModels = config('curator.allowed_models.enrich');
+        $synthesizeModels = config('curator.allowed_models.synthesize');
+
         $data = $request->validate([
-            'enrich_model' => ['required', 'string', 'max:120'],
-            'synthesize_model' => ['required', 'string', 'max:120'],
+            // B9: model ids must be on the allowlist — a typo'd id would
+            // otherwise be polled by Curator (ADR-0004) and break the pipeline.
+            'enrich_model' => ['required', 'string', Rule::in($enrichModels)],
+            'synthesize_model' => ['required', 'string', Rule::in($synthesizeModels)],
             'max_tokens_enrich' => ['required', 'integer', 'between:1,32000'],
             'max_tokens_synth' => ['required', 'integer', 'between:1,32000'],
-            'temperature' => ['required', 'numeric', 'between:0,2'],
+            'temperature' => ['required', 'numeric', 'between:0,1'],
             'similarity_threshold' => ['required', 'numeric', 'between:0,1'],
             'entity_overlap_min' => ['required', 'integer', 'between:0,20'],
             'min_sources_to_publish' => ['required', 'integer', 'between:1,20'],
@@ -64,6 +72,9 @@ class CuratorSettingController extends Controller
             // B5: optional monthly budget in USD. Nullable (no budget) and
             // small budgets allowed (tests use $0.001), so min is 0.
             'monthly_budget_usd' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+        ], [
+            'enrich_model.in' => 'Enrich model must be one of the allowed Anthropic model ids: '.implode(', ', $enrichModels).'.',
+            'synthesize_model.in' => 'Synthesize model must be one of the allowed Anthropic model ids: '.implode(', ', $synthesizeModels).'.',
         ]);
 
         $settings = CuratorSetting::current();
@@ -81,5 +92,30 @@ class CuratorSettingController extends Controller
         return redirect()
             ->route('settings.edit')
             ->with('success', 'Curator settings saved. Changes take effect within Curator\'s refresh interval (no redeploy).');
+    }
+
+    /**
+     * B9: restore the canonical defaults from `config/curator.php` (the same
+     * source the create-table migration seeds from). Audited via B1.
+     */
+    public function reset(): RedirectResponse
+    {
+        $defaults = config('curator.defaults');
+
+        $settings = CuratorSetting::current();
+        $before = $settings->only(array_keys($defaults));
+        $settings->fill($defaults)->save();
+
+        AuditLog::record(
+            'settings.reset',
+            'settings',
+            (string) $settings->getKey(),
+            $before,
+            $settings->only(array_keys($defaults)),
+        );
+
+        return redirect()
+            ->route('settings.edit')
+            ->with('success', 'Curator settings reset to defaults. Changes take effect within Curator\'s refresh interval (no redeploy).');
     }
 }

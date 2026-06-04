@@ -68,7 +68,7 @@ Effort: S ≈ <½ day · M ≈ ~1 day · L ≈ multi-day. Priority P0 (do first)
 | B6 | ✅ **DONE** | **Unified health dashboard** — Messor/Curator/RabbitMQ/Postgres + queue depth + last harvest. Read-only `/health` (all roles); each component defensive (~2s timeout + try/catch); RabbitMQ creds server-side only | 2 | M | One place to see "is the pipeline alive" |
 | B7 | **P2** | **CRUD scale features** — server-side pagination, search, sort, bulk actions across tables | 1 | M | Needed before outlet/key/usage volume grows |
 | B8 | **P2** | **API Keys depth** — last-used, rotation history, one-active-per-provider, spend-per-key | 1,2 | S | Operational hygiene for secrets |
-| B9 | **P2** | **Settings safety** — change history, model-name allowlist validation, reset-to-defaults | 1 | S | Prevents bad config reaching the live pipeline |
+| B9 | ✅ **DONE** | **Settings safety** — change history (B1 audit), model-name allowlist validation + Select dropdowns, numeric range checks, reset-to-defaults (audited). Allowlist + defaults centralized in `config/curator.php`; the create-table migration seeds from the same config | 1 | S | Prevents bad config reaching the live pipeline |
 | B10 | **P2** | **Outlet bulk import/export** — sync to/from `outlets.json` | 1 | S | Bridges the seed file and the live catalogue |
 | B11 | **P2** | **Alerting** — failed scrape / stale outlet / cost-over-budget notifications | 2,3 | M | Push problems instead of waiting to be asked |
 | B12 | **P3** | **Decide React client (:5174) fate** — fold scraping ops into Backoffice or retire the client | 4 | M/L | Realizes ADR-0001's "one admin"; removes duplication |

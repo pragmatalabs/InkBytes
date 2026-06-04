@@ -85,6 +85,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // pipeline), so the whole Settings section is gated.
         Route::get('/settings', [CuratorSettingController::class, 'edit'])->name('settings.edit');
         Route::put('/settings', [CuratorSettingController::class, 'update'])->name('settings.update');
+        // B9: restore the canonical defaults from config/curator.php (audited).
+        Route::post('/settings/reset', [CuratorSettingController::class, 'reset'])->name('settings.reset');
 
         // Provider API keys — encrypted-at-rest vault for store/rotate/mask/test.
         // Curator does NOT read these (it loads real keys from env — ADR-0004).

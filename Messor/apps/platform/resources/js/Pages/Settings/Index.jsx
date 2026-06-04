@@ -1,13 +1,19 @@
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import {
     Alert,
-    Autocomplete,
     Box,
     Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
     Divider,
     Grid,
+    MenuItem,
     Paper,
     Snackbar,
     Stack,
@@ -16,9 +22,14 @@ import {
 } from '@mui/material';
 import { useEffect, useState } from 'react';
 
-export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) {
+export default function SettingsIndex({
+    settings = {},
+    enrichModels = [],
+    synthesizeModels = [],
+}) {
     const { flash } = usePage().props;
     const [snack, setSnack] = useState(null);
+    const [resetOpen, setResetOpen] = useState(false);
 
     useEffect(() => {
         if (flash?.success) {
@@ -60,6 +71,29 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
         })).put(route('settings.update'));
     };
 
+    const doReset = () => {
+        setResetOpen(false);
+        router.post(route('settings.reset'));
+    };
+
+    const modelField = (field, label, options, helper) => (
+        <TextField
+            select
+            label={label}
+            value={form.data[field]}
+            onChange={(event) => form.setData(field, event.target.value)}
+            error={Boolean(form.errors[field])}
+            helperText={form.errors[field] ?? helper}
+            fullWidth
+        >
+            {options.map((id) => (
+                <MenuItem key={id} value={id}>
+                    {id}
+                </MenuItem>
+            ))}
+        </TextField>
+    );
+
     const numberField = (field, label, helper, step = 1) => (
         <TextField
             label={label}
@@ -88,48 +122,20 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                         </Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 6 }}>
-                                <Autocomplete
-                                    freeSolo
-                                    options={modelSuggestions}
-                                    value={form.data.enrich_model}
-                                    onChange={(_e, v) =>
-                                        form.setData('enrich_model', v ?? '')
-                                    }
-                                    onInputChange={(_e, v) =>
-                                        form.setData('enrich_model', v ?? '')
-                                    }
-                                    renderInput={(params) => (
-                                        <TextField
-                                            {...params}
-                                            label="Enrich model"
-                                            error={Boolean(form.errors.enrich_model)}
-                                            helperText={form.errors.enrich_model}
-                                        />
-                                    )}
-                                />
+                                {modelField(
+                                    'enrich_model',
+                                    'Enrich model',
+                                    enrichModels,
+                                    'Anthropic model used to enrich each article'
+                                )}
                             </Grid>
                             <Grid size={{ xs: 12, md: 6 }}>
-                                <Autocomplete
-                                    freeSolo
-                                    options={modelSuggestions}
-                                    value={form.data.synthesize_model}
-                                    onChange={(_e, v) =>
-                                        form.setData('synthesize_model', v ?? '')
-                                    }
-                                    onInputChange={(_e, v) =>
-                                        form.setData('synthesize_model', v ?? '')
-                                    }
-                                    renderInput={(params) => (
-                                        <TextField
-                                            {...params}
-                                            label="Synthesize model"
-                                            error={Boolean(
-                                                form.errors.synthesize_model
-                                            )}
-                                            helperText={form.errors.synthesize_model}
-                                        />
-                                    )}
-                                />
+                                {modelField(
+                                    'synthesize_model',
+                                    'Synthesize model',
+                                    synthesizeModels,
+                                    'Anthropic model used to synthesize each page'
+                                )}
                             </Grid>
                         </Grid>
                     </Box>
@@ -233,17 +239,48 @@ export default function SettingsIndex({ settings = {}, modelSuggestions = [] }) 
                                 ? `Last saved ${new Date(settings.updated_at).toLocaleString()}`
                                 : 'Not yet saved'}
                         </Typography>
-                        <Button
-                            type="submit"
-                            variant="contained"
-                            startIcon={<SaveRoundedIcon />}
-                            disabled={form.processing}
-                        >
-                            Save settings
-                        </Button>
+                        <Stack direction="row" spacing={1.5}>
+                            <Button
+                                type="button"
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<RestartAltRoundedIcon />}
+                                onClick={() => setResetOpen(true)}
+                                disabled={form.processing}
+                            >
+                                Reset to defaults
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                startIcon={<SaveRoundedIcon />}
+                                disabled={form.processing}
+                            >
+                                Save settings
+                            </Button>
+                        </Stack>
                     </Stack>
                 </Stack>
             </Paper>
+
+            <Dialog open={resetOpen} onClose={() => setResetOpen(false)}>
+                <DialogTitle>Reset Curator settings to defaults?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        This restores the canonical defaults (Haiku models, token
+                        caps, temperature 0.2, clustering thresholds) and clears the
+                        monthly budget. Curator polls this row, so the change reaches
+                        the live pipeline within its refresh interval. This action is
+                        recorded in the audit log.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setResetOpen(false)}>Cancel</Button>
+                    <Button onClick={doReset} color="warning" variant="contained">
+                        Reset to defaults
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             <Snackbar
                 open={Boolean(snack)}

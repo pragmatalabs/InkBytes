@@ -40,19 +40,24 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Seed the single live row from the current config.py defaults so the
-        // admin has something to edit and Curator has a row to read.
+        // Seed the single live row from the canonical defaults. These live in
+        // `config/curator.php` (B9) so the seed and the "reset to defaults"
+        // action share one source of truth and can't drift. `monthly_budget_usd`
+        // (B5) defaults to NULL (unset) and is omitted here — its column is
+        // added by a later migration with a nullable default.
+        $defaults = config('curator.defaults');
+
         DB::table('curator_settings')->insert([
             'id' => 1,
-            'enrich_model' => 'claude-haiku-4-5',
-            'synthesize_model' => 'claude-haiku-4-5',
-            'max_tokens_enrich' => 1500,
-            'max_tokens_synth' => 2500,
-            'temperature' => 0.20,
-            'similarity_threshold' => 0.620,
-            'entity_overlap_min' => 1,
-            'min_sources_to_publish' => 2,
-            'recent_window_hours' => 48,
+            'enrich_model' => $defaults['enrich_model'],
+            'synthesize_model' => $defaults['synthesize_model'],
+            'max_tokens_enrich' => $defaults['max_tokens_enrich'],
+            'max_tokens_synth' => $defaults['max_tokens_synth'],
+            'temperature' => $defaults['temperature'],
+            'similarity_threshold' => $defaults['similarity_threshold'],
+            'entity_overlap_min' => $defaults['entity_overlap_min'],
+            'min_sources_to_publish' => $defaults['min_sources_to_publish'],
+            'recent_window_hours' => $defaults['recent_window_hours'],
             'created_at' => now(),
             'updated_at' => now(),
         ]);

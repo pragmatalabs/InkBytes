@@ -43,10 +43,16 @@
 | Spend-per-key | ❌ `model_usage` has no `api_key_id` |
 *Default:* ship one-active-per-provider + a rotation-history view (S); defer last-used/spend pending **decision (a)**.
 
-## B9 — Settings safety (P2 · S — smaller than listed)
-**Diff:** change-history ✅ (audit). Remaining: (a) validate model names against an **allowlist** (e.g. `claude-haiku-4-5`, `claude-sonnet-4-5`, `text-embedding-3-small`) so a typo can't reach the pipeline; (b) **reset-to-defaults** (defaults in Curator `config.py`).
-**Open decision (minor):** allowlist hardcoded in Laravel vs fetched from Curator. *Default: small Laravel config array.*
-**Steps:** allowlist validation + select-dropdowns on Settings → reset-to-defaults action (audited) → tests.
+## B9 — Settings safety (P2 · S) ✅ DONE
+**Diff:** change-history ✅ (audit). Remaining: (a) validate model names against an **allowlist** so a typo can't reach the pipeline; (b) **reset-to-defaults** (defaults from Curator `config.py`).
+**Decision (resolved):** allowlist + canonical defaults live in a **Laravel config array** (`config/curator.php`), not fetched from Curator.
+**Shipped (branch `backend/b9-settings-safety`):**
+- `config/curator.php` → `allowed_models.{enrich,synthesize}` (`claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-5`) + `defaults` (mirror config.py).
+- `CuratorSettingController@update`: `Rule::in($allowlist)` on both model fields with clear 422 messages; numeric ranges tightened (temperature 0–1, similarity 0–1, tokens 1–32000, entity_overlap ≥0, min_sources ≥1, recent_window ≥1, budget nullable ≥0).
+- Settings page: model fields are now **MUI Select dropdowns** sourced from the allowlist (no free-text typos); **Reset to defaults** button with a confirm dialog.
+- `POST /settings/reset` (admin-only) restores `config('curator.defaults')`; audited as `settings.reset` (B1).
+- **Single source of truth:** the create-table migration seeds from `config('curator.defaults')`, so seed + reset can't drift.
+- Tests: allowlist rejection, allowlisted accept, temperature>1 reject, min_sources<1 reject, reset-restores-defaults+audited. Full suite 82 green; `npm run build` green; `public` counts unchanged (309/220/29/31).
 
 ## B10 — Outlet import/export (P2 · S)
 **Diff:** outlets in `public.outlets` (Curator owns DDL; Backoffice CRUDs data). Seed file: `Messor/apps/scraper/data/outlets/outlets.json`.
@@ -109,7 +115,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 ## Recommended sequence
 | Order | Item | Effort | Decision needed first? |
 |---|---|---|---|
-| 1 | **B9** settings safety | S | allowlist location (minor) |
+| 1 | **B9** settings safety ✅ DONE | S | ✅ allowlist = Laravel config |
 | 2 | **B10** outlet import/export | S | export = download (default) |
 | 3 | **B7** pagination/search/bulk | M | shared-table approach (minor) |
 | 4 | **B8** one-active + rotation view | S | ✅ (a) decided: KEEP — ship reduced |
