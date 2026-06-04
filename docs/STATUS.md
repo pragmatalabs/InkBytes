@@ -25,6 +25,27 @@ render in the Reader. The monorepo is consolidated and pushed to GitHub.
 Bring the stack up: `bash orchestrator/scripts/up.sh`. Curator consumes from RabbitMQ;
 Messor publishes per-article `event.article.scraped` events on the `messor` exchange.
 
+### Backoffice background processes (required)
+
+The Laravel Backoffice (`Messor/apps/platform`, `php artisan serve --port=8011`)
+needs **two long-running background processes** for its async features to work —
+without them the relevant buttons silently do nothing:
+
+```bash
+cd Messor/apps/platform
+php artisan queue:work --queue=scraping --timeout=0   # runs scraping jobs (the "▶ Iniciar Scraping" button)
+php artisan schedule:work                              # runs B11 alert cron
+```
+
+The Scraping trigger (`ScrapingJobController@trigger`) dispatches a `RunScrapingWorker`
+queued job on the `scraping` queue (`QUEUE_CONNECTION=database`); it only executes
+if a worker is consuming that queue. The job shells out to `SCRAPING_COMMAND`
+(set in `Messor/apps/platform/.env`, documented in `.env.example`), which runs the
+Messor one-shot harvester with `--no-api` so it coexists with the messor-api on :8050.
+On Apple Silicon the command is prefixed with `arch -arm64` because the local
+`php`/queue worker is an x86_64 (Rosetta) build whose child shell would otherwise
+load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch).
+
 ## Repository
 
 - **Canonical remote:** https://github.com/pragmatalabs/InkBytes (branch `master`, in sync).

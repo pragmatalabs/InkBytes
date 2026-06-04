@@ -58,6 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-browser", action="store_true", help="Do not automatically open browser when starting client")
     parser.add_argument("--scrape", help="Run scraping immediately with optional parameters", nargs='?', const="")
     parser.add_argument("--schedule", action="store_true", help="Run in scheduled mode (for Docker environments) - scrapes continuously at configured intervals")
+    parser.add_argument("--no-api", action="store_true", help="Do not start the FastAPI server on :8050 (lets a one-shot --scrape coexist with a running messor-api)")
     
     # Show banner before parsing to make help output nicer
     print_banner()
@@ -78,7 +79,8 @@ if __name__ == "__main__":
     app = Application(args.config_path)
     
     # Pass the arguments to the run method
-    app.run(auto_start_client=args.client, 
-            auto_scrape=args.scrape, 
+    app.run(auto_start_client=args.client,
+            auto_scrape=args.scrape,
             no_browser=args.no_browser,
-            scheduled_mode=args.schedule)
+            scheduled_mode=args.schedule,
+            no_api=args.no_api)

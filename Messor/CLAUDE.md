@@ -101,6 +101,19 @@ Backoffice now; per-session results are durable in `public.scrape_sessions`
 through `main.py` exactly as production does. See `api/routers/scrape.py`
 for the remaining endpoint implementations.
 
+The Backoffice "▶ Iniciar Scraping" button dispatches a queued job that shells out
+to `SCRAPING_COMMAND` (see `apps/platform/.env` / `.env.example`). That command runs
+the harvester one-shot with **`--no-api`** so it does **not** bind :8050 (the
+running messor-api owns it). For the button to actually run, the Backoffice needs
+two background processes — `php artisan queue:work --queue=scraping --timeout=0`
+(scraping jobs) and `php artisan schedule:work` (B11 alerts). See
+[`docs/STATUS.md`](../docs/STATUS.md) §"Backoffice background processes".
+
+```bash
+# one-shot harvest WITHOUT starting the API (coexists with a running messor-api on :8050)
+python main.py env.local.yaml --scrape=--limit=2 --no-api < /dev/null
+```
+
 ## What Messor produces (the contract)
 
 One RabbitMQ event per article on exchange `messor`, routing key

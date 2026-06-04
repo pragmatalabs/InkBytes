@@ -148,11 +148,12 @@ class Application:
         # Wire the locking mechanism into the command processor
         self.command_processor.set_scraping_lock(self._scraping_lock, self)
     
-    def run(self, 
-            auto_start_client: bool = False, 
-            auto_scrape: Optional[str] = None, 
-            no_browser: bool = False, 
-            scheduled_mode: bool = False) -> None:
+    def run(self,
+            auto_start_client: bool = False,
+            auto_scrape: Optional[str] = None,
+            no_browser: bool = False,
+            scheduled_mode: bool = False,
+            no_api: bool = False) -> None:
         """Execute the application in the specified mode with given parameters.
         
         This is the main entry point that orchestrates the complete application
@@ -178,7 +179,10 @@ class Application:
             scheduled_mode: Enable continuous scheduled scraping mode.
                 Designed for Docker environments, runs scraping at configured
                 intervals with automatic retry and overlap prevention. Default: False
-                
+            no_api: Skip starting the FastAPI server on :8050. Lets a one-shot
+                harvest (e.g. ``--scrape ... --no-api``) coexist with an already
+                running messor-api that owns :8050. Default: False
+
         Raises:
             SystemExit: On critical errors that prevent application startup
             KeyboardInterrupt: When user interrupts scheduled mode execution
@@ -207,11 +211,15 @@ class Application:
             else:
                 self.logger.warning("RabbitMQ unavailable; scraping will run without event publishing")
             
-            # Start the API server
-            self.api_server.start()
-            
-            # Give the server a moment to start
-            time.sleep(1)
+            # Start the API server unless explicitly suppressed. Skipping it
+            # lets a one-shot harvest run alongside an already-running
+            # messor-api that owns :8050 (no "address already in use").
+            if no_api:
+                self.logger.info("Skipping API server start (--no-api); :8050 left untouched")
+            else:
+                self.api_server.start()
+                # Give the server a moment to start
+                time.sleep(1)
             
             # Handle client app startup
             client_process = None

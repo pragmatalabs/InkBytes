@@ -71,7 +71,7 @@ const isActiveStatus = (status) => ['pending', 'running'].includes(status);
 export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
     const { isOperator } = useAuthRole();
     const [jobs, setJobs] = useState(initialJobs);
-    const [triggerName, setTriggerName] = useState('Jurisprudencia JCE');
+    const [triggerName, setTriggerName] = useState('');
     const [triggering, setTriggering] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [logLines, setLogLines] = useState([]);
