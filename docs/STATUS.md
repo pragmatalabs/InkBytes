@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B12.3 shipped — B12 complete, legacy Messor client retired)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B13 shipped — UX polish; the P0–P3 Backoffice backlog B1–B13 is complete)*
 
 ## TL;DR
 
@@ -325,6 +325,26 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B13 UX polish DONE — completes the P0–P3 backlog** (branch
+     `backend/b13-ux-polish`): presentation-only consistency pass, no behavior change.
+     (1) **One toast standard** — `resources/js/Providers/ToastProvider.jsx` mounts a
+     single MUI `Snackbar`+`Alert` once inside `AppLayout` and exposes a `useToast()`
+     hook (`showToast`/`showSuccess`/`showError`). It **auto-surfaces Laravel
+     `flash.success`/`flash.error`**, so flash-only pages wire nothing. The **6 pages
+     that rolled their own `Snackbar`** (Outlets, Settings, ApiKeys, Users, Moderation,
+     ScrapingJobs) were migrated off their local snackbar state — flash pages drop the
+     `useEffect`+state entirely; the imperative toasts (ApiKeys provider key-test,
+     ScrapingJobs trigger result) call `useToast`. (2) **Consistent empty/loading/error**
+     — `resources/js/Components/ListStates.jsx` (`<EmptyState>`, `<LoadingState>`,
+     `<ErrorState>`) applied across the list pages (Outlets, Moderation, ApiKeys, Users,
+     ScrapingJobs, ScrapeResults, RunHistory, Health, AuditLog, Alerts, ModelUsage):
+     empty tables, in-flight detail loads, and source-unreachable banners (Messor API /
+     scrape-sessions / RabbitMQ down) now look identical everywhere. (3) **Mobile** —
+     usable at ~375px: nav drawer already collapses to a hamburger; wide tables scroll
+     horizontally via MUI `TableContainer`'s default `overflow-x:auto` (no theme
+     override) rather than overflowing the page; dialogs use `fullWidth`/`maxWidth` with
+     MUI responsive margins. Full suite **126 green** (unchanged); `npm run build` green.
+     **`public` counts unchanged** (articles=309, events=220, pages=29, outlets=31).
    - **B12.3 decommission DONE — B12 complete** (branch `backend/b12.3-decommission-client`,
      [ADR-0006](./adr/0006-scrape-results-via-messor-postgres.md) + [ADR-0001](./adr/0001-consolidate-backend-into-laravel-backoffice.md)):
      the **legacy Messor React client is retired**, completing ADR-0001's "one admin" (the

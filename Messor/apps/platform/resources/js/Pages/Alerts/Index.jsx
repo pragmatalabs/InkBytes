@@ -1,5 +1,6 @@
 import ListPagination from '@/Components/ListPagination';
 import ListSearchField from '@/Components/ListSearchField';
+import { EmptyState } from '@/Components/ListStates';
 import SortableTableCell from '@/Components/SortableTableCell';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { useListQuery } from '@/Hooks/useListQuery';
@@ -268,16 +269,11 @@ export default function AlertsIndex({
                     <TableBody>
                         {rows.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} align="center">
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{ py: 3 }}
-                                    >
-                                        No alerts. The evaluator raises rows when
-                                        a rule trips (requires the scheduler:
-                                        php artisan schedule:work).
-                                    </Typography>
+                                <TableCell colSpan={7}>
+                                    <EmptyState
+                                        title="No alerts"
+                                        description="The evaluator raises rows when a rule trips (requires the scheduler: php artisan schedule:work)."
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (

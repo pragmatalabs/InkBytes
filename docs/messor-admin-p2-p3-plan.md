@@ -231,9 +231,14 @@ scrape router was client-only.
   references to removed symbols in live code; `public` counts unchanged (309/220/29/31).
 - **ADR-0001 + ADR-0006 updated** ("one admin" fully realized; B12.3 done).
 
-## B13 — UX polish (P3 · M)
+## B13 — UX polish (P3 · M) ✅ DONE
 **Diff:** a toast/flash pattern exists in ~6 files but isn't standardized; empty/loading/error states inconsistent; mobile unverified.
 **Steps:** one shared snackbar provider → consistent empty/loading/error components across lists → mobile pass (drawer, tables→cards). Do last; low risk.
+
+**Shipped (2026-06-04):**
+- **Shared toast** — `resources/js/Providers/ToastProvider.jsx` (one MUI Snackbar+Alert mounted once in `AppLayout`) + `useToast()` hook (`showToast`/`showSuccess`/`showError`). Auto-surfaces Laravel `flash.success`/`flash.error`. The 6 pages that rolled their own `Snackbar` (Outlets, Settings, ApiKeys, Users, Moderation, ScrapingJobs) were migrated off local snackbar state — flash-only pages now wire nothing; imperative toasts (ApiKeys key-test, ScrapingJobs trigger) call `useToast`.
+- **Shared states** — `resources/js/Components/ListStates.jsx`: `<EmptyState>`, `<LoadingState>`, `<ErrorState>`. Applied across the list pages (Outlets, Moderation, ApiKeys, Users, ScrapingJobs, ScrapeResults, RunHistory, Health, AuditLog, Alerts, ModelUsage). Empty tables, in-flight detail loads, and source-unreachable banners now look the same everywhere.
+- **Mobile** — verified usable at ~375px: nav drawer already collapses to a hamburger; wide tables scroll horizontally via MUI `TableContainer` default `overflow-x:auto` (no theme override); dialogs use `fullWidth`/`maxWidth` with MUI responsive margins. Presentation-only — no controllers/routes/DB/RBAC/audit touched; suite stays at 126 passing.
 
 ---
 
@@ -282,7 +287,7 @@ The only functional gap when folding the :5174 client into the Backoffice is the
 | 4 | **B8** one-active + rotation view ✅ DONE | S | ✅ (a) decided: KEEP — ship reduced |
 | 5 | **B11** alerting ✅ DONE | M | ✅ scheduled evaluator + alerts table + in-app bell (email deferred) |
 | 6 | **B12** client consolidation ✅ DONE — B12.1 (emit→consume), B12.2 (browser), B12.3 (decommission client + dead `:8050` endpoints) | M/L | ✅ (b) decided: Option B (ADR-0006) |
-| 7 | **B13** UX polish | M | — |
+| 7 | **B13** UX polish ✅ DONE — shared toast provider + empty/loading/error components + mobile pass | M | — |
 
 **Cheapest first value:** **B9 → B10** (both S, no blocking decision). Both gating
 decisions are now made (KEEP env keys; B12 = Messor→Postgres), so the whole P2/P3

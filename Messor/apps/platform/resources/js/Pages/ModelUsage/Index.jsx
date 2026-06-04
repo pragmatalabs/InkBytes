@@ -1,5 +1,6 @@
 import AppLayout from '@/Layouts/AppLayout';
 import ListPagination from '@/Components/ListPagination';
+import { EmptyState } from '@/Components/ListStates';
 import { Head, router } from '@inertiajs/react';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import {
@@ -259,13 +260,8 @@ export default function ModelUsageIndex({
                                 {byModel.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center">
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
-                                                sx={{ py: 2 }}
-                                            >
-                                                No usage in this range.
-                                            </Typography>
+                                            <EmptyState title="No usage in this range." />
+
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -309,13 +305,8 @@ export default function ModelUsageIndex({
                                 {byLabel.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={3} align="center">
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
-                                                sx={{ py: 2 }}
-                                            >
-                                                No usage in this range.
-                                            </Typography>
+                                            <EmptyState title="No usage in this range." />
+
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -365,14 +356,8 @@ export default function ModelUsageIndex({
                                 {eventRows.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center">
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
-                                                sx={{ py: 2 }}
-                                            >
-                                                No event-attributed synthesis
-                                                calls in this range.
-                                            </Typography>
+                                            <EmptyState title="No event-attributed synthesis calls in this range." />
+
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -473,13 +458,8 @@ export default function ModelUsageIndex({
                                 {byDay.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center">
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
-                                                sx={{ py: 2 }}
-                                            >
-                                                No usage in this range.
-                                            </Typography>
+                                            <EmptyState title="No usage in this range." />
+
                                         </TableCell>
                                     </TableRow>
                                 ) : (

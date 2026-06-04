@@ -1,24 +1,22 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { EmptyState } from '@/Components/ListStates';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
-    Alert,
     Box,
     Chip,
     FormControl,
     MenuItem,
     Paper,
     Select,
-    Snackbar,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
-    Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const formatWhen = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—');
 
@@ -34,19 +32,10 @@ const roleChipColor = (role) => {
 };
 
 export default function UsersIndex({ users = [], roles = [] }) {
-    const { flash, auth } = usePage().props;
+    const { auth } = usePage().props;
     const { isAdmin } = useAuthRole();
     const currentUserId = auth?.user?.id;
-    const [snack, setSnack] = useState(null);
     const [savingId, setSavingId] = useState(null);
-
-    useEffect(() => {
-        if (flash?.success) {
-            setSnack({ severity: 'success', message: flash.success });
-        } else if (flash?.error) {
-            setSnack({ severity: 'error', message: flash.error });
-        }
-    }, [flash]);
 
     const changeRole = (user, role) => {
         if (role === user.role) {
@@ -86,13 +75,7 @@ export default function UsersIndex({ users = [], roles = [] }) {
                             {users.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={4}>
-                                        <Typography
-                                            variant="body2"
-                                            color="text.secondary"
-                                            sx={{ py: 2, textAlign: 'center' }}
-                                        >
-                                            No users.
-                                        </Typography>
+                                        <EmptyState title="No users." />
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -166,23 +149,6 @@ export default function UsersIndex({ users = [], roles = [] }) {
                     </Table>
                 </TableContainer>
             </Paper>
-
-            <Snackbar
-                open={Boolean(snack)}
-                autoHideDuration={5000}
-                onClose={() => setSnack(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-                {snack ? (
-                    <Alert
-                        severity={snack.severity}
-                        onClose={() => setSnack(null)}
-                        variant="filled"
-                    >
-                        {snack.message}
-                    </Alert>
-                ) : undefined}
-            </Snackbar>
         </AppLayout>
     );
 }

@@ -1,7 +1,7 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { EmptyState, ErrorState } from '@/Components/ListStates';
 import { Head } from '@inertiajs/react';
 import {
-    Alert,
     Box,
     Card,
     CardContent,
@@ -207,11 +207,11 @@ export default function RunHistoryIndex({ runHistory = {} }) {
             <Head title="Run History" />
 
             {!reachable ? (
-                <Alert severity="warning" sx={{ mb: 2.5 }}>
-                    {runHistory.error || 'Messor API unreachable'} — showing no run
-                    history. This view live-reads Messor&apos;s recent scrape
-                    sessions; nothing is cached here.
-                </Alert>
+                <ErrorState
+                    severity="warning"
+                    message={`${runHistory.error || 'Messor API unreachable'} — showing no run history. This view live-reads Messor's recent scrape sessions; nothing is cached here.`}
+                    sx={{ mb: 2.5 }}
+                />
             ) : null}
 
             <Grid container spacing={2}>
@@ -288,14 +288,18 @@ export default function RunHistoryIndex({ runHistory = {} }) {
                                 {runs.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7}>
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
-                                            >
-                                                {reachable
-                                                    ? 'Messor reported no scrape sessions yet.'
-                                                    : 'Messor API unreachable — no run data.'}
-                                            </Typography>
+                                            <EmptyState
+                                                title={
+                                                    reachable
+                                                        ? 'No runs yet'
+                                                        : 'Messor API unreachable'
+                                                }
+                                                description={
+                                                    reachable
+                                                        ? 'Messor reported no scrape sessions yet.'
+                                                        : 'No run data could be loaded.'
+                                                }
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 ) : (

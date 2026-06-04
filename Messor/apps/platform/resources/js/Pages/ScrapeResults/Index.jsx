@@ -1,14 +1,13 @@
 import AppLayout from '@/Layouts/AppLayout';
 import ListPagination from '@/Components/ListPagination';
 import ListSearchField from '@/Components/ListSearchField';
+import { EmptyState, ErrorState, LoadingState } from '@/Components/ListStates';
 import SortableTableCell from '@/Components/SortableTableCell';
 import { useListQuery } from '@/Hooks/useListQuery';
 import { Head } from '@inertiajs/react';
 import {
-    Alert,
     Box,
     Chip,
-    CircularProgress,
     Dialog,
     DialogContent,
     DialogTitle,
@@ -101,10 +100,11 @@ export default function ScrapeResultsIndex({
             </Stack>
 
             {!reachable && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                    The scrape-sessions table is not reachable right now. Showing an
-                    empty list.
-                </Alert>
+                <ErrorState
+                    severity="warning"
+                    message="The scrape-sessions table is not reachable right now. Showing an empty list."
+                    sx={{ mb: 2 }}
+                />
             )}
 
             <Box sx={{ mb: 2.5, maxWidth: 480 }}>
@@ -166,23 +166,10 @@ export default function ScrapeResultsIndex({
                         {rows.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={9}>
-                                    <Box sx={{ py: 4, textAlign: 'center' }}>
-                                        <Typography
-                                            variant="body1"
-                                            color="text.secondary"
-                                            sx={{ fontWeight: 600 }}
-                                        >
-                                            No scrape sessions yet
-                                        </Typography>
-                                        <Typography
-                                            variant="body2"
-                                            color="text.secondary"
-                                            sx={{ mt: 0.5 }}
-                                        >
-                                            Sessions appear here once Messor completes a
-                                            harvest run and Curator persists it.
-                                        </Typography>
-                                    </Box>
+                                    <EmptyState
+                                        title="No scrape sessions yet"
+                                        description="Sessions appear here once Messor completes a harvest run and Curator persists it."
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -270,13 +257,11 @@ export default function ScrapeResultsIndex({
                 </DialogTitle>
                 <DialogContent dividers>
                     {detail?.loading && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                            <CircularProgress size={28} />
-                        </Box>
+                        <LoadingState label="Loading session detail…" />
                     )}
 
                     {detail?.error && (
-                        <Alert severity="error">{detail.error}</Alert>
+                        <ErrorState severity="error" message={detail.error} />
                     )}
 
                     {detail?.session && (

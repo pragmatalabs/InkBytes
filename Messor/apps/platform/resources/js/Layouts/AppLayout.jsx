@@ -1,4 +1,5 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import { ToastProvider } from '@/providers/ToastProvider';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Link, usePage } from '@inertiajs/react';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
@@ -237,7 +238,8 @@ export default function AppLayout({
     );
 
     return (
-        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+        <ToastProvider>
+            <Box sx={{ display: 'flex', minHeight: '100vh' }}>
             <AppBar
                 position="fixed"
                 color="inherit"
@@ -393,6 +395,7 @@ export default function AppLayout({
                     <Box sx={{ mt: 3 }}>{children}</Box>
                 </Box>
             </Box>
-        </Box>
+            </Box>
+        </ToastProvider>
     );
 }

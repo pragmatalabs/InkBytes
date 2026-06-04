@@ -1,15 +1,14 @@
 import AppLayout from '@/Layouts/AppLayout';
 import ListPagination from '@/Components/ListPagination';
 import ListSearchField from '@/Components/ListSearchField';
+import { EmptyState } from '@/Components/ListStates';
 import SortableTableCell from '@/Components/SortableTableCell';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { useListQuery } from '@/Hooks/useListQuery';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import {
-    Alert,
-    Box,
     Button,
     Chip,
     FormControl,
@@ -18,7 +17,6 @@ import {
     MenuItem,
     Paper,
     Select,
-    Snackbar,
     Stack,
     Table,
     TableBody,
@@ -29,7 +27,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const STATUS_COLORS = {
     published: 'success',
@@ -45,9 +43,7 @@ export default function ModerationIndex({
     filters = { q: '', sort: 'last_updated_at', dir: 'desc', per_page: 25, status: '' },
     statuses = [],
 }) {
-    const { flash } = usePage().props;
     const { isOperator } = useAuthRole();
-    const [snack, setSnack] = useState(null);
     const [busy, setBusy] = useState(null); // `${kind}:${id}` while a command is in-flight
 
     const list = useListQuery('moderation.index', filters, {
@@ -55,14 +51,6 @@ export default function ModerationIndex({
     });
 
     const rows = events.data ?? [];
-
-    useEffect(() => {
-        if (flash?.success) {
-            setSnack({ severity: 'success', message: flash.success });
-        } else if (flash?.error) {
-            setSnack({ severity: 'error', message: flash.error });
-        }
-    }, [flash]);
 
     const send = (key, routeName, id) => {
         setBusy(key);
@@ -165,13 +153,10 @@ export default function ModerationIndex({
                         {rows.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7}>
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{ py: 2, textAlign: 'center' }}
-                                    >
-                                        No events match.
-                                    </Typography>
+                                    <EmptyState
+                                        title="No events match"
+                                        description="Adjust the search or status filter, or wait for Curator to cluster more articles."
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -361,23 +346,6 @@ export default function ModerationIndex({
                     onChangePerPage={list.changePerPage}
                 />
             </TableContainer>
-
-            <Snackbar
-                open={Boolean(snack)}
-                autoHideDuration={5000}
-                onClose={() => setSnack(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                {snack ? (
-                    <Alert
-                        severity={snack.severity}
-                        onClose={() => setSnack(null)}
-                        variant="filled"
-                    >
-                        {snack.message}
-                    </Alert>
-                ) : undefined}
-            </Snackbar>
         </AppLayout>
     );
 }

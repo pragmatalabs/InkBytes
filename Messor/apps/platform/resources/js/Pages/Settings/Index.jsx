@@ -1,9 +1,8 @@
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import {
-    Alert,
     Box,
     Button,
     Dialog,
@@ -15,29 +14,18 @@ import {
     Grid,
     MenuItem,
     Paper,
-    Snackbar,
     Stack,
     TextField,
     Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function SettingsIndex({
     settings = {},
     enrichModels = [],
     synthesizeModels = [],
 }) {
-    const { flash } = usePage().props;
-    const [snack, setSnack] = useState(null);
     const [resetOpen, setResetOpen] = useState(false);
-
-    useEffect(() => {
-        if (flash?.success) {
-            setSnack({ severity: 'success', message: flash.success });
-        } else if (flash?.error) {
-            setSnack({ severity: 'error', message: flash.error });
-        }
-    }, [flash]);
 
     const form = useForm({
         enrich_model: settings.enrich_model ?? 'claude-haiku-4-5',
@@ -281,23 +269,6 @@ export default function SettingsIndex({
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            <Snackbar
-                open={Boolean(snack)}
-                autoHideDuration={5000}
-                onClose={() => setSnack(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                {snack ? (
-                    <Alert
-                        severity={snack.severity}
-                        onClose={() => setSnack(null)}
-                        variant="filled"
-                    >
-                        {snack.message}
-                    </Alert>
-                ) : undefined}
-            </Snackbar>
         </AppLayout>
     );
 }

@@ -413,3 +413,27 @@ never wedged the consumer), which is exactly why the consumer is wrapped that wa
 a malformed/unstorable run summary is non-fatal history, never a pipeline stop.
 Lesson: for asyncpg, coerce types in Python; SQL casts are not a substitute for the
 client-side codec.
+
+### B13 UX polish — auto-surface flash in the provider, not the page
+The 6 pages with bespoke `Snackbar`s each repeated the same `useEffect(() =>
+{ if (flash.success) setSnack(...) }, [flash])`. Putting that one effect inside
+the shared `ToastProvider` (mounted once in `AppLayout`) meant **flash-only pages
+delete their effect *and* their state entirely** — they wire nothing and still
+get toasts. Only the two pages with *imperative* toasts (ApiKeys key-test result,
+ScrapingJobs trigger result) needed `useToast()`. Lesson: when a cross-cutting
+behavior (here: echo server flash) is identical on every page, hoist it into the
+provider so the common case becomes zero-config; reserve the hook for the genuinely
+page-specific calls.
+
+**Outlets kept its `flash` read** — it uses `flash.importPreview` (B10) for the
+import-diff dialog, which is *not* a toast. So its `useEffect` shrank to only the
+preview branch; the toast branches moved to the provider. Lesson: "migrate off
+local Snackbar" doesn't mean "stop reading flash" — separate the toast concern from
+other transient flash payloads.
+
+**Tables go responsive for free.** MUI `TableContainer` already sets
+`overflow-x:auto`, and the theme doesn't override it, so every wide table (Outlets'
+13 columns included) scrolls horizontally inside its container at 375px instead of
+blowing out the page — no cards-vs-scroll rewrite needed for a "don't break it"
+mobile pass. Verified by reasoning from the MUI default + absence of a theme
+override rather than standing up the full stack.

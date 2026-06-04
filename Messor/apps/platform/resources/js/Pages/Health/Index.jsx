@@ -1,4 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { EmptyState } from '@/Components/ListStates';
 import { Head } from '@inertiajs/react';
 import {
     Box,
@@ -192,9 +193,10 @@ export default function HealthIndex({ health = {} }) {
                                 {queues.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={3}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                RabbitMQ unreachable — no queue data.
-                                            </Typography>
+                                            <EmptyState
+                                                title="No queue data"
+                                                description="RabbitMQ is unreachable or reported no queues."
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 ) : (

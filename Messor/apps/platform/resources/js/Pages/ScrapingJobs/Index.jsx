@@ -1,5 +1,7 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { EmptyState } from '@/Components/ListStates';
 import { useAuthRole } from '@/Hooks/useAuthRole';
+import { useToast } from '@/providers/ToastProvider';
 import { Head } from '@inertiajs/react';
 import {
     Alert,
@@ -7,7 +9,6 @@ import {
     Button,
     Chip,
     Paper,
-    Snackbar,
     Stack,
     Table,
     TableBody,
@@ -70,17 +71,13 @@ const isActiveStatus = (status) => ['pending', 'running'].includes(status);
 
 export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
     const { isOperator } = useAuthRole();
+    const { showToast } = useToast();
     const [jobs, setJobs] = useState(initialJobs);
     const [triggerName, setTriggerName] = useState('');
     const [triggering, setTriggering] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [logLines, setLogLines] = useState([]);
     const [streamState, setStreamState] = useState('idle');
-    const [toast, setToast] = useState({
-        open: false,
-        message: '',
-        severity: 'success',
-    });
 
     const logContainerRef = useRef(null);
 
@@ -175,11 +172,7 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
             });
 
             const createdJob = response.data?.data;
-            setToast({
-                open: true,
-                message: 'Scraping job started successfully.',
-                severity: 'success',
-            });
+            showToast('Scraping job started successfully.', 'success');
 
             await fetchJobs();
 
@@ -191,11 +184,7 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
                 error?.response?.data?.message ||
                 'Unable to trigger scraping job right now.';
 
-            setToast({
-                open: true,
-                message,
-                severity: 'error',
-            });
+            showToast(message, 'error');
         } finally {
             setTriggering(false);
         }
@@ -258,9 +247,10 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
                         {jobs.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7}>
-                                    <Typography variant="body2" color="text.secondary">
-                                        No scraping jobs found yet.
-                                    </Typography>
+                                    <EmptyState
+                                        title="No scraping jobs found yet"
+                                        description="Start a run with the control above to see jobs and live logs here."
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -367,22 +357,6 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [] }) {
                     </Box>
                 </Paper>
             ) : null}
-
-            <Snackbar
-                open={toast.open}
-                autoHideDuration={3500}
-                onClose={() => setToast((current) => ({ ...current, open: false }))}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-                <Alert
-                    severity={toast.severity}
-                    onClose={() => setToast((current) => ({ ...current, open: false }))}
-                    variant="filled"
-                    sx={{ width: '100%' }}
-                >
-                    {toast.message}
-                </Alert>
-            </Snackbar>
         </AppLayout>
     );
 }

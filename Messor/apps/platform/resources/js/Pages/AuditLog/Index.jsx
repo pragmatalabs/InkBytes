@@ -1,4 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
+import { EmptyState } from '@/Components/ListStates';
 import { Head, router } from '@inertiajs/react';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import {
@@ -229,15 +230,11 @@ export default function AuditLogIndex({
                     <TableBody>
                         {rows.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center">
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{ py: 3 }}
-                                    >
-                                        No audit entries match. Rows appear as
-                                        admins make state-changing actions.
-                                    </Typography>
+                                <TableCell colSpan={6}>
+                                    <EmptyState
+                                        title="No audit entries match"
+                                        description="Rows appear as admins make state-changing actions."
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (

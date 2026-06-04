@@ -1,5 +1,6 @@
 import AppLayout from '@/Layouts/AppLayout';
 import ListSearchField from '@/Components/ListSearchField';
+import { EmptyState } from '@/Components/ListStates';
 import SortableTableCell from '@/Components/SortableTableCell';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { useListQuery } from '@/Hooks/useListQuery';
@@ -28,7 +29,6 @@ import {
     MenuItem,
     Paper,
     Select,
-    Snackbar,
     Stack,
     Switch,
     Table,
@@ -118,7 +118,6 @@ export default function OutletsIndex({
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
-    const [snack, setSnack] = useState(null);
 
     // Bulk selection (B7). `selected` is a Set of outlet ids; `confirmBulk`
     // holds a pending { action } awaiting confirmation for destructive ops.
@@ -132,11 +131,7 @@ export default function OutletsIndex({
     const [importing, setImporting] = useState(false);
 
     useEffect(() => {
-        if (flash?.success) {
-            setSnack({ severity: 'success', message: flash.success });
-        } else if (flash?.error) {
-            setSnack({ severity: 'error', message: flash.error });
-        }
+        // flash.success / flash.error are surfaced by the shared ToastProvider.
         // The server flashes the diff preview on the redirect after an upload.
         if (flash?.importPreview) {
             setPreview(flash.importPreview);
@@ -469,15 +464,18 @@ export default function OutletsIndex({
                         {sortedOutlets.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={isOperator ? 13 : 12}>
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{ py: 2, textAlign: 'center' }}
-                                    >
-                                        {filters.q
-                                            ? 'No outlets match your search.'
-                                            : 'No outlets yet. Add one to get started.'}
-                                    </Typography>
+                                    <EmptyState
+                                        title={
+                                            filters.q
+                                                ? 'No outlets match your search.'
+                                                : 'No outlets yet'
+                                        }
+                                        description={
+                                            filters.q
+                                                ? 'Try a different name, slug or URL.'
+                                                : 'Add one to get started.'
+                                        }
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -1017,23 +1015,6 @@ export default function OutletsIndex({
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            <Snackbar
-                open={Boolean(snack)}
-                autoHideDuration={4000}
-                onClose={() => setSnack(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                {snack ? (
-                    <Alert
-                        severity={snack.severity}
-                        onClose={() => setSnack(null)}
-                        variant="filled"
-                    >
-                        {snack.message}
-                    </Alert>
-                ) : undefined}
-            </Snackbar>
         </AppLayout>
     );
 }

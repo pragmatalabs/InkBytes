@@ -1,5 +1,7 @@
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { EmptyState } from '@/Components/ListStates';
+import { useToast } from '@/providers/ToastProvider';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -23,7 +25,6 @@ import {
     MenuItem,
     Paper,
     Select,
-    Snackbar,
     Stack,
     Switch,
     Table,
@@ -36,7 +37,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const emptyKey = {
     provider: 'anthropic',
@@ -46,23 +47,14 @@ const emptyKey = {
 };
 
 export default function ApiKeysIndex({ keys = [], providers = [], tracking = null }) {
-    const { flash } = usePage().props;
+    const { showToast } = useToast();
     const providerOptions = providers.length ? providers : ['anthropic', 'openai'];
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
-    const [snack, setSnack] = useState(null);
     const [testing, setTesting] = useState(null);
     const [testResult, setTestResult] = useState(null);
-
-    useEffect(() => {
-        if (flash?.success) {
-            setSnack({ severity: 'success', message: flash.success });
-        } else if (flash?.error) {
-            setSnack({ severity: 'error', message: flash.error });
-        }
-    }, [flash]);
 
     const form = useForm({ ...emptyKey });
     const isEditing = editingId !== null;
@@ -119,16 +111,13 @@ export default function ApiKeysIndex({ keys = [], providers = [], tracking = nul
             const { data } = await window.axios.post(
                 route('api-keys.test', key.id)
             );
-            setSnack({
-                severity: data.ok ? 'success' : 'warning',
-                message: `${key.provider}: ${data.message}`,
-            });
+            showToast(
+                `${key.provider}: ${data.message}`,
+                data.ok ? 'success' : 'warning',
+            );
             setTestResult({ id: key.id, ok: data.ok });
         } catch (e) {
-            setSnack({
-                severity: 'error',
-                message: `Test failed: ${e.message}`,
-            });
+            showToast(`Test failed: ${e.message}`, 'error');
         } finally {
             setTesting(null);
         }
@@ -187,13 +176,10 @@ export default function ApiKeysIndex({ keys = [], providers = [], tracking = nul
                         {keys.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5}>
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{ py: 2, textAlign: 'center' }}
-                                    >
-                                        No keys stored yet.
-                                    </Typography>
+                                    <EmptyState
+                                        title="No keys stored yet"
+                                        description="Add a provider key to store, rotate, and test it."
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -387,23 +373,6 @@ export default function ApiKeysIndex({ keys = [], providers = [], tracking = nul
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            <Snackbar
-                open={Boolean(snack)}
-                autoHideDuration={5000}
-                onClose={() => setSnack(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                {snack ? (
-                    <Alert
-                        severity={snack.severity}
-                        onClose={() => setSnack(null)}
-                        variant="filled"
-                    >
-                        {snack.message}
-                    </Alert>
-                ) : undefined}
-            </Snackbar>
         </AppLayout>
     );
 }
