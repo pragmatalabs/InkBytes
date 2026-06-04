@@ -262,6 +262,30 @@ Messor publishes per-article `event.article.scraped` events on the `messor` exch
      $100 → within, null → hidden. **`public` counts unchanged** (articles=309,
      events=220, pages=29, published=29); **`model_usage` row count unchanged (1)**
      — read-only.
+   - **B4 scraping run history DONE** (branch `backend/b4-run-history`): read-only
+     **Run History** screen (`/run-history`, `run-history.index`, **all
+     authenticated roles** — no role gate; observability only). Live-reads Messor
+     `GET /api/scrapesessions?page=1&limit=50` **defensively** (reuses B6's pattern:
+     `Http::timeout(3)` + try/catch reading `config('services.messor.url')`); if
+     Messor is unreachable or non-2xx the page renders an **empty state** + an
+     "unreachable" notice and returns fast (no 500, no hang — verified 13ms against
+     a dead port). The controller maps each session to the fields Messor actually
+     exposes — articles total/successful/failed, **run-level success rate** (the
+     rate B3 deferred at the outlet level), outlets (count + names + per-outlet
+     article counts), duration — **no fabricated dedup ratio**. The page shows
+     **summary cards** (runs in window, total articles, avg success rate, last run),
+     a **recent-runs table** (relative + full-on-hover timestamps), and a
+     **dependency-free inline-SVG** chart (articles-per-run bars coloured by
+     success rate + a success-rate trend polyline) — **no charting library added**;
+     handles 1 row and many. **77 Laravel tests pass** (5 new in `RunHistoryTest`:
+     `Http::fake` happy-path mapping + summary rollup, single-session render,
+     unreachable degradation, non-200 degradation, auth required); `npm run build`
+     green. **Live-verified against Messor :8050** (1 session, 1801 articles, 100%
+     success, 24 outlets). **`public` counts unchanged** (309/220/29/29); **no new
+     tables** (`backoffice` table list unchanged — live-read, no `scrape_runs`
+     table). **DEFERRED — dedup ratio** (not in Messor's payload; future
+     Messor-side enhancement) and **durable long-range history** (this is
+     recent/staging-bounded live data; persistence is future).
    - ~~**Data note:** 2.3 re-synthesize overwrote page `01KT5E6AYJW4014BEYM5V0Z6B7` with
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
      retained: verify re-synthesize against a throwaway event, never live data.*

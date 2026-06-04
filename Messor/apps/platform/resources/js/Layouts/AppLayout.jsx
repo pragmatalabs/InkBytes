@@ -10,6 +10,7 @@ import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import MonitorHeartRoundedIcon from '@mui/icons-material/MonitorHeartRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
+import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded';
@@ -53,6 +54,12 @@ const navigationItems = [
         routeName: 'scraping.index',
         match: 'scraping.*',
         icon: PlayCircleOutlineRoundedIcon,
+    },
+    {
+        label: 'Run History',
+        routeName: 'run-history.index',
+        match: 'run-history.*',
+        icon: TimelineRoundedIcon,
     },
     {
         label: 'Runtime',

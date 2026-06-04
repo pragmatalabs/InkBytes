@@ -9,6 +9,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ModelUsageController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RunHistoryController;
 use App\Http\Controllers\RuntimeController;
 use App\Http\Controllers\ScrapingJobController;
 use App\Http\Controllers\UserController;
@@ -36,6 +37,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/runtime', [RuntimeController::class, 'index'])->name('runtime.index');
     Route::get('/runtime/snapshot', [RuntimeController::class, 'snapshot'])->name('runtime.snapshot');
+
+    // Scraping run history / time-series (B4) — read-only observability over
+    // Messor's recent scrape sessions (live-read, defensive fetch). All roles.
+    Route::get('/run-history', [RunHistoryController::class, 'index'])->name('run-history.index');
 
     // Unified health dashboard (B6) — read-only observability across Postgres /
     // Curator / Messor / RabbitMQ. All authenticated roles; no role gate.
