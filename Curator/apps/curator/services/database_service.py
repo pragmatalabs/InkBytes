@@ -61,6 +61,16 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'pages' "
                 "AND column_name = 'published_at'"
             ),
+            # 005 retypes articles.embedding vector(1536) → vector(1024)
+            # (ADR-0003). TRUE once the column is already 1024-wide. COALESCE
+            # guards a not-yet-created table (001 always runs first this boot).
+            "005_embedding_dim_1024.sql": (
+                "SELECT COALESCE("
+                "(SELECT format_type(atttypid, atttypmod) = 'vector(1024)' "
+                "FROM pg_attribute "
+                "WHERE attrelid = to_regclass('public.articles') "
+                "AND attname = 'embedding' AND NOT attisdropped), FALSE)"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):

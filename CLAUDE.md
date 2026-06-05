@@ -60,7 +60,8 @@ InkBytes/                              ← repo root
 | Decision | Choice |
 |---|---|
 | LLM (enrich + synthesize) | **Anthropic Claude Haiku 4.5** |
-| Embeddings | OpenAI `text-embedding-3-small` (1536-dim) |
+| Embeddings | **Local Ollama `bge-m3` (1024-dim, multilingual)** — Curator ADR-0003; OpenAI `text-embedding-3-small` is the fallback provider |
+| Local model runtime | **Ollama** — deployed service (dev `full` profile + prod compose); serves bge-m3 over an OpenAI-compatible `/v1` endpoint |
 | Outlet vertical | LATAM bilingual (DR/MX/CO/AR) + global EN business/tech |
 | Deploy target | Single DigitalOcean Droplet |
 | Database | Postgres + pgvector |

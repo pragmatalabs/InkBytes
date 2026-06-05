@@ -75,10 +75,17 @@ class LlmCfg(BaseModel):
 
 
 class EmbedCfg(BaseModel):
-    provider: str = "openai"
-    model: str = "text-embedding-3-small"
-    dimensions: int = 1536
-    api_key: str = PLACEHOLDER
+    # Local-first default (Curator ADR-0003): a deployed Ollama serves bge-m3
+    # (1024-dim, multilingual) over its OpenAI-compatible /v1 endpoint. Set
+    # provider=openai (+ OPENAI_API_KEY) to fall back to the hosted vendor.
+    provider: str = "ollama"          # ollama | openai
+    model: str = "bge-m3"
+    dimensions: int = 1024
+    api_key: str = PLACEHOLDER        # unused for ollama (server ignores it)
+    # Base URL of the OpenAI-compatible embeddings API. Only used for
+    # provider=ollama (or any local OpenAI-compatible server). In compose this
+    # is http://ollama:11434/v1; on the host it's http://localhost:11434/v1.
+    base_url: str | None = "http://localhost:11434/v1"
 
 
 class ClusterCfg(BaseModel):
@@ -211,6 +218,12 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
     overrides = {
         "ANTHROPIC_API_KEY": ("llm", "api_key"),
         "OPENAI_API_KEY":    ("embeddings", "api_key"),
+        # Embedding provider wiring (ADR-0003). In compose, prod points these at
+        # the deployed Ollama; leave unset to use the local-first YAML defaults.
+        "EMBEDDINGS_PROVIDER":   ("embeddings", "provider"),
+        "EMBEDDINGS_BASE_URL":   ("embeddings", "base_url"),
+        "EMBEDDINGS_MODEL":      ("embeddings", "model"),
+        "EMBEDDINGS_DIMENSIONS": ("embeddings", "dimensions"),
         "DATABASE_URL":      ("database", "url"),
         "RABBITMQ_URL":      ("rabbitmq", "url"),
         "S3_ENDPOINT":       ("spaces", "endpoint_url"),

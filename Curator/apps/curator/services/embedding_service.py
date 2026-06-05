@@ -1,7 +1,16 @@
-"""Embedding service — OpenAI text-embedding-3-small.
+"""Embedding service — local Ollama (bge-m3) by default, OpenAI as fallback.
 
-Falls back to a deterministic pseudo-embedding (hash → 1536 floats) if
-OPENAI_API_KEY is not set, so the clustering skill is testable offline.
+Two providers, one client: Ollama exposes an OpenAI-compatible /v1/embeddings
+endpoint, so both paths use `AsyncOpenAI` and the same `embeddings.create(...)`
+call — they differ only in `base_url` and `model`. See Curator ADR-0003.
+
+  provider=ollama  → AsyncOpenAI(base_url=…/v1, api_key="ollama") · bge-m3, 1024d
+  provider=openai  → AsyncOpenAI(api_key=OPENAI_API_KEY)          · 3-small, 1536d
+
+If provider=openai and no OPENAI_API_KEY is set, falls back to a deterministic
+pseudo-embedding (hash → N floats) so the pipeline is testable offline. Ollama
+needs no key, so it is never in stub mode — if Ollama is unreachable it fails
+loudly rather than silently degrading clustering.
 """
 from __future__ import annotations
 
@@ -17,6 +26,21 @@ class EmbeddingService:
     def __init__(self, cfg: EmbedCfg) -> None:
         self.cfg = cfg
         self._client = None
+        self._stub_mode = False
+        provider = (cfg.provider or "openai").lower()
+
+        if provider == "ollama":
+            from openai import AsyncOpenAI
+            base_url = cfg.base_url or "http://localhost:11434/v1"
+            # Ollama ignores the key, but the SDK requires a non-empty string.
+            self._client = AsyncOpenAI(api_key="ollama", base_url=base_url)
+            logger.info(
+                "EmbeddingService using local Ollama at %s (model=%s, dims=%d)",
+                base_url, cfg.model, cfg.dimensions,
+            )
+            return
+
+        # provider=openai (hosted vendor) — with offline stub fallback.
         self._stub_mode = cfg.api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "")
         if self._stub_mode:
             logger.warning("EmbeddingService running in STUB mode (no OPENAI_API_KEY)")

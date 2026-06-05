@@ -5,6 +5,37 @@
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
 
+## 2026-06-04 — Local embeddings (Ollama bge-m3): the threshold is NOT vendor-portable
+
+Moving Curator's CLUSTER embeddings from OpenAI (1536d) to a local Ollama
+`bge-m3` (1024d). Surprises worth recording (see Curator ADR-0003):
+
+- **Each embedder has its own cosine *scale* — a threshold tuned for one will
+  silently wreck clustering on another.** A spike measured same-event vs
+  diff-event similarity: OpenAI mean-inter 0.27, bge-m3 0.41, nomic 0.59. At the
+  fixed 0.62 gate, `nomic-embed-text` matched ~everything (false-positive 0.31)
+  and would have collapsed every event into one. Always re-measure the gate on
+  the new embedder before swapping — don't assume the number carries over.
+- **…but it happened to carry over for bge-m3.** At the *production* operating
+  point (0.62, precision-heavy), bge-m3 gave rec 0.304 / fp 0.017 vs OpenAI
+  0.305 / 0.010 — near-identical. Lucky, and only known because it was measured.
+- **Ollama is OpenAI-wire-compatible**, so the existing `AsyncOpenAI` client
+  just takes a `base_url` (`http://ollama:11434/v1`) + a dummy api_key
+  ("ollama") — the `embeddings.create(model=…, input=…)` call site is unchanged.
+  No `torch`/`sentence-transformers` in Curator's venv; the heavy ML lives in
+  the Ollama container.
+- **Validate the embedder swap on real labels, but mind circularity.** The
+  "same-event" labels came from the *current* OpenAI-based clustering, which
+  biases the comparison toward OpenAI. bge-m3 nearly tying *despite* that bias
+  is a stronger signal than the raw numbers suggest.
+- **pgvector width change is destructive.** `vector(1536) → vector(1024)` can't
+  cast existing rows; you must drop the ANN index, `ALTER … USING NULL::vector(1024)`,
+  recreate the index, and re-embed. Source `body_text` is intact, so it's
+  data-safe — but plan the re-embed.
+- **EN-only corpus can't prove a multilingual claim.** Our spike was 99.5 %
+  English (LATAM/ES outlets unharvested), so bge-m3's multilingual edge is
+  design-asserted, not measured. Flag that in the ADR rather than overclaim.
+
 ## 2026-06-03 — Backoffice "doesn't work" was three small things, not a broken app
 
 Reported as "visually + functionally doesn't work / no logic." Running it (login →

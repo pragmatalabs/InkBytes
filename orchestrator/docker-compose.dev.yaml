@@ -74,6 +74,31 @@ services:
       "
     restart: "no"
 
+  # Ollama — local embedding (and future SLM) runtime. Serves bge-m3 for
+  # Curator's CLUSTER skill over an OpenAI-compatible /v1 endpoint (ADR-0003).
+  # In the `full` profile because Curator is its only consumer.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: inkbytes-dev-ollama
+    ports: ["11434:11434"]
+    volumes: [ollama-models:/root/.ollama]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      retries: 10
+    profiles: ["full"]
+
+  # One-shot: pull the embedding model into the persisted model volume.
+  ollama-bootstrap:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama: { condition: service_healthy }
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull bge-m3 && echo 'ollama: bge-m3 ready.'"]
+    restart: "no"
+    profiles: ["full"]
+
   # ─────────────────────────────────────────── services ──────────────
   # Messor (harvester) — built from existing monorepo
   messor:
@@ -106,6 +131,7 @@ services:
       postgres:  { condition: service_healthy }
       rabbitmq:  { condition: service_healthy }
       minio:     { condition: service_healthy }
+      ollama:    { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://inkbytes:inkbytes@postgres:5432/inkbytes
       RABBITMQ_URL: amqp://messor:messor@rabbitmq:5672/
@@ -113,6 +139,12 @@ services:
       S3_KEY: messor
       S3_SECRET: messormessor
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Embeddings via the local Ollama service (ADR-0003). OPENAI_API_KEY is
+      # only needed if you flip EMBEDDINGS_PROVIDER back to openai.
+      EMBEDDINGS_PROVIDER: ollama
+      EMBEDDINGS_BASE_URL: http://ollama:11434/v1
+      EMBEDDINGS_MODEL: bge-m3
+      EMBEDDINGS_DIMENSIONS: "1024"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports: ["8060:8060"]
     profiles: ["full"]   # not in default `up`; enable with --profile full
@@ -150,3 +182,4 @@ volumes:
   rmq-data:
   minio-data:
   messor-data:
+  ollama-models:

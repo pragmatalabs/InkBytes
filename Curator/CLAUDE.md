@@ -12,7 +12,7 @@ service with three skills:
 | Skill | What it does | How |
 |---|---|---|
 | **ENRICH** | Per-article NER + topic + summary + sentiment + factuality | Anthropic Claude Haiku 4.5 via `instructor` (structured output) |
-| **CLUSTER** | Group same-event articles | OpenAI `text-embedding-3-small` → pgvector cosine + entity overlap |
+| **CLUSTER** | Group same-event articles | Local **Ollama `bge-m3`** (1024-dim, OpenAI-compatible `/v1`) → pgvector cosine + entity overlap. OpenAI `text-embedding-3-small` is the fallback provider. See ADR-0003. |
 | **SYNTHESIZE** | When cluster ≥ 2 sources, write the one-pager | Claude Haiku 4.5 again |
 
 See [`docs/adr/0001-curator-collapses-pipeline.md`](./docs/adr/0001-curator-collapses-pipeline.md) for the why.
