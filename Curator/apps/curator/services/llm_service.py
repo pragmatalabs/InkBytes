@@ -69,18 +69,19 @@ def _build_client(cfg: LlmCfg):
         from anthropic import AsyncAnthropic, BadRequestError
         from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
 
-        # Do NOT retry HTTP 400 errors (BadRequestError) — they are permanent
-        # failures: usage limits, invalid requests, bad prompts. Only transient
-        # errors (network blips, 5xx) should be retried.
         logger.info("LlmService using Anthropic provider (model=%s)", cfg.enrich_model)
-        return instructor.from_anthropic(
-            AsyncAnthropic(api_key=cfg.api_key),
-            max_retries=Retrying(
-                stop=stop_after_attempt(3),
-                retry=retry_if_not_exception_type(BadRequestError),
-                reraise=True,
-            ),
+        # Build without passing max_retries as a kwarg — instructor 1.15 leaks
+        # kwarg-max_retries into the underlying Anthropic SDK call, causing a
+        # "multiple values" TypeError. Set it as an attribute after construction.
+        client = instructor.from_anthropic(AsyncAnthropic(api_key=cfg.api_key))
+        # Do NOT retry HTTP 400 errors (BadRequestError) — they are permanent
+        # failures (usage limits, invalid prompts). Only transient errors retry.
+        client.max_retries = Retrying(
+            stop=stop_after_attempt(3),
+            retry=retry_if_not_exception_type(BadRequestError),
+            reraise=True,
         )
+        return client
 
     if provider == "openai":
         if cfg.openai_api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", ""):
@@ -90,14 +91,13 @@ def _build_client(cfg: LlmCfg):
         from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
 
         logger.info("LlmService using OpenAI provider (model=%s)", cfg.enrich_model)
-        return instructor.from_openai(
-            AsyncOpenAI(api_key=cfg.openai_api_key),
-            max_retries=Retrying(
-                stop=stop_after_attempt(3),
-                retry=retry_if_not_exception_type(OpenAIBadRequestError),
-                reraise=True,
-            ),
+        client = instructor.from_openai(AsyncOpenAI(api_key=cfg.openai_api_key))
+        client.max_retries = Retrying(
+            stop=stop_after_attempt(3),
+            retry=retry_if_not_exception_type(OpenAIBadRequestError),
+            reraise=True,
         )
+        return client
 
     raise ValueError(f"Unsupported LLM provider: {provider!r}. Use 'anthropic' or 'openai'.")
 
