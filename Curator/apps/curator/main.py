@@ -2,12 +2,18 @@
 """Curator entry point.
 
 Modes:
-  --consume                    run forever, consume RabbitMQ events
+  --consume                    run forever: consume RabbitMQ events AND serve the API (single-node/dev)
+  --worker                     consume RabbitMQ events forever, NO API port (scalable worker; container split)
+  --api-only                   only run the FastAPI surface on :8060 (no consumer)
   --fixture <path>             process one event from a JSON fixture (offline-safe)
-  --api-only                   only run the FastAPI surface (no consumer)
+
+Container topology (root ADR-0007): run one `--api-only` (the :8060 read surface)
+plus N `--worker` replicas (the LLM pipeline). `--consume` (API+worker combined)
+stays for single-process/dev use.
 
 Examples:
   python main.py --consume
+  python main.py --worker
   python main.py --fixture fixtures/sample_article.json
 """
 from __future__ import annotations
@@ -68,7 +74,10 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_dry(Path(args.dry_run))
         elif args.fixture:
             await app.run_fixture(Path(args.fixture))
-        elif args.consume:
+        elif args.consume or args.worker:
+            # Both run the full consumer (articles + sessions + commands).
+            # --consume also serves the API (long_running); --worker does not,
+            # so workers can scale to N replicas with no :8060 port clash.
             await app.run_consumer()
         elif args.consume_commands:
             await app.run_command_consumer()
@@ -78,7 +87,7 @@ async def _run(args: argparse.Namespace) -> None:
             assert api_task is not None
             await api_task
         else:
-            print("Nothing to do. Use --consume, --fixture <path>, --dry-run <path>, or --api-only.")
+            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, or --dry-run <path>.")
     finally:
         # Stop uvicorn cleanly (sets the should_exit flag and awaits its loop).
         if server is not None and api_task is not None:
@@ -95,7 +104,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="InkBytes Curator")
     parser.add_argument("--config", default="env.yaml", help="Path to config YAML")
     grp = parser.add_mutually_exclusive_group()
-    grp.add_argument("--consume", action="store_true", help="Consume RabbitMQ events forever (needs DB)")
+    grp.add_argument("--consume", action="store_true", help="Consume RabbitMQ events forever AND serve the API on :8060 (single-node/dev; needs DB)")
+    grp.add_argument("--worker", action="store_true", help="Consume RabbitMQ events forever, NO API port — scalable worker for the container split (needs DB)")
     grp.add_argument("--consume-commands", action="store_true", help="Consume only Backoffice moderation commands (needs DB; no FastAPI port)")
     grp.add_argument("--consume-sessions", action="store_true", help="Consume only Messor scrape-session run summaries (B12.1; needs DB; no FastAPI port)")
     grp.add_argument("--fixture", metavar="PATH", help="Process one fixture event end-to-end (needs DB)")
