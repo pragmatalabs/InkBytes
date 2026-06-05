@@ -190,13 +190,26 @@ class LlmService:
         if self._stub_mode:
             return _stub_response(response_model, user_content)
 
+        # Anthropic uses a top-level `system=` param; OpenAI folds it into
+        # messages as {"role": "system", ...}.  Build provider-specific kwargs.
+        provider = (self.cfg.provider or "anthropic").lower()
+        if provider == "anthropic":
+            messages = [{"role": "user", "content": user_content}]
+            extra = {"system": system_prompt}
+        else:  # openai and any other OpenAI-compatible provider
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ]
+            extra = {}
+
         kwargs = dict(
             model=model,
             max_tokens=max_tokens,
             temperature=self.cfg.temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_content}],
+            messages=messages,
             response_model=response_model,
+            **extra,
         )
         label = _CALL_LABELS.get(response_model.__name__, response_model.__name__)
 
