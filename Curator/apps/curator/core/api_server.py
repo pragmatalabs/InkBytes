@@ -84,6 +84,8 @@ def build_app(app: Application) -> FastAPI:
                        ) AS outlet_names
                   FROM pages p
                   JOIN events e ON e.id = p.event_id
+                 WHERE p.published_at IS NOT NULL
+                   AND e.status = 'published'
                  ORDER BY p.freshness_at DESC NULLS LAST
                  LIMIT $1
                 """,
@@ -103,6 +105,8 @@ def build_app(app: Application) -> FastAPI:
                 SELECT p.*, e.source_count, e.article_count, e.topic
                   FROM pages p JOIN events e ON e.id = p.event_id
                  WHERE p.id = $1
+                   AND p.published_at IS NOT NULL
+                   AND e.status = 'published'
                 """,
                 event_id,
             )
