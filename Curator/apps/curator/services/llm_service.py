@@ -67,7 +67,7 @@ def _build_client(cfg: LlmCfg):
             return None  # stub mode
         import instructor
         from anthropic import AsyncAnthropic, BadRequestError
-        from tenacity import retry_if_not_exception_type, stop_after_attempt
+        from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
 
         # Do NOT retry HTTP 400 errors (BadRequestError) — they are permanent
         # failures: usage limits, invalid requests, bad prompts. Only transient
@@ -75,7 +75,7 @@ def _build_client(cfg: LlmCfg):
         logger.info("LlmService using Anthropic provider (model=%s)", cfg.enrich_model)
         return instructor.from_anthropic(
             AsyncAnthropic(api_key=cfg.api_key),
-            max_retries=instructor.Retrying(
+            max_retries=Retrying(
                 stop=stop_after_attempt(3),
                 retry=retry_if_not_exception_type(BadRequestError),
                 reraise=True,
@@ -87,12 +87,12 @@ def _build_client(cfg: LlmCfg):
             return None  # stub mode
         import instructor
         from openai import AsyncOpenAI, BadRequestError as OpenAIBadRequestError
-        from tenacity import retry_if_not_exception_type, stop_after_attempt
+        from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
 
         logger.info("LlmService using OpenAI provider (model=%s)", cfg.enrich_model)
         return instructor.from_openai(
             AsyncOpenAI(api_key=cfg.openai_api_key),
-            max_retries=instructor.Retrying(
+            max_retries=Retrying(
                 stop=stop_after_attempt(3),
                 retry=retry_if_not_exception_type(OpenAIBadRequestError),
                 reraise=True,
