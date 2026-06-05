@@ -582,3 +582,62 @@ class Application:
             "reenrich-missing complete: %d done, %d errors",
             done, errors,
         )
+
+    async def run_reenrich_stubs(self) -> None:
+        """Re-enrich articles that were processed in stub mode.
+
+        Stub mode writes topic='General News' and keywords=['news','stub'].
+        These articles have topic IS NOT NULL so --reenrich-missing misses them.
+        This mode detects them via 'stub' = ANY(keywords_canonical) and runs the
+        full ENRICH → EMBED → CLUSTER → SYNTHESIZE pipeline with the real LLM,
+        overwriting the fake data.  Stub pages are overwritten by re-synthesis.
+        """
+        rows = await self.db.fetch_stub_enriched_articles()
+        total = len(rows)
+        logger.info("reenrich-stubs: found %d stub-enriched articles to reprocess", total)
+        if not total:
+            logger.info("reenrich-stubs: nothing to do.")
+            return
+
+        sem = asyncio.Semaphore(self.cfg.application.max_concurrent_articles)
+        done = 0
+        errors = 0
+        quota_hit = False
+
+        async def one(row: dict[str, Any]) -> None:
+            nonlocal done, errors, quota_hit
+            async with sem:
+                if quota_hit:
+                    return
+                try:
+                    await self._reenrich_article(row)
+                    done += 1
+                    if done % 50 == 0:
+                        logger.info(
+                            "reenrich-stubs progress: %d/%d done, %d errors",
+                            done, total, errors,
+                        )
+                except LlmQuotaError:
+                    quota_hit = True
+                    raise
+                except Exception:
+                    logger.exception(
+                        "reenrich-stubs: error on article %s — skipping",
+                        row.get("id"),
+                    )
+                    errors += 1
+
+        try:
+            await asyncio.gather(*(one(r) for r in rows), return_exceptions=False)
+        except LlmQuotaError:
+            logger.critical(
+                "Quota exhausted during reenrich-stubs (%d/%d done). "
+                "Re-run when quota resets.",
+                done, total,
+            )
+            return
+
+        logger.info(
+            "reenrich-stubs complete: %d done, %d errors",
+            done, errors,
+        )

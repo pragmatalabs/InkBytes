@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "reader",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "--prefix", "../Reader/apps/web", "dev", "--", "-p", "3001"],
+      "port": 3001,
+      "autoPort": false
+    }
+  ]
+}

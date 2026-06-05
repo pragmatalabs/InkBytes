@@ -251,6 +251,30 @@ class DatabaseService:
             )
         return [dict(r) for r in rows]
 
+    async def fetch_stub_enriched_articles(self) -> list[dict[str, Any]]:
+        """Fetch articles enriched in stub mode (keywords_canonical contains 'stub').
+
+        Stub enrichment writes topic='General News', keywords=['news','stub'],
+        entities=[{name:'Stubbed Entity'}].  These rows have topic IS NOT NULL so
+        fetch_unenriched_articles() misses them.  Use this for `--reenrich-stubs`
+        to overwrite fake data with a real LLM pass.
+        """
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                """
+                SELECT id, outlet_id, outlet_name, url, canonical_url,
+                       title, body_text, language, published_at,
+                       scraped_at, word_count, spaces_key
+                  FROM articles
+                 WHERE 'stub' = ANY(keywords_canonical)
+                   AND body_text IS NOT NULL
+                 ORDER BY scraped_at
+                """
+            )
+        return [dict(r) for r in rows]
+
     async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:
         """Rows to (re-)embed. only_missing=True → just NULL embeddings;
         False → ALL articles with body_text (a full corpus re-embed)."""

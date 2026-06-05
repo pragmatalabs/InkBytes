@@ -90,11 +90,13 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_session_consumer()
         elif args.reenrich_missing:
             await app.run_reenrich_missing()
+        elif args.reenrich_stubs:
+            await app.run_reenrich_stubs()
         elif args.api_only:
             assert api_task is not None
             await api_task
         else:
-            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, or --reenrich-missing.")
+            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, --reenrich-missing, or --reenrich-stubs.")
     finally:
         # Stop uvicorn cleanly (sets the should_exit flag and awaits its loop).
         if server is not None and api_task is not None:
@@ -124,6 +126,15 @@ def main() -> int:
         help=(
             "Re-enrich articles already in the DB that are missing enrichment "
             "(topic IS NULL). Use after quota recovery."
+        ),
+    )
+    grp.add_argument(
+        "--reenrich-stubs",
+        action="store_true",
+        help=(
+            "Re-enrich articles that were processed in stub mode "
+            "(keywords_canonical contains 'stub'). Overwrites fake topic/entity "
+            "data and re-synthesizes any stub pages."
         ),
     )
     args = parser.parse_args()
