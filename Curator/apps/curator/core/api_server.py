@@ -70,7 +70,7 @@ def build_app(app: Application) -> FastAPI:
         }
 
     @api.get("/events")
-    async def list_events(limit: int = 20) -> list[dict[str, Any]]:
+    async def list_events(limit: int = 100) -> list[dict[str, Any]]:
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
                 """

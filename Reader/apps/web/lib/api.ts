@@ -8,8 +8,8 @@ async function apiFetch<T>(path: string, revalidate = 300): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function getEvents(): Promise<EventSummary[]> {
-  return apiFetch<EventSummary[]>("/events", 60);
+export function getEvents(limit = 100): Promise<EventSummary[]> {
+  return apiFetch<EventSummary[]>(`/events?limit=${limit}`, 60);
 }
 
 export function getEvent(id: string): Promise<EventPage> {
