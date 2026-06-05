@@ -222,8 +222,14 @@ class LlmService:
                 result, completion = await messages_api.create_with_completion(**kwargs)
                 try:
                     usage = completion.usage
+                    # Anthropic: input_tokens/output_tokens
+                    # OpenAI:    prompt_tokens/completion_tokens
+                    in_tok  = getattr(usage, "input_tokens",  None) \
+                           or getattr(usage, "prompt_tokens",  0)
+                    out_tok = getattr(usage, "output_tokens", None) \
+                           or getattr(usage, "completion_tokens", 0)
                     self.meter.record(
-                        label, usage.input_tokens, usage.output_tokens,
+                        label, in_tok, out_tok,
                         model=model, event_id=event_id,
                     )
                 except Exception:
