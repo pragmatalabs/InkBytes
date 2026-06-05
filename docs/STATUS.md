@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B14 shipped — embedding provider admin settings; ADR-0004 fully closed)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (D7 — continuous cycle wired: cycle.sh, prod compose gains Messor, Docker RabbitMQ env-var fix)*
 
 ## TL;DR
 
@@ -581,8 +581,22 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
      stub text.~~ **Resolved** — regenerated with real content (`is_stub=false`). *Lesson
      retained: verify re-synthesize against a throwaway event, never live data.*
 1. **Deploy (D6):** nothing on DigitalOcean yet. Needs `.do/app.yaml` / prod compose.
-2. **Pages from a real scheduled cycle:** the 29 pages came from manual 3-outlet runs +
-   a one-off recluster. Wire `--schedule` for continuous operation.
+2. **Continuous cycle (D7) — wired (2026-06-04):**
+   - **`orchestrator/scripts/cycle.sh`** — native-Python start/stop/status/logs script.
+     Starts Messor `--schedule` (harvest every 60 min + API :8050) + Curator `--consume`
+     (articles + commands + session summaries) as background processes with PID files +
+     log files under `orchestrator/logs/`.
+     Usage: `bash orchestrator/scripts/cycle.sh [start|stop|status|logs]`
+   - **Messor Docker RabbitMQ fix** — `message_service.py` now reads `RABBITMQ_HOST`,
+     `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASS` from env vars first (fallback to
+     YAML). Fixes Docker Messor containers which had `__SET_VIA_ENV__` as a literal host.
+   - **Prod compose gains Messor** — `docker-compose.prod.yaml` now includes the `messor`
+     service (Dockerfile CMD: `--schedule`; env: `RABBITMQ_*` + `DO_SPACES_*`; port :8050;
+     health-check on `/api/outlets`). Backoffice's B6 health / B4 run-history will reach
+     it once D6 lands.
+   - **Still needed:** run `bash orchestrator/scripts/cycle.sh start` then verify DB counts
+     grow after one cycle (~60 min); Backoffice B11 alert thresholds may need tuning once
+     the cycle is live.
 3. **Outlet coverage:** EN (CNN/NPR/AP) plus LATAM/ES (Infobae, Milenio, El Universal MX,
    Listín Diario, El Espectador, clarín, animalpolítico…) now exercised via the Messor
    admin client. Broaden + schedule for full coverage.

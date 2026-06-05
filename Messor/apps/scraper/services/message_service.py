@@ -11,6 +11,7 @@ Copyright: © 2025 InkBytes Technologies
 """
 
 import json
+import os
 import threading
 import time
 import pika
@@ -95,19 +96,21 @@ class MessageService:
         """Establish connection to RabbitMQ server."""
         self.logger.info("Connecting to RabbitMQ")
         try:
-            # Get connection parameters from config
-            host = self.config.rabbitmq.host()
-            port = int(self.config.rabbitmq.port())
-            
+            # Get connection parameters — env vars take precedence so Docker
+            # containers work without a mounted env.local.yaml. Fallback to
+            # YAML for local dev (env.local.yaml has the real values).
+            host = os.getenv("RABBITMQ_HOST") or self.config.rabbitmq.host()
+            port = int(os.getenv("RABBITMQ_PORT") or self.config.rabbitmq.port())
+
             # Use default virtual_host if not in config
             try:
                 virtual_host = self.config.rabbitmq.virtual_host()
             except AttributeError:
                 virtual_host = "/"
                 self.logger.info("Virtual host not specified, using default '/'")
-            
-            username = self.config.rabbitmq.username()
-            password = self.config.rabbitmq.password()
+
+            username = os.getenv("RABBITMQ_USER") or self.config.rabbitmq.username()
+            password = os.getenv("RABBITMQ_PASS") or self.config.rabbitmq.password()
             
             # Use default for heartbeat if not in config
             try:
