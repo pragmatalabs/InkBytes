@@ -36,6 +36,8 @@ class CuratorSetting extends Model
         'embeddings_provider',
         'embeddings_model',
         'embeddings_base_url',
+        // B15: LLM provider (anthropic | openai). Curator live-polls and rebuilds its client.
+        'llm_provider',
     ];
 
     protected $casts = [

@@ -37,6 +37,9 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "max_tokens_enrich":      ("llm", "max_tokens_enrich"),
     "max_tokens_synth":       ("llm", "max_tokens_synth"),
     "temperature":            ("llm", "temperature"),
+    # LLM provider live-switch (ADR-0004). The Backoffice column is `llm_provider`;
+    # API keys stay env-only and are intentionally NOT in this map.
+    "llm_provider":           ("llm", "provider"),
     "similarity_threshold":   ("clustering", "similarity_threshold"),
     "entity_overlap_min":     ("clustering", "entity_overlap_min"),
     "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
@@ -73,7 +76,8 @@ class LlmCfg(BaseModel):
     max_tokens_enrich: int = 1500
     max_tokens_synth: int = 2500
     temperature: float = 0.2
-    api_key: str = PLACEHOLDER
+    api_key: str = PLACEHOLDER          # Anthropic key — env: ANTHROPIC_API_KEY
+    openai_api_key: str = PLACEHOLDER   # OpenAI key — env: OPENAI_API_KEY; used when provider=openai
     # Standard list prices for cost accounting. Defaults = Claude Haiku 4.5
     # ($1/M input, $5/M output). Override in env if you use batch (~50% off)
     # or switch models. Verify against platform.claude.com/docs pricing.
@@ -247,4 +251,9 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         val = os.environ.get(env_var)
         if val:
             data[section][key] = val
+    # OPENAI_API_KEY also feeds llm.openai_api_key so LlmService can use OpenAI
+    # as the LLM backend when llm.provider=openai (separate from embeddings key).
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        data["llm"]["openai_api_key"] = openai_key
     return CuratorConfig.model_validate(data)

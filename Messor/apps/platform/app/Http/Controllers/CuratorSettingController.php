@@ -55,6 +55,8 @@ class CuratorSettingController extends Controller
                 'embeddings_provider' => $settings->embeddings_provider,
                 'embeddings_model' => $settings->embeddings_model,
                 'embeddings_base_url' => $settings->embeddings_base_url,
+                // B15: LLM provider (anthropic | openai). Curator live-polls.
+                'llm_provider' => $settings->llm_provider,
                 'updated_at' => $settings->updated_at?->toIso8601String(),
             ],
             // B9: drive the model dropdowns from the allowlist (no free text).
@@ -66,13 +68,15 @@ class CuratorSettingController extends Controller
             'embeddingProviders' => config('curator.allowed_embeddings.providers'),
             'embeddingModels' => config('curator.allowed_embeddings.models'),
             'embeddingDimensions' => $dimsByModel,
+            // B15: LLM provider/model allowlists. The UI drives both dropdowns
+            // from these so a typo'd provider or model id can never reach Curator.
+            'llmProviders' => config('curator.allowed_llm.providers'),
+            'llmModels' => config('curator.allowed_llm.models'),
         ]);
     }
 
     public function update(Request $request): RedirectResponse
     {
-        $enrichModels = config('curator.allowed_models.enrich');
-        $synthesizeModels = config('curator.allowed_models.synthesize');
         $embeddingProviders = config('curator.allowed_embeddings.providers');
         $modelsByProvider = config('curator.allowed_embeddings.models');
         // Validate the embedding model against the SELECTED provider's list, so
@@ -81,11 +85,24 @@ class CuratorSettingController extends Controller
         $allowedEmbeddingModels = $modelsByProvider[$selectedProvider]
             ?? array_merge(...array_values($modelsByProvider));
 
+        // B15: validate enrich/synthesize models against the SELECTED LLM provider's
+        // list, so (e.g.) a GPT model can't be saved under provider=anthropic.
+        $llmProviders = config('curator.allowed_llm.providers');
+        $llmModelsByProvider = config('curator.allowed_llm.models');
+        $selectedLlmProvider = $request->input('llm_provider');
+        $allowedEnrichModels = $llmModelsByProvider[$selectedLlmProvider]['enrich']
+            ?? array_merge(...array_column(array_values($llmModelsByProvider), 'enrich'));
+        $allowedSynthModels = $llmModelsByProvider[$selectedLlmProvider]['synthesize']
+            ?? array_merge(...array_column(array_values($llmModelsByProvider), 'synthesize'));
+
         $data = $request->validate([
-            // B9: model ids must be on the allowlist — a typo'd id would
-            // otherwise be polled by Curator (ADR-0004) and break the pipeline.
-            'enrich_model' => ['required', 'string', Rule::in($enrichModels)],
-            'synthesize_model' => ['required', 'string', Rule::in($synthesizeModels)],
+            // B15: LLM provider from the allowlist; model ids validated per-provider.
+            'llm_provider' => ['required', 'string', Rule::in($llmProviders)],
+            // B9 (updated B15): model ids validated against the selected LLM provider's
+            // list — a typo'd id or cross-provider mismatch would otherwise be polled
+            // by Curator (ADR-0004) and break the pipeline.
+            'enrich_model' => ['required', 'string', Rule::in($allowedEnrichModels)],
+            'synthesize_model' => ['required', 'string', Rule::in($allowedSynthModels)],
             'max_tokens_enrich' => ['required', 'integer', 'between:1,32000'],
             'max_tokens_synth' => ['required', 'integer', 'between:1,32000'],
             'temperature' => ['required', 'numeric', 'between:0,1'],
@@ -102,8 +119,9 @@ class CuratorSettingController extends Controller
             'embeddings_model' => ['required', 'string', Rule::in($allowedEmbeddingModels)],
             'embeddings_base_url' => ['nullable', 'string', 'url', 'required_if:embeddings_provider,ollama'],
         ], [
-            'enrich_model.in' => 'Enrich model must be one of the allowed Anthropic model ids: '.implode(', ', $enrichModels).'.',
-            'synthesize_model.in' => 'Synthesize model must be one of the allowed Anthropic model ids: '.implode(', ', $synthesizeModels).'.',
+            'llm_provider.in' => 'LLM provider must be one of: '.implode(', ', $llmProviders).'.',
+            'enrich_model.in' => 'Enrich model must be one allowed for the selected LLM provider ('.($selectedLlmProvider ?? '?').'): '.implode(', ', $allowedEnrichModels).'.',
+            'synthesize_model.in' => 'Synthesize model must be one allowed for the selected LLM provider ('.($selectedLlmProvider ?? '?').'): '.implode(', ', $allowedSynthModels).'.',
             'embeddings_model.in' => 'Embedding model must be one allowed for the selected provider: '.implode(', ', $allowedEmbeddingModels).'.',
             'embeddings_base_url.required_if' => 'A base URL is required for the Ollama provider (e.g. http://ollama:11434/v1).',
         ]);

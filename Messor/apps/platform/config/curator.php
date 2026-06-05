@@ -77,6 +77,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Allowed LLM providers + models (B15)
+    |--------------------------------------------------------------------------
+    |
+    | The Settings page drives provider + model dropdowns from these lists and
+    | the update request validates against them (no free text). Curator polls
+    | llm_provider and LIVE-rebuilds its LLM client within the refresh interval
+    | (no redeploy — ADR-0004).
+    |
+    | Models are split per task (enrich / synthesize) so each can be tuned
+    | independently (e.g. Haiku for enrichment, Sonnet for synthesis).
+    */
+    'allowed_llm' => [
+        'providers' => ['anthropic', 'openai'],
+        'models' => [
+            'anthropic' => [
+                'enrich'     => ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
+                'synthesize' => ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
+            ],
+            'openai' => [
+                'enrich'     => ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1'],
+                'synthesize' => ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1'],
+            ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Canonical defaults
     |--------------------------------------------------------------------------
     |
@@ -87,6 +114,8 @@ return [
     'defaults' => [
         'enrich_model' => 'claude-haiku-4-5',
         'synthesize_model' => 'claude-haiku-4-5',
+        // B15: LLM provider. Default matches Curator's built-in config.py default.
+        'llm_provider' => 'anthropic',
         'max_tokens_enrich' => 1500,
         'max_tokens_synth' => 2500,
         'temperature' => 0.20,

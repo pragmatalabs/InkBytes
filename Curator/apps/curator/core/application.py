@@ -7,11 +7,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from contracts.article_v1 import ArticleScrapedEvent
+from contracts.article_v1 import ArticleScrapedEvent, _Outlet
+from contracts.article_v1 import ArticleV1
 from core.config import CuratorConfig
 from services.database_service import DatabaseService
 from services.embedding_service import EmbeddingService
-from services.llm_service import LlmService
+from services.llm_service import LlmService, LlmQuotaError
 from services.message_service import MessageService
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
@@ -114,6 +115,23 @@ class Application:
                 )
             elif result.get("reason") == "probe_failed":
                 self.embeddings_blocked = f"embedder unreachable: {result.get('error')}"
+        # LLM provider/model live-switch (ADR-0004). Synchronous — no network
+        # probe needed. Failures keep the existing client running.
+        llm_result = self.llm.reconfigure(self.cfg.llm)
+        if llm_result.get("changed"):
+            if llm_result.get("applied"):
+                logger.info(
+                    "LLM provider/model switched to %s/%s (synth=%s)",
+                    self.cfg.llm.provider,
+                    self.cfg.llm.enrich_model,
+                    self.cfg.llm.synthesize_model,
+                )
+            else:
+                logger.error(
+                    "LLM reconfigure failed: %s — keeping current client. %s",
+                    llm_result.get("reason"),
+                    llm_result.get("error"),
+                )
         return changed
 
     async def _config_refresh_loop(self) -> None:
@@ -448,3 +466,119 @@ class Application:
                     cluster_result.source_count,
                     self.cfg.clustering.min_sources_to_publish,
                 )
+
+    # ──────────────────────────────────────── reenrich-missing ──────
+    async def _reenrich_article(self, row: dict[str, Any]) -> None:
+        """Enrich, embed, cluster, and optionally synthesize one unenriched article.
+
+        The article is reconstructed from the raw DB row (body_text → text,
+        outlet_id + outlet_name → _Outlet). Existing enrichment writes are
+        overwritten so this is idempotent on re-run.
+        """
+        article = ArticleV1(
+            id=row["id"],
+            outlet=_Outlet(id=row["outlet_id"], name=row["outlet_name"]),
+            url=row["url"],
+            canonical_url=row.get("canonical_url"),
+            title=row["title"],
+            text=row["body_text"],
+            language=row["language"],
+            published_at=row.get("published_at"),
+            scraped_at=row["scraped_at"],
+            word_count=row["word_count"] or 0,
+        )
+
+        # 1. ENRICH
+        enrichment = await self.enrich.run(article)
+
+        # 2. EMBED
+        embedding = await self.embed.embed(f"{article.title}\n\n{article.text[:4000]}")
+
+        # 3. Write enrichment to DB
+        await self.db.write_enrichment(
+            article.id,
+            topic=enrichment.topic,
+            sentiment=enrichment.sentiment,
+            factuality=enrichment.factuality,
+            summary_50w=enrichment.summary_50w,
+            keywords_canonical=enrichment.keywords_canonical,
+            embedding=embedding,
+            entities=[e.model_dump() for e in enrichment.entities],
+        )
+
+        # 4. CLUSTER
+        cluster_result = await self.cluster.run(
+            article_id=article.id,
+            embedding=embedding,
+            entities=[e.model_dump() for e in enrichment.entities],
+            outlet_id=article.outlet.id,
+            language=article.language,
+            scraped_at=article.scraped_at,
+        )
+
+        # 5. SYNTHESIZE if cluster has enough sources
+        if cluster_result.source_count >= self.cfg.clustering.min_sources_to_publish:
+            await self.synthesize.run(cluster_result.event_id)
+
+        logger.info("reenriched %s (%s)", article.id, article.outlet.name)
+
+    async def run_reenrich_missing(self) -> None:
+        """Re-enrich articles already in the DB that are missing enrichment.
+
+        Fetches articles where topic IS NULL AND body_text IS NOT NULL, then
+        runs the full ENRICH → EMBED → CLUSTER → SYNTHESIZE pipeline on each
+        with bounded concurrency.
+
+        On LlmQuotaError the batch is aborted immediately (quota is hard wall).
+        Other per-article errors are logged + skipped so one bad article never
+        kills the rest.
+        """
+        rows = await self.db.fetch_unenriched_articles()
+        total = len(rows)
+        logger.info("reenrich-missing: found %d articles to process", total)
+        if not total:
+            logger.info("reenrich-missing: nothing to do.")
+            return
+
+        sem = asyncio.Semaphore(self.cfg.application.max_concurrent_articles)
+        done = 0
+        errors = 0
+        quota_hit = False
+
+        async def one(row: dict[str, Any]) -> None:
+            nonlocal done, errors, quota_hit
+            async with sem:
+                if quota_hit:
+                    return
+                try:
+                    await self._reenrich_article(row)
+                    done += 1
+                    if done % 50 == 0:
+                        logger.info(
+                            "reenrich-missing progress: %d/%d done, %d errors",
+                            done, total, errors,
+                        )
+                except LlmQuotaError:
+                    quota_hit = True
+                    raise
+                except Exception:
+                    logger.exception(
+                        "reenrich-missing: error on article %s — skipping",
+                        row.get("id"),
+                    )
+                    errors += 1
+
+        try:
+            await asyncio.gather(*(one(r) for r in rows), return_exceptions=False)
+        except LlmQuotaError:
+            logger.critical(
+                "Quota exhausted during reenrich-missing (%d/%d done). "
+                "Re-run when quota resets.",
+                done, total,
+            )
+            return
+
+        logger.info(
+            "reenrich-missing complete: %d done, %d errors",
+            done, errors,
+        )

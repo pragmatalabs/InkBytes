@@ -1,7 +1,14 @@
-"""LLM service — wraps Anthropic via `instructor` for structured outputs.
+"""LLM service — wraps Anthropic or OpenAI via `instructor` for structured outputs.
 
-If ANTHROPIC_API_KEY is not set, falls back to a deterministic stub so the
+If the relevant API key is not set, falls back to a deterministic stub so the
 pipeline can be developed offline (D2). Real calls land on D3.
+
+Providers
+---------
+anthropic (default) — AsyncAnthropic via instructor.from_anthropic.
+openai              — AsyncOpenAI via instructor.from_openai. Switch via
+                      llm.provider=openai in config or the Backoffice live
+                      setting `llm_provider`. Key: OPENAI_API_KEY (env only).
 
 Error taxonomy
 --------------
@@ -36,35 +43,125 @@ class LlmQuotaError(RuntimeError):
 _CALL_LABELS = {"EnrichmentResult": "enrich", "PageV1": "synth"}
 
 
-class LlmService:
-    def __init__(self, cfg: LlmCfg) -> None:
-        self.cfg = cfg
-        self._client = None
-        self._stub_mode = cfg.api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "")
-        self.meter = CostMeter(cfg.price_in_per_mtok, cfg.price_out_per_mtok)
-        if self._stub_mode:
-            logger.warning("LlmService running in STUB mode (no ANTHROPIC_API_KEY)")
-        else:
-            self._client = self._build_client()
+def _signature(cfg: LlmCfg) -> tuple:
+    """Return the fields that identify a unique client configuration.
 
-    def _build_client(self):
-        # Late import so the package installs without anthropic when stubbing.
-        # AsyncAnthropic (not Anthropic) so we can `await client.messages.create(...)`.
+    Used by `LlmService.reconfigure` to detect whether a rebuild is needed:
+    if the signature is the same the provider/models haven't changed (only
+    api_key / price fields might have drifted, which are applied in-place).
+    """
+    return (cfg.provider, cfg.enrich_model, cfg.synthesize_model)
+
+
+def _build_client(cfg: LlmCfg):
+    """Factory: build an instructor-wrapped async LLM client from cfg.
+
+    Supports provider='anthropic' (default) and provider='openai'.
+    Returns None when the relevant API key is a placeholder (stub mode).
+    Raises if an unsupported provider is requested.
+    """
+    provider = cfg.provider
+
+    if provider == "anthropic":
+        if cfg.api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", ""):
+            return None  # stub mode
         import instructor
         from anthropic import AsyncAnthropic, BadRequestError
         from tenacity import retry_if_not_exception_type, stop_after_attempt
 
         # Do NOT retry HTTP 400 errors (BadRequestError) — they are permanent
-        # failures: usage limits, invalid requests, bad prompts.  Only transient
+        # failures: usage limits, invalid requests, bad prompts. Only transient
         # errors (network blips, 5xx) should be retried.
+        logger.info("LlmService using Anthropic provider (model=%s)", cfg.enrich_model)
         return instructor.from_anthropic(
-            AsyncAnthropic(api_key=self.cfg.api_key),
+            AsyncAnthropic(api_key=cfg.api_key),
             max_retries=instructor.Retrying(
                 stop=stop_after_attempt(3),
                 retry=retry_if_not_exception_type(BadRequestError),
                 reraise=True,
             ),
         )
+
+    if provider == "openai":
+        if cfg.openai_api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", ""):
+            return None  # stub mode
+        import instructor
+        from openai import AsyncOpenAI, BadRequestError as OpenAIBadRequestError
+        from tenacity import retry_if_not_exception_type, stop_after_attempt
+
+        logger.info("LlmService using OpenAI provider (model=%s)", cfg.enrich_model)
+        return instructor.from_openai(
+            AsyncOpenAI(api_key=cfg.openai_api_key),
+            max_retries=instructor.Retrying(
+                stop=stop_after_attempt(3),
+                retry=retry_if_not_exception_type(OpenAIBadRequestError),
+                reraise=True,
+            ),
+        )
+
+    raise ValueError(f"Unsupported LLM provider: {provider!r}. Use 'anthropic' or 'openai'.")
+
+
+def _is_stub_mode(cfg: LlmCfg) -> bool:
+    """Return True when the relevant API key is unset for the chosen provider."""
+    if cfg.provider == "openai":
+        return cfg.openai_api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "")
+    return cfg.api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "")
+
+
+class LlmService:
+    def __init__(self, cfg: LlmCfg) -> None:
+        self.cfg = cfg
+        self._stub_mode = _is_stub_mode(cfg)
+        self._signature = _signature(cfg)
+        self.meter = CostMeter(cfg.price_in_per_mtok, cfg.price_out_per_mtok)
+        if self._stub_mode:
+            logger.warning(
+                "LlmService running in STUB mode (no API key for provider=%s)",
+                cfg.provider,
+            )
+            self._client = None
+        else:
+            self._client = _build_client(cfg)
+
+    def reconfigure(self, cfg: LlmCfg) -> dict:
+        """Hot-swap the LLM client when the provider or models change.
+
+        Mirrors the pattern in EmbeddingService.reconfigure (ADR-0004).
+        Synchronous — no network probe needed for the LLM client.
+
+        Returns:
+            {"changed": False}                                — same signature
+            {"changed": True, "applied": True}               — rebuilt OK
+            {"changed": True, "applied": False, "reason": "build_failed",
+             "error": str}                                    — rebuild failed
+        """
+        new_sig = _signature(cfg)
+        if new_sig == self._signature:
+            # Signature unchanged — update cfg in place (refreshes api keys).
+            self.cfg = cfg
+            return {"changed": False}
+
+        # Signature changed — attempt to rebuild the client.
+        try:
+            new_client = _build_client(cfg)
+            new_stub = _is_stub_mode(cfg)
+        except Exception as exc:
+            logger.error(
+                "LlmService reconfigure failed (provider=%s): %s",
+                cfg.provider, exc,
+            )
+            return {"changed": True, "applied": False, "reason": "build_failed", "error": str(exc)}
+
+        self._client = new_client
+        self._stub_mode = new_stub
+        self._signature = new_sig
+        self.cfg = cfg
+        logger.info(
+            "LlmService reconfigured: provider=%s enrich_model=%s synthesize_model=%s stub=%s",
+            cfg.provider, cfg.enrich_model, cfg.synthesize_model, new_stub,
+        )
+        return {"changed": True, "applied": True}
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -126,8 +223,15 @@ class LlmService:
             # Surface API quota exhaustion as LlmQuotaError immediately — no
             # point retrying a hard monthly spend cap (the retry config already
             # skips BadRequestError, but instructor may wrap it).
+            # Covers both Anthropic ("usage limits", "you have reached") and
+            # OpenAI ("exceeded your current quota", "insufficient_quota").
             raw = str(exc).lower()
-            if "usage limits" in raw or "you have reached" in raw:
+            if (
+                "usage limits" in raw
+                or "you have reached" in raw
+                or ("exceeded" in raw and "quota" in raw)
+                or "insufficient_quota" in raw
+            ):
                 raise LlmQuotaError(str(exc)) from exc
             raise
 

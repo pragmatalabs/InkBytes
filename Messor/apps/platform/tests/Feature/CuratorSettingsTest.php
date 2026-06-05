@@ -227,6 +227,72 @@ class CuratorSettingsTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'settings.reset')->count());
     }
 
+    // ── B15: LLM provider switching ──────────────────────────────────────
+
+    /** B15: llm_provider=openai with a valid OpenAI model persists. */
+    public function test_update_persists_llm_provider(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload([
+                'llm_provider' => 'openai',
+                'enrich_model' => 'gpt-4o-mini',
+                'synthesize_model' => 'gpt-4o-mini',
+            ]))
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHasNoErrors();
+
+        $s = CuratorSetting::current();
+        $this->assertSame('openai', $s->llm_provider);
+        $this->assertSame('gpt-4o-mini', $s->enrich_model);
+        $this->assertSame('gpt-4o-mini', $s->synthesize_model);
+    }
+
+    /** B15: an unknown LLM provider is rejected. */
+    public function test_update_rejects_unknown_llm_provider(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload(['llm_provider' => 'cohere']))
+            ->assertSessionHasErrors('llm_provider');
+    }
+
+    /** B15: an OpenAI model under provider=anthropic is rejected. */
+    public function test_update_rejects_model_not_allowed_for_llm_provider(): void
+    {
+        $user = User::factory()->create();
+
+        // gpt-4o-mini is an OpenAI model — invalid under provider=anthropic.
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload([
+                'llm_provider' => 'anthropic',
+                'enrich_model' => 'gpt-4o-mini',
+            ]))
+            ->assertSessionHasErrors('enrich_model');
+    }
+
+    /** B15: reset includes llm_provider = 'anthropic' (the default). */
+    public function test_reset_includes_llm_provider(): void
+    {
+        $user = User::factory()->create();
+
+        // Move the row to OpenAI first so we can verify the reset.
+        CuratorSetting::current()->fill([
+            'llm_provider' => 'openai',
+            'enrich_model' => 'gpt-4o-mini',
+            'synthesize_model' => 'gpt-4o-mini',
+        ])->save();
+
+        $this->actingAs($user)
+            ->post('/settings/reset')
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('anthropic', CuratorSetting::current()->llm_provider);
+    }
+
     /**
      * A full, valid update payload with optional overrides.
      *
@@ -236,6 +302,8 @@ class CuratorSettingsTest extends TestCase
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
+            // B15: LLM provider (now required by the update validation).
+            'llm_provider' => 'anthropic',
             'enrich_model' => 'claude-haiku-4-5',
             'synthesize_model' => 'claude-haiku-4-5',
             'max_tokens_enrich' => 1500,

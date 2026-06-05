@@ -6,6 +6,7 @@ Modes:
   --worker                     consume RabbitMQ events forever, NO API port (scalable worker; container split)
   --api-only                   only run the FastAPI surface on :8060 (no consumer)
   --fixture <path>             process one event from a JSON fixture (offline-safe)
+  --reenrich-missing           re-enrich articles in the DB that are missing enrichment (topic IS NULL)
 
 Container topology (root ADR-0007): run one `--api-only` (the :8060 read surface)
 plus N `--worker` replicas (the LLM pipeline). `--consume` (API+worker combined)
@@ -15,6 +16,7 @@ Examples:
   python main.py --consume
   python main.py --worker
   python main.py --fixture fixtures/sample_article.json
+  python main.py --reenrich-missing
 """
 from __future__ import annotations
 
@@ -50,7 +52,10 @@ async def _run(args: argparse.Namespace) -> None:
     app = Application(cfg)
 
     # --dry-run skips Postgres entirely (LLM-only path for prompt iteration).
+    # --reenrich-missing always needs DB (fetches + writes enrichment rows).
     needs_db = not args.dry_run
+    if args.reenrich_missing:
+        needs_db = True
     await app.startup(with_db=needs_db)
 
     # FastAPI surface only when DB is up (status/events endpoints query it).
@@ -58,8 +63,8 @@ async def _run(args: argparse.Namespace) -> None:
     # (fixture) skip it — the embedded server would just confuse the output.
     api_task: asyncio.Task | None = None
     server: uvicorn.Server | None = None
-    # --consume-commands is a focused harness (Phase 2.3) that must NOT bind the
-    # FastAPI port, so it can run alongside an existing --api-only Curator.
+    # --consume-commands / --reenrich-missing are focused one-shot/focused harnesses
+    # that must NOT bind the FastAPI port.
     long_running = args.consume or args.api_only
     if needs_db and long_running:
         api = build_app(app)
@@ -83,11 +88,13 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_command_consumer()
         elif args.consume_sessions:
             await app.run_session_consumer()
+        elif args.reenrich_missing:
+            await app.run_reenrich_missing()
         elif args.api_only:
             assert api_task is not None
             await api_task
         else:
-            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, or --dry-run <path>.")
+            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, or --reenrich-missing.")
     finally:
         # Stop uvicorn cleanly (sets the should_exit flag and awaits its loop).
         if server is not None and api_task is not None:
@@ -111,6 +118,14 @@ def main() -> int:
     grp.add_argument("--fixture", metavar="PATH", help="Process one fixture event end-to-end (needs DB)")
     grp.add_argument("--dry-run", metavar="PATH", help="Run ENRICH+embed only on a fixture; no DB required")
     grp.add_argument("--api-only", action="store_true", help="Run only the FastAPI surface (needs DB)")
+    grp.add_argument(
+        "--reenrich-missing",
+        action="store_true",
+        help=(
+            "Re-enrich articles already in the DB that are missing enrichment "
+            "(topic IS NULL). Use after quota recovery."
+        ),
+    )
     args = parser.parse_args()
 
     loop = asyncio.new_event_loop()

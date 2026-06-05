@@ -29,11 +29,17 @@ export default function SettingsIndex({
     embeddingProviders = [],
     embeddingModels = {},
     embeddingDimensions = {},
+    // B15: LLM provider/model allowlists. Drive provider + model dropdowns
+    // so a typo'd provider or cross-provider model can never reach Curator.
+    llmProviders = [],
+    llmModels = {},
 }) {
     const [resetOpen, setResetOpen] = useState(false);
     const [reembedOpen, setReembedOpen] = useState(false);
 
     const form = useForm({
+        // B15: LLM provider (anthropic | openai). Curator live-polls.
+        llm_provider: settings.llm_provider ?? 'anthropic',
         enrich_model: settings.enrich_model ?? 'claude-haiku-4-5',
         synthesize_model: settings.synthesize_model ?? 'claude-haiku-4-5',
         max_tokens_enrich: settings.max_tokens_enrich ?? 1500,
@@ -79,7 +85,26 @@ export default function SettingsIndex({
         router.post(route('settings.reembed'));
     };
 
-    // Provider change: keep the model valid for the newly-selected provider.
+    // B15: LLM provider change — keep enrich/synthesize models valid for the
+    // newly-selected provider (reset to provider's first model if the current
+    // selection isn't in that provider's list).
+    const onLlmProviderChange = (provider) => {
+        const models = llmModels[provider] ?? {};
+        const enrichModelsForProvider = models.enrich ?? [];
+        const synthModelsForProvider = models.synthesize ?? [];
+        form.setData({
+            ...form.data,
+            llm_provider: provider,
+            enrich_model: enrichModelsForProvider.includes(form.data.enrich_model)
+                ? form.data.enrich_model
+                : (enrichModelsForProvider[0] ?? ''),
+            synthesize_model: synthModelsForProvider.includes(form.data.synthesize_model)
+                ? form.data.synthesize_model
+                : (synthModelsForProvider[0] ?? ''),
+        });
+    };
+
+    // Embedding provider change: keep the model valid for the newly-selected provider.
     const onProviderChange = (provider) => {
         const models = embeddingModels[provider] ?? [];
         const model = models.includes(form.data.embeddings_model)
@@ -123,6 +148,14 @@ export default function SettingsIndex({
         />
     );
 
+    // B15: LLM provider derived state — drive enrich/synthesize dropdowns from
+    // the current provider's allowed list (falls back to the prop lists from the
+    // controller if llmModels is empty, e.g. during tests).
+    const currentLlmModels = llmModels[form.data.llm_provider] ?? {};
+    const currentEnrichModels = currentLlmModels.enrich ?? enrichModels;
+    const currentSynthModels = currentLlmModels.synthesize ?? synthesizeModels;
+    const llmProviderChanged = form.data.llm_provider !== settings.llm_provider;
+
     // Embedding tier derived state.
     const providerModels = embeddingModels[form.data.embeddings_provider] ?? [];
     const selectedDims = embeddingDimensions[form.data.embeddings_model] ?? null;
@@ -137,12 +170,57 @@ export default function SettingsIndex({
     return (
         <AppLayout
             title="Curator Settings"
-            subtitle="LLM models, token caps, clustering thresholds, and the embedding tier. Curator polls this row and applies changes without a redeploy."
+            subtitle="LLM provider, models, token caps, clustering thresholds, and the embedding tier. Curator polls this row and applies changes without a redeploy."
         >
             <Head title="Curator Settings" />
 
             <Paper component="form" onSubmit={submit} sx={{ p: 3 }}>
                 <Stack spacing={3}>
+                    {/* B15: LLM Provider section — above Models & Tokens */}
+                    <Box>
+                        <Typography variant="h6" gutterBottom>
+                            LLM Provider
+                        </Typography>
+                        <Grid container spacing={2.5}>
+                            <Grid size={{ xs: 12, md: 4 }}>
+                                <TextField
+                                    select
+                                    label="Provider"
+                                    value={form.data.llm_provider}
+                                    onChange={(e) => onLlmProviderChange(e.target.value)}
+                                    error={Boolean(form.errors.llm_provider)}
+                                    helperText={
+                                        form.errors.llm_provider ??
+                                        'Anthropic or OpenAI — Curator live-applies on next poll'
+                                    }
+                                    fullWidth
+                                >
+                                    {llmProviders.map((p) => (
+                                        <MenuItem key={p} value={p}>
+                                            {p}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
+                        </Grid>
+
+                        {form.data.llm_provider === 'openai' && (
+                            <Alert severity="info" sx={{ mt: 2 }}>
+                                Switching to OpenAI requires{' '}
+                                <code>OPENAI_API_KEY</code> in Curator's environment —
+                                LLM keys are not managed here (ADR-0004).
+                            </Alert>
+                        )}
+                        {llmProviderChanged && (
+                            <Alert severity="info" sx={{ mt: 2 }}>
+                                After saving, Curator will switch its LLM client within
+                                30 seconds (next config poll).
+                            </Alert>
+                        )}
+                    </Box>
+
+                    <Divider />
+
                     <Box>
                         <Typography variant="h6" gutterBottom>
                             Models
@@ -152,16 +230,16 @@ export default function SettingsIndex({
                                 {modelField(
                                     'enrich_model',
                                     'Enrich model',
-                                    enrichModels,
-                                    'Anthropic model used to enrich each article'
+                                    currentEnrichModels,
+                                    'Model used to enrich each article'
                                 )}
                             </Grid>
                             <Grid size={{ xs: 12, md: 6 }}>
                                 {modelField(
                                     'synthesize_model',
                                     'Synthesize model',
-                                    synthesizeModels,
-                                    'Anthropic model used to synthesize each page'
+                                    currentSynthModels,
+                                    'Model used to synthesize each page'
                                 )}
                             </Grid>
                         </Grid>
@@ -403,10 +481,10 @@ export default function SettingsIndex({
                 <DialogTitle>Reset Curator settings to defaults?</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        This restores the canonical defaults (Haiku models, token
-                        caps, temperature 0.2, clustering thresholds, local Ollama
-                        bge-m3 embeddings) and clears the monthly budget. Curator polls
-                        this row, so the change reaches the live pipeline within its
+                        This restores the canonical defaults (Anthropic provider, Haiku
+                        models, token caps, temperature 0.2, clustering thresholds, local
+                        Ollama bge-m3 embeddings) and clears the monthly budget. Curator
+                        polls this row, so the change reaches the live pipeline within its
                         refresh interval. This action is recorded in the audit log.
                     </DialogContentText>
                 </DialogContent>

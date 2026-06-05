@@ -225,6 +225,32 @@ class DatabaseService:
         except ValueError:
             return None
 
+    async def fetch_unenriched_articles(self) -> list[dict[str, Any]]:
+        """Fetch articles that have body_text but no enrichment (topic IS NULL).
+
+        Used by `--reenrich-missing` to recover from quota-interrupted runs or
+        to re-process articles that were ingested before Curator started.
+
+        Returns a list of dicts with all columns needed to reconstruct an
+        ArticleV1 and run the full ENRICH → CLUSTER → SYNTHESIZE pipeline.
+        Returns [] if the pool is not initialised.
+        """
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                """
+                SELECT id, outlet_id, outlet_name, url, canonical_url,
+                       title, body_text, language, published_at,
+                       scraped_at, word_count, spaces_key
+                  FROM articles
+                 WHERE topic IS NULL
+                   AND body_text IS NOT NULL
+                 ORDER BY scraped_at
+                """
+            )
+        return [dict(r) for r in rows]
+
     async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:
         """Rows to (re-)embed. only_missing=True → just NULL embeddings;
         False → ALL articles with body_text (a full corpus re-embed)."""

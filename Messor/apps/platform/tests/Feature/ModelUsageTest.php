@@ -234,6 +234,8 @@ class ModelUsageTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)->put('/settings', [
+            // B15: LLM provider (now required by the update validation).
+            'llm_provider' => 'anthropic',
             'enrich_model' => 'claude-haiku-4-5',
             'synthesize_model' => 'claude-haiku-4-5',
             'max_tokens_enrich' => 1500,
