@@ -55,6 +55,11 @@ class Application:
         self.synthesize = SynthesizeSkill(self.llm, self.db, cfg.llm)
         # Concurrency gate
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
+        # Per-event synthesis locks: if synthesis is already in-flight for an
+        # event, concurrent requests skip rather than pile up.  Prevents the
+        # N-articles-in-one-event → N synthesis calls explosion during batch
+        # reprocessing (each call costs ~$0.05-0.06 and rewrites the same page).
+        self._synth_locks: dict[str, asyncio.Lock] = {}
         # Background settings-refresh task (started in run_consumer).
         self._config_task: asyncio.Task | None = None
         # Embedding live-reconfigure status (ADR-0004), surfaced on /status:
@@ -413,6 +418,26 @@ class Application:
         return [dict(r) for r in rows]
 
     # ─────────────────────────────────────────── pipeline ───────────
+    async def _synthesize_once(self, event_id: str) -> None:
+        """Run synthesis for `event_id`, skipping if already in-flight.
+
+        Uses a per-event asyncio.Lock so concurrent callers (e.g. many articles
+        clustering into the same event during a batch reprocess) don't each pay
+        for a full synthesis rewrite.  The first caller runs; any concurrent
+        caller that finds the lock held logs a skip and returns immediately.
+        The lock is kept for the lifetime of the Application (dict never pruned —
+        at ~60 bytes/entry and at most tens of thousands of events, memory is
+        negligible).
+        """
+        if event_id not in self._synth_locks:
+            self._synth_locks[event_id] = asyncio.Lock()
+        lock = self._synth_locks[event_id]
+        if lock.locked():
+            logger.debug("SYNTHESIZE %s skipped — already in-flight", event_id)
+            return
+        async with lock:
+            await self.synthesize.run(event_id)
+
     async def _handle_event(self, payload: dict[str, Any]) -> None:
         async with self._sem:
             try:
@@ -458,7 +483,7 @@ class Application:
 
             # 3. SYNTHESIZE — only when the event has enough distinct sources
             if cluster_result.source_count >= self.cfg.clustering.min_sources_to_publish:
-                await self.synthesize.run(cluster_result.event_id)
+                await self._synthesize_once(cluster_result.event_id)
             else:
                 logger.info(
                     "Hold synthesize: event %s has %d/%d sources",
@@ -518,7 +543,7 @@ class Application:
 
         # 5. SYNTHESIZE if cluster has enough sources
         if cluster_result.source_count >= self.cfg.clustering.min_sources_to_publish:
-            await self.synthesize.run(cluster_result.event_id)
+            await self._synthesize_once(cluster_result.event_id)
 
         logger.info("reenriched %s (%s)", article.id, article.outlet.name)
 
