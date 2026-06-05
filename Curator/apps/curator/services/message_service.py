@@ -13,6 +13,7 @@ import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
 
 from core.config import RmqCfg
+from services.llm_service import LlmQuotaError
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,21 @@ class MessageService:
         if self.connection and not self.connection.is_closed:
             await self.connection.close()
 
-    async def consume(self, handler: MessageHandler) -> None:
-        """Subscribe to Messor's exchange and dispatch every event to `handler`."""
+    async def consume(
+        self,
+        handler: MessageHandler,
+        *,
+        on_quota_exhausted: Callable[[], None] | None = None,
+    ) -> None:
+        """Subscribe to Messor's exchange and dispatch every event to `handler`.
+
+        Error handling:
+          LlmQuotaError  → requeue=True (article preserved) + call
+                           on_quota_exhausted so the caller can stop the loop.
+          Any other error → requeue=False (article dropped after logging).
+                            The consumer DOES NOT re-raise, so the aio-pika
+                            task survives and the next message is processed.
+        """
         assert self.channel
         exchange = await self.channel.declare_exchange(
             self.cfg.consume_exchange, aio_pika.ExchangeType.TOPIC, durable=True
@@ -47,13 +61,27 @@ class MessageService:
         await queue.bind(exchange, routing_key=self.cfg.consume_routing_key)
 
         async def _on_msg(msg: AbstractIncomingMessage) -> None:
-            async with msg.process(requeue=False):
-                try:
-                    payload = json.loads(msg.body.decode("utf-8"))
-                    await handler(payload)
-                except Exception:
-                    logger.exception("handler failed for message %s", msg.message_id)
-                    raise
+            try:
+                payload = json.loads(msg.body.decode("utf-8"))
+                await handler(payload)
+                await msg.ack()
+            except LlmQuotaError as exc:
+                # Quota is a hard monthly wall — preserve the article so it can
+                # be processed when the limit resets, then signal the caller to
+                # stop consuming (no point hammering a wall).
+                await msg.nack(requeue=True)
+                logger.critical(
+                    "Anthropic API quota exhausted — article requeued. %s", exc
+                )
+                if on_quota_exhausted is not None:
+                    on_quota_exhausted()
+            except Exception:
+                # Permanent per-article failure (DB error, bad payload that
+                # slipped through, etc.) — drop and continue.
+                await msg.nack(requeue=False)
+                logger.exception(
+                    "Pipeline failed for message %s — dropping", msg.message_id
+                )
 
         await queue.consume(_on_msg)
         logger.info(

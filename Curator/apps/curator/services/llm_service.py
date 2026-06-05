@@ -2,6 +2,13 @@
 
 If ANTHROPIC_API_KEY is not set, falls back to a deterministic stub so the
 pipeline can be developed offline (D2). Real calls land on D3.
+
+Error taxonomy
+--------------
+LlmQuotaError   — monthly spend cap reached (HTTP 400 "usage limits").
+                  Non-retryable; raised immediately without hitting instructor's
+                  retry loop. The caller should requeue the article and stop
+                  consuming until the quota resets.
 """
 from __future__ import annotations
 
@@ -16,6 +23,14 @@ from services.cost_meter import CostMeter
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
+
+
+class LlmQuotaError(RuntimeError):
+    """Raised immediately when the Anthropic API monthly spend limit is reached.
+
+    Not retryable — the limit is a hard wall until the reset date embedded in
+    the error message. Callers should requeue pending work and stop consuming.
+    """
 
 # Map response_model -> short call label for cost attribution.
 _CALL_LABELS = {"EnrichmentResult": "enrich", "PageV1": "synth"}
@@ -36,8 +51,20 @@ class LlmService:
         # Late import so the package installs without anthropic when stubbing.
         # AsyncAnthropic (not Anthropic) so we can `await client.messages.create(...)`.
         import instructor
-        from anthropic import AsyncAnthropic
-        return instructor.from_anthropic(AsyncAnthropic(api_key=self.cfg.api_key))
+        from anthropic import AsyncAnthropic, BadRequestError
+        from tenacity import retry_if_not_exception_type, stop_after_attempt
+
+        # Do NOT retry HTTP 400 errors (BadRequestError) — they are permanent
+        # failures: usage limits, invalid requests, bad prompts.  Only transient
+        # errors (network blips, 5xx) should be retried.
+        return instructor.from_anthropic(
+            AsyncAnthropic(api_key=self.cfg.api_key),
+            max_retries=instructor.Retrying(
+                stop=stop_after_attempt(3),
+                retry=retry_if_not_exception_type(BadRequestError),
+                reraise=True,
+            ),
+        )
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -80,19 +107,29 @@ class LlmService:
         # accounting. Fall back to plain create() if this instructor build lacks
         # it — accounting must never break a real call.
         messages_api = self._client.messages  # type: ignore[union-attr]
-        if hasattr(messages_api, "create_with_completion"):
-            result, completion = await messages_api.create_with_completion(**kwargs)
-            try:
-                usage = completion.usage
-                self.meter.record(
-                    label, usage.input_tokens, usage.output_tokens,
-                    model=model, event_id=event_id,
-                )
-            except Exception:
-                logger.debug("token usage unavailable on completion", exc_info=True)
-            return result
+        try:
+            if hasattr(messages_api, "create_with_completion"):
+                result, completion = await messages_api.create_with_completion(**kwargs)
+                try:
+                    usage = completion.usage
+                    self.meter.record(
+                        label, usage.input_tokens, usage.output_tokens,
+                        model=model, event_id=event_id,
+                    )
+                except Exception:
+                    logger.debug("token usage unavailable on completion", exc_info=True)
+                return result
 
-        return await messages_api.create(**kwargs)
+            return await messages_api.create(**kwargs)
+
+        except Exception as exc:
+            # Surface API quota exhaustion as LlmQuotaError immediately — no
+            # point retrying a hard monthly spend cap (the retry config already
+            # skips BadRequestError, but instructor may wrap it).
+            raw = str(exc).lower()
+            if "usage limits" in raw or "you have reached" in raw:
+                raise LlmQuotaError(str(exc)) from exc
+            raise
 
 
 # ─────────────────────────────────────────────── stubs ──────────────

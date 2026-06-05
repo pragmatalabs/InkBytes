@@ -171,9 +171,24 @@ class Application:
         print("=" * 60)
 
     async def run_consumer(self) -> None:
-        """Run forever, consuming RabbitMQ events + Backoffice commands."""
+        """Run forever, consuming RabbitMQ events + Backoffice commands.
+
+        Stops cleanly when an LlmQuotaError is surfaced by the article consumer
+        (quota exhausted — articles requeued, pipeline halted until reset).
+        """
+        stop = asyncio.get_event_loop().create_future()
+
+        def _on_quota() -> None:
+            logger.critical(
+                "LLM quota exhausted — consumer stopping. "
+                "Pending articles have been requeued. "
+                "Restart the worker when the Anthropic quota resets."
+            )
+            if not stop.done():
+                stop.set_result(None)
+
         await self.mq.connect()
-        await self.mq.consume(self._handle_event)
+        await self.mq.consume(self._handle_event, on_quota_exhausted=_on_quota)
         # Messor harvest run summaries (B12.1 / ADR-0006): one event per run on
         # the same `messor` exchange. Curator upserts public.scrape_sessions so
         # the Backoffice has durable run history independent of Messor's :8050.
@@ -185,8 +200,8 @@ class Application:
         # Periodic config refresh so admin edits in the Backoffice take effect
         # without a Curator redeploy (ADR-0004 / backend-architecture §6).
         self._config_task = asyncio.create_task(self._config_refresh_loop())
-        # Keep the event loop alive until interrupted.
-        await asyncio.Future()
+        # Keep the event loop alive until interrupted or quota exhausted.
+        await stop
 
     async def run_command_consumer(self) -> None:
         """Consume ONLY the Backoffice command queue (no article pipeline).
