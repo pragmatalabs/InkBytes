@@ -511,7 +511,7 @@ class OutletController extends Controller
                 'string',
                 'max:120',
                 'regex:/^[a-z0-9][a-z0-9_-]*$/',
-                Rule::unique('public.outlets', 'id')->ignore($existingId, 'id'),
+                Rule::unique(Outlet::class, 'id')->ignore($existingId, 'id'),
             ],
             'name' => ['required', 'string', 'max:200'],
             'display_name' => ['required', 'string', 'max:200'],
