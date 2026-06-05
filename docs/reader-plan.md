@@ -82,7 +82,7 @@ is first-class**; richer surfaces (esp. the graph) degrade gracefully, never blo
 ## 7. Phasing
 | Phase | Scope | Backend dep |
 |---|---|---|
-| **R1** | **Event page → parity, desktop + mobile** (the core): DEVELOPING badge, stat cards (Sources + Coverage; Factuality deferred), drop-cap; keep citations + evidence rail + entity chips; mobile-first responsive | none (existing PageV1) |
+| **R1 ✅ done (2026-06-05)** | **Event page → parity, desktop + mobile** (the core): DEVELOPING badge, stat cards (Sources + Coverage; Factuality deferred), drop-cap; keep citations + evidence rail + entity chips; mobile-first responsive | none (existing PageV1) |
 | **R2** | Feed upgrade + nav/search (desktop + mobile) | none |
 | **R3** | Entity graph: Curator `GET /graph` endpoint → desktop force graph + mobile entity-list | **Curator `/graph`** |
 | **R4** | Global responsive / perf / SEO pass (keep SSR + OG tags) | none |
@@ -90,6 +90,17 @@ is first-class**; richer surfaces (esp. the graph) degrade gracefully, never blo
 
 **Start with R1** — highest value, no backend dependency, and it hardens the core promise on
 both desktop and mobile.
+
+> **R1 status (done 2026-06-05):** Shipped in `Reader/apps/web/app/event/[id]/page.tsx`
+> (+ `lib/api.ts` helpers `isDeveloping`/`outletInitials`, + `app/globals.css` drop-cap &
+> pulse). DEVELOPING badge, Sources/Coverage stat cards (with outlet-initials avatar stack),
+> and drop-cap all added additively; inline `Source:` citations, evidence rail, entity chips,
+> SSR, OG metadata, and `revalidate=300` preserved. Factuality + coverage sparkline deferred
+> (not in PageV1). Build green, eslint clean, SSR-verified on a real event.
+>
+> **Next 16 gotcha noted:** the `/event/[id]` route uses ISR (`revalidate=300`) + fetch cache,
+> so time-derived UI (the DEVELOPING badge) can serve a stale render after the source data's
+> recency window changes — clear `.next/cache` / restart to re-verify time-based logic locally.
 
 ## 8. Tech guardrails
 - ⚠️ **Heed [`Reader/apps/web/AGENTS.md`](../Reader/apps/web/AGENTS.md)** — "this is NOT the

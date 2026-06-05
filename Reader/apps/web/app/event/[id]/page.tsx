@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getEvent, relativeTime, parseJson } from "@/lib/api";
+import { getEvent, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
 import type { EvidenceItem, EntityItem } from "@/lib/types";
 
 export const revalidate = 300;
@@ -75,9 +75,13 @@ export default async function EventPage(
 
   const evidence = parseJson<EvidenceItem[]>(page.evidence_rail);
   const entities = parseJson<EntityItem[]>(page.entities);
+  const developing = isDeveloping(page.freshness_at);
+
+  // Outlet-initials avatar stack, de-duped, built from the evidence source names.
+  const outletNames = Array.from(new Set(evidence.map((e) => e.source_name))).slice(0, 6);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Back */}
       <Link
         href="/"
@@ -101,6 +105,12 @@ export default async function EventPage(
         </span>
         <span>·</span>
         <span>Updated {relativeTime(page.freshness_at)}</span>
+        {developing && (
+          <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-[10px] text-red-600">
+            <span className="developing-dot" aria-hidden="true" />
+            Developing
+          </span>
+        )}
         {page.language !== "en" && (
           <span className="font-mono px-1.5 py-0.5 rounded bg-gray-100 uppercase text-[10px] tracking-wide">
             {page.language}
@@ -109,7 +119,7 @@ export default async function EventPage(
       </div>
 
       {/* Headline */}
-      <h1 className="text-2xl sm:text-[1.75rem] font-bold leading-tight tracking-tight mb-7">
+      <h1 className="text-[1.6rem] sm:text-[1.75rem] md:text-3xl font-bold leading-tight tracking-tight mb-7">
         {page.headline}
       </h1>
 
@@ -121,15 +131,61 @@ export default async function EventPage(
               key={i}
               className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${ENTITY_COLORS[e.type] ?? ENTITY_COLORS.OTHER}`}
             >
-              <span className="font-mono text-[9px] opacity-50 uppercase">{e.type}</span>
+              {e.type && (
+                <span className="font-mono text-[9px] opacity-50 uppercase">{e.type}</span>
+              )}
               {e.name}
             </span>
           ))}
         </div>
       )}
 
+      {/* Stat cards: Sources (+ outlet avatar stack) and Coverage. Factuality deferred. */}
+      <div className="grid grid-cols-2 gap-px bg-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden mb-10">
+        <div className="bg-white p-4 sm:p-5">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--ink-muted)]">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+            </svg>
+            Sources
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">{page.source_count}</span>
+            <span className="text-xs font-medium text-[var(--ink-muted)]">outlets</span>
+          </div>
+          {outletNames.length > 0 && (
+            <div className="mt-3 flex items-center">
+              {outletNames.map((name, i) => (
+                <span
+                  key={i}
+                  title={name}
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-white text-[9px] font-bold uppercase ring-2 ring-white"
+                  style={{ marginLeft: i === 0 ? 0 : -6, zIndex: outletNames.length - i }}
+                >
+                  {outletInitials(name)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="bg-white p-4 sm:p-5">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--ink-muted)]">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+            </svg>
+            Coverage
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">{page.article_count}</span>
+            <span className="text-xs font-medium text-[var(--ink-muted)]">
+              {page.article_count === 1 ? "article" : "articles"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Synthesis */}
-      <div className="text-[16px] leading-[1.8] text-[var(--ink)] mb-10">
+      <div className="synthesis-body text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-10">
         {renderSynthesis(page.synthesis_md)}
       </div>
 

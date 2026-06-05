@@ -60,3 +60,21 @@ export function freshnessLabel(iso: string): { label: string; color: string } {
   if (h < 6)  return { label: "LIVE", color: "text-amber-600" };
   return      { label: "",    color: "" };
 }
+
+/**
+ * Event is "Developing" when its freshness is recent (within ~24h).
+ * Tolerates small clock skew / freshness stamped at-or-slightly-ahead of now
+ * (an event refreshed "now" should read as developing, not be excluded).
+ */
+export function isDeveloping(iso: string, withinHours = 24): boolean {
+  const h = (Date.now() - new Date(iso).getTime()) / 3_600_000;
+  return h > -24 && h < withinHours;
+}
+
+/** Builds a short outlet initials token from a source name (e.g. "AP News" → "AP"). */
+export function outletInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}

@@ -58,6 +58,22 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
 
 ## What was fixed (this session)
 
+**Reader (R1 — event page parity, done 2026-06-05)**
+- Event page (`app/event/[id]/page.tsx`) brought to design-prototype parity, desktop + mobile,
+  backend-free (existing PageV1). Additive only — inline `Source:` citations, evidence rail,
+  entity chips, SSR, OG metadata, and `revalidate=300` all preserved.
+- **DEVELOPING badge** (pulsing red dot) derived from `freshness_at` recency (within ~24h, with
+  clock-skew tolerance) via `isDeveloping()` in `lib/api.ts`.
+- **Stat cards row**: SOURCES (`source_count` + de-duped outlet-initials avatar stack from the
+  evidence `source_name`s) and COVERAGE (`article_count`). Factuality + coverage sparkline
+  **deliberately deferred** (not in PageV1 — not fabricated).
+- **Drop-cap** on the first synthesis paragraph (CSS `::first-letter` on `.synthesis-body`).
+- Mobile-first responsive pass: 2-up stat cards stay compact at ~375px, headline scales down,
+  entity chips wrap, evidence rail single-col on mobile / 2-col on `sm+`. Entity chips now hide
+  the type sub-label when real data omits `type`.
+- Verified: `npm run build` green, eslint clean, SSR render of real event
+  `01KT5E6B3TGNZX5MDVH6ADFPAK` emits all of the above.
+
 **Messor**
 - Session summary no longer clobbers the staged articles file (writes `.session.json`).
 - `LoggingService` forwards `%`-style args (was crashing the publish loop after 1 article).
