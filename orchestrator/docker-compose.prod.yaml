@@ -1,0 +1,119 @@
+# InkBytes — production stack (single DigitalOcean Droplet, D6 scaffold)
+#
+# Status: SCAFFOLD. This is the deploy target started in D6 (docs/mvp-plan.md §7).
+# The data + Curator + Ollama core below is what runs the pipeline; the harvester
+# and front-ends are included for completeness and may need per-service tuning
+# when D6 lands. All secrets come from the host environment (.env / Doppler /
+# 1Password) — NEVER commit real values. Placeholders fail fast at boot.
+#
+# Sizing note (ADR-0003): Ollama + bge-m3 adds ~1.5 GB resident. With the full
+# stack co-resident, target a ~16 GB / 8 vCPU droplet (CPU-only; embeddings are
+# CPU-friendly, ENRICH/SYNTHESIZE stay on the Anthropic API).
+#
+# Usage:
+#   docker compose -f orchestrator/docker-compose.prod.yaml up -d
+#   docker compose -f orchestrator/docker-compose.prod.yaml --profile pull up ollama-bootstrap
+
+name: inkbytes-prod
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  # ─────────────────────────────────────────── infra ──────────────────
+  # Postgres + pgvector. Swap for a managed DO database by dropping this
+  # service and pointing DATABASE_URL at the managed instance.
+  postgres:
+    <<: *restart
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-inkbytes}
+    volumes: [pg-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      retries: 10
+
+  rabbitmq:
+    <<: *restart
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?set RABBITMQ_PASS}
+    volumes: [rmq-data:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 10
+
+  # Ollama — local embedding runtime (ADR-0003). First-class deployed infra:
+  # Curator's CLUSTER skill embeds via bge-m3 over the OpenAI-compatible /v1.
+  ollama:
+    <<: *restart
+    image: ollama/ollama:latest
+    volumes: [ollama-models:/root/.ollama]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      retries: 10
+
+  # One-shot model pull. Run once after first `up` (or via the `pull` profile);
+  # the model persists in the ollama-models volume across restarts.
+  ollama-bootstrap:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama: { condition: service_healthy }
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${EMBEDDINGS_MODEL:-bge-m3} && echo 'ollama: model ready.'"]
+    restart: "no"
+    profiles: ["pull"]
+
+  # ─────────────────────────────────────────── services ──────────────
+  curator:
+    <<: *restart
+    build:
+      context: ../Curator
+      dockerfile: apps/curator/Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      ollama:   { condition: service_healthy }
+    environment:
+      CURATOR_MODE: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL:?set RABBITMQ_URL}
+      # Object store = DigitalOcean Spaces in prod (S3-compatible).
+      S3_ENDPOINT: ${S3_ENDPOINT:?set S3_ENDPOINT}
+      S3_KEY: ${S3_KEY:?set S3_KEY}
+      S3_SECRET: ${S3_SECRET:?set S3_SECRET}
+      S3_BUCKET: ${S3_BUCKET:-inkbytes}
+      # ENRICH + SYNTHESIZE stay on the Anthropic API.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY}
+      # Embeddings via the deployed Ollama (ADR-0003).
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
+      EMBEDDINGS_DIMENSIONS: ${EMBEDDINGS_DIMENSIONS:-1024}
+      # Only needed if EMBEDDINGS_PROVIDER=openai.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports: ["8060:8060"]
+
+  reader:
+    <<: *restart
+    build:
+      context: ../Reader
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://inkbytes.app}
+    ports: ["3000:3000"]
+
+volumes:
+  pg-data:
+  rmq-data:
+  ollama-models:
