@@ -30,7 +30,19 @@ export async function generateMetadata(
     return {
       title: page.headline,
       description,
-      openGraph: { title: page.headline, description, type: "article" },
+      openGraph: {
+        title: page.headline,
+        description,
+        type: "article",
+        publishedTime: page.published_at,
+        modifiedTime: page.freshness_at,
+        section: page.topic ?? "News",
+      },
+      twitter: {
+        card: "summary",
+        title: page.headline,
+        description,
+      },
     };
   } catch {
     return { title: "Event" };

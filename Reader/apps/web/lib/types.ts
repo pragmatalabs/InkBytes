@@ -22,6 +22,7 @@ export interface EventSummary {
   article_count: number;
   topic: string | null;
   language: string;
+  outlet_names: string[];
 }
 
 export interface EvidenceItem {

@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "About" };
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "InkBytes is a paid, ad-free news reader. Each event — a real-world development covered by multiple outlets — gets one elegant, source-cited page.",
+  openGraph: { title: "About InkBytes", type: "website" },
+};
 
 export default function AboutPage() {
   return (

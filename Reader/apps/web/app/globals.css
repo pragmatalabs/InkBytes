@@ -1,17 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --ink:       #111111;
-  --ink-muted: #666666;
-  --border:    #e5e5e5;
-  --bg:        #fafaf9;
-  --accent:    #1a1a2e;
+  --ink:        #111111;
+  --ink-muted:  #666666;
+  --border:     #e5e5e5;
+  --bg:         #fafaf9;
+  --accent:     #1a1a2e;
+  --accent-dot: #e05c5c;
 }
 
 html, body {
   background: var(--bg);
   color: var(--ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

@@ -75,7 +75,13 @@ def build_app(app: Application) -> FastAPI:
             rows = await conn.fetch(
                 """
                 SELECT p.id, p.headline, p.freshness_at, p.published_at,
-                       e.source_count, e.article_count, e.topic, e.language
+                       e.source_count, e.article_count, e.topic, e.language,
+                       ARRAY(
+                         SELECT DISTINCT a.outlet_name
+                           FROM articles a
+                          WHERE a.event_id = e.id AND a.outlet_name IS NOT NULL
+                          LIMIT 5
+                       ) AS outlet_names
                   FROM pages p
                   JOIN events e ON e.id = p.event_id
                  ORDER BY p.freshness_at DESC NULLS LAST
