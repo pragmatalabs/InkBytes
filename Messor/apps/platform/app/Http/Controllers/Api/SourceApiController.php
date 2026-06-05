@@ -26,7 +26,10 @@ class SourceApiController extends Controller
 
         $data = $query->get()
             ->map(fn (Outlet $outlet): array => [
-                'id' => $outlet->id,
+                // Note: 'id' is intentionally omitted — it's a string slug in
+                // our schema but OutletsSource.id expects int (Pydantic v1).
+                // The string slug is carried by 'slug' and 'documentId' instead,
+                // which is what Messor's _outlet_identifiers() matches against.
                 'documentId' => $outlet->id,
                 'name' => $outlet->display_name,
                 'url' => $outlet->url,

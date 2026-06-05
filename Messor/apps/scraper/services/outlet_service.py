@@ -193,7 +193,13 @@ class OutletService:
             # Pydantic v1 type coercion so the model only sees what it understands.
             SCRAPER_FIELDS = {'name', 'url', 'active', 'description', 'slug', 'logo'}
             def _to_scraper_record(o: dict) -> dict:
-                return {k: v for k, v in o.items() if k in SCRAPER_FIELDS}
+                rec = {k: v for k, v in o.items() if k in SCRAPER_FIELDS}
+                # outlets.json uses a string 'id' as the slug (e.g. "bbc").
+                # Preserve it in 'slug' so _outlet_identifiers() can match
+                # --outlets=bbc even when name is a display name like "BBC News".
+                if not rec.get('slug') and isinstance(o.get('id'), str) and o['id']:
+                    rec['slug'] = o['id']
+                return rec
 
             scraper_payload = [_to_scraper_record(o) for o in payload]
 
