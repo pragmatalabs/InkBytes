@@ -1,11 +1,132 @@
 [
   {
+    "id": "apnews",
+    "name": "apnews",
+    "display_name": "AP News",
+    "url": "https://apnews.com/",
+    "region": "global",
+    "language": "en",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
     "id": "bbc",
     "name": "bbc",
     "display_name": "BBC",
     "url": "https://www.bbc.com/",
     "region": "global",
     "language": "en",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "bloomberg",
+    "name": "bloomberg",
+    "display_name": "Bloomberg",
+    "url": "https://www.bloomberg.com/",
+    "region": "global",
+    "language": "en",
+    "vertical": "business",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "diariolibree",
+    "name": "diariolibree",
+    "display_name": "Diario Libre",
+    "url": "https://www.diariolibre.com/",
+    "region": "latam-dr",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "elespectador",
+    "name": "elespectador",
+    "display_name": "El Espectador",
+    "url": "https://www.elespectador.com/",
+    "region": "latam-co",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "eltiempoco",
+    "name": "eltiempoco",
+    "display_name": "El Tiempo",
+    "url": "https://www.eltiempo.com/",
+    "region": "latam-co",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "eluniversalmx",
+    "name": "eluniversalmx",
+    "display_name": "El Universal (MX)",
+    "url": "https://www.eluniversal.com.mx/",
+    "region": "latam-mx",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "financialtimes",
+    "name": "financialtimes",
+    "display_name": "Financial Times",
+    "url": "https://www.ft.com",
+    "region": "global",
+    "language": "en",
+    "vertical": "business",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "infobae",
+    "name": "infobae",
+    "display_name": "Infobae",
+    "url": "https://www.infobae.com/",
+    "region": "latam-ar",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "lanacionar",
+    "name": "lanacionar",
+    "display_name": "La Nación",
+    "url": "https://www.lanacion.com.ar/",
+    "region": "latam-ar",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "listindiario",
+    "name": "listindiario",
+    "display_name": "Listín Diario",
+    "url": "https://listindiario.com/",
+    "region": "latam-dr",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 1
+  },
+  {
+    "id": "mileniomx",
+    "name": "mileniomx",
+    "display_name": "Milenio",
+    "url": "https://www.milenio.com/",
+    "region": "latam-mx",
+    "language": "es",
     "vertical": "general",
     "active": true,
     "priority": 1
@@ -18,17 +139,6 @@
     "region": "global",
     "language": "en",
     "vertical": "business",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "apnews",
-    "name": "apnews",
-    "display_name": "AP News",
-    "url": "https://apnews.com/",
-    "region": "global",
-    "language": "en",
-    "vertical": "general",
     "active": true,
     "priority": 1
   },
@@ -55,28 +165,6 @@
     "priority": 1
   },
   {
-    "id": "financialtimes",
-    "name": "financialtimes",
-    "display_name": "Financial Times",
-    "url": "https://www.ft.com",
-    "region": "global",
-    "language": "en",
-    "vertical": "business",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "bloomberg",
-    "name": "bloomberg",
-    "display_name": "Bloomberg",
-    "url": "https://www.bloomberg.com/",
-    "region": "global",
-    "language": "en",
-    "vertical": "business",
-    "active": true,
-    "priority": 1
-  },
-  {
     "id": "wsj",
     "name": "wsj",
     "display_name": "Wall Street Journal",
@@ -86,83 +174,6 @@
     "vertical": "business",
     "active": true,
     "priority": 1
-  },
-  {
-    "id": "aljazeera",
-    "name": "aljazeera",
-    "display_name": "Al Jazeera",
-    "url": "https://www.aljazeera.com/",
-    "region": "global",
-    "language": "en",
-    "vertical": "general",
-    "active": true,
-    "priority": 2
-  },
-  {
-    "id": "wired",
-    "name": "wired",
-    "display_name": "Wired",
-    "url": "https://www.wired.com/",
-    "region": "global",
-    "language": "en",
-    "vertical": "tech",
-    "active": true,
-    "priority": 2
-  },
-  {
-    "id": "theguardian",
-    "name": "theguardian",
-    "display_name": "The Guardian",
-    "url": "https://www.theguardian.com/",
-    "region": "global",
-    "language": "en",
-    "vertical": "general",
-    "active": true,
-    "priority": 2
-  },
-  {
-    "id": "npr",
-    "name": "npr",
-    "display_name": "NPR",
-    "url": "https://www.npr.org/",
-    "region": "global",
-    "language": "en",
-    "vertical": "general",
-    "active": true,
-    "priority": 2
-  },
-  {
-    "id": "diariolibree",
-    "name": "diariolibree",
-    "display_name": "Diario Libre",
-    "url": "https://www.diariolibre.com/",
-    "region": "latam-dr",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "listindiario",
-    "name": "listindiario",
-    "display_name": "Listín Diario",
-    "url": "https://listindiario.com/",
-    "region": "latam-dr",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "elcaribedr",
-    "name": "elcaribedr",
-    "display_name": "El Caribe",
-    "url": "https://www.elcaribe.com.do/",
-    "region": "latam-dr",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 2
   },
   {
     "id": "acentodr",
@@ -176,37 +187,15 @@
     "priority": 2
   },
   {
-    "id": "eldinerodr",
-    "name": "eldinerodr",
-    "display_name": "El Dinero",
-    "url": "https://eldinero.com.do/",
-    "region": "latam-dr",
-    "language": "es",
-    "vertical": "business",
+    "id": "aljazeera",
+    "name": "aljazeera",
+    "display_name": "Al Jazeera",
+    "url": "https://www.aljazeera.com/",
+    "region": "global",
+    "language": "en",
+    "vertical": "general",
     "active": true,
     "priority": 2
-  },
-  {
-    "id": "eluniversalmx",
-    "name": "eluniversalmx",
-    "display_name": "El Universal (MX)",
-    "url": "https://www.eluniversal.com.mx/",
-    "region": "latam-mx",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "mileniomx",
-    "name": "mileniomx",
-    "display_name": "Milenio",
-    "url": "https://www.milenio.com/",
-    "region": "latam-mx",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
   },
   {
     "id": "animalpolitico",
@@ -218,72 +207,6 @@
     "vertical": "politics",
     "active": true,
     "priority": 2
-  },
-  {
-    "id": "elfinancierolatam",
-    "name": "elfinancierolatam",
-    "display_name": "El Financiero",
-    "url": "https://www.elfinanciero.com.mx/",
-    "region": "latam-mx",
-    "language": "es",
-    "vertical": "business",
-    "active": true,
-    "priority": 2
-  },
-  {
-    "id": "eltiempoco",
-    "name": "eltiempoco",
-    "display_name": "El Tiempo",
-    "url": "https://www.eltiempo.com/",
-    "region": "latam-co",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "elespectador",
-    "name": "elespectador",
-    "display_name": "El Espectador",
-    "url": "https://www.elespectador.com/",
-    "region": "latam-co",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "semana",
-    "name": "semana",
-    "display_name": "Semana",
-    "url": "https://www.semana.com/",
-    "region": "latam-co",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 2
-  },
-  {
-    "id": "lanacionar",
-    "name": "lanacionar",
-    "display_name": "La Nación",
-    "url": "https://www.lanacion.com.ar/",
-    "region": "latam-ar",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
-  },
-  {
-    "id": "infobae",
-    "name": "infobae",
-    "display_name": "Infobae",
-    "url": "https://www.infobae.com/",
-    "region": "latam-ar",
-    "language": "es",
-    "vertical": "general",
-    "active": true,
-    "priority": 1
   },
   {
     "id": "clarin",
@@ -308,15 +231,92 @@
     "priority": 2
   },
   {
-    "id": "foxbusiness",
-    "name": "foxbusiness",
-    "display_name": "Fox Business",
-    "url": "https://www.foxbusiness.com/",
+    "id": "elcaribedr",
+    "name": "elcaribedr",
+    "display_name": "El Caribe",
+    "url": "https://www.elcaribe.com.do/",
+    "region": "latam-dr",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "eldinerodr",
+    "name": "eldinerodr",
+    "display_name": "El Dinero",
+    "url": "https://eldinero.com.do/",
+    "region": "latam-dr",
+    "language": "es",
+    "vertical": "business",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "elfinancierolatam",
+    "name": "elfinancierolatam",
+    "display_name": "El Financiero",
+    "url": "https://www.elfinanciero.com.mx/",
+    "region": "latam-mx",
+    "language": "es",
+    "vertical": "business",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "theothers",
+    "name": "ground-news",
+    "display_name": "Ground News",
+    "url": "https://ground.news/",
     "region": "global",
     "language": "en",
-    "vertical": "business",
-    "active": false,
-    "priority": 3
+    "vertical": "general",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "npr",
+    "name": "npr",
+    "display_name": "NPR",
+    "url": "https://www.npr.org/",
+    "region": "global",
+    "language": "en",
+    "vertical": "general",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "semana",
+    "name": "semana",
+    "display_name": "Semana",
+    "url": "https://www.semana.com/",
+    "region": "latam-co",
+    "language": "es",
+    "vertical": "general",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "theguardian",
+    "name": "theguardian",
+    "display_name": "The Guardian",
+    "url": "https://www.theguardian.com/",
+    "region": "global",
+    "language": "en",
+    "vertical": "general",
+    "active": true,
+    "priority": 2
+  },
+  {
+    "id": "wired",
+    "name": "wired",
+    "display_name": "Wired",
+    "url": "https://www.wired.com/",
+    "region": "global",
+    "language": "en",
+    "vertical": "tech",
+    "active": true,
+    "priority": 2
   },
   {
     "id": "cnn",
@@ -326,6 +326,17 @@
     "region": "global",
     "language": "en",
     "vertical": "general",
+    "active": false,
+    "priority": 3
+  },
+  {
+    "id": "foxbusiness",
+    "name": "foxbusiness",
+    "display_name": "Fox Business",
+    "url": "https://www.foxbusiness.com/",
+    "region": "global",
+    "language": "en",
+    "vertical": "business",
     "active": false,
     "priority": 3
   },

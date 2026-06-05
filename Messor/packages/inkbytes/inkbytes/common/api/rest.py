@@ -63,10 +63,12 @@ class RestClient:
             headers=headers or {}
             return response.json()
 
-    def _send_request(self, method, endpoint, data=None, headers=None):
+    def _send_request(self, method, endpoint, data=None, headers=None, timeout=5):
         url = self._construct_full_url(endpoint)
         try:
-            response = getattr(requests, method.lower())(url, json=data, headers=headers)
+            response = getattr(requests, method.lower())(
+                url, json=data, headers=headers, timeout=timeout
+            )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"Error sending {method} request to {url}: {e}")
