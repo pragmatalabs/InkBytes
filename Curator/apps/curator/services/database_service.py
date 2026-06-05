@@ -199,6 +199,52 @@ class DatabaseService:
             return None
         return dict(row) if row else None
 
+    async def embedding_column_dims(self) -> int | None:
+        """Return the live width of articles.embedding (the vector(N) column).
+
+        Used by the embedding-reconfigure dim guard (ADR-0004): a model whose
+        vectors don't match this width must not be switched in live, as every
+        INSERT would fail. Returns None if it can't be determined.
+        """
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+                t = await conn.fetchval(
+                    "SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
+                    "WHERE attrelid = to_regclass('public.articles') "
+                    "AND attname = 'embedding' AND NOT attisdropped"
+                )
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("Could not read embedding column dims (%s).", e)
+            return None
+        if not t or not t.startswith("vector(") or not t.endswith(")"):
+            return None
+        try:
+            return int(t[len("vector("):-1])
+        except ValueError:
+            return None
+
+    async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:
+        """Rows to (re-)embed. only_missing=True → just NULL embeddings;
+        False → ALL articles with body_text (a full corpus re-embed)."""
+        if not self.pool:
+            return []
+        where = "embedding IS NULL AND " if only_missing else ""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                f"SELECT id, title, body_text FROM articles "
+                f"WHERE {where}body_text IS NOT NULL"
+            )
+        return [dict(r) for r in rows]
+
+    async def set_article_embedding(self, article_id: str, vec: list[float]) -> None:
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE articles SET embedding = $1::vector WHERE id = $2",
+                "[" + ",".join(map(str, vec)) + "]", article_id,
+            )
+
     # ─────────────────────────────────────────── model usage ──────
     async def record_model_usage(
         self,

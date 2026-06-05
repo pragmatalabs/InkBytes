@@ -47,6 +47,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Allowed embedding providers + models (ADR-0004)
+    |--------------------------------------------------------------------------
+    |
+    | The Settings page drives provider + model dropdowns from these lists and
+    | the update request validates against them (no free text). Curator polls
+    | provider/model/base_url and LIVE-rebuilds its embedding client.
+    |
+    | `dimensions` is the pgvector column width each model implies — DERIVED, not
+    | stored: it's shown read-only in the UI and is a MIGRATION concern, not a
+    | hot-reload knob. Curator refuses a model whose width != the live
+    | articles.embedding column (it would break every INSERT). Switching to a
+    | different-width model requires a vector-width migration + full re-embed.
+    */
+    'allowed_embeddings' => [
+        'providers' => ['ollama', 'openai'],
+        'models' => [
+            'ollama' => ['bge-m3', 'nomic-embed-text', 'mxbai-embed-large'],
+            'openai' => ['text-embedding-3-small', 'text-embedding-3-large'],
+        ],
+        'dimensions' => [
+            'bge-m3' => 1024,
+            'nomic-embed-text' => 768,
+            'mxbai-embed-large' => 1024,
+            'text-embedding-3-small' => 1536,
+            'text-embedding-3-large' => 3072,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Canonical defaults
     |--------------------------------------------------------------------------
     |
@@ -65,6 +95,10 @@ return [
         'min_sources_to_publish' => 2,
         'recent_window_hours' => 48,
         'monthly_budget_usd' => null,
+        // Embeddings (ADR-0004). Local-first default: Ollama bge-m3 (1024d).
+        'embeddings_provider' => 'ollama',
+        'embeddings_model' => 'bge-m3',
+        'embeddings_base_url' => 'http://localhost:11434/v1',
     ],
 
     /*

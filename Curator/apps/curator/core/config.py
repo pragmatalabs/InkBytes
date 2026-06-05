@@ -41,6 +41,13 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "entity_overlap_min":     ("clustering", "entity_overlap_min"),
     "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
     "recent_window_hours":    ("clustering", "recent_window_hours"),
+    # Embeddings (ADR-0004). provider/model/base_url are live-overlaid; the
+    # EmbeddingService rebuilds its client on change (with a dim-probe guard).
+    # `dimensions` is deliberately NOT here — it's a pgvector column width, a
+    # migration concern, not a hot-reload knob.
+    "embeddings_provider":    ("embeddings", "provider"),
+    "embeddings_model":       ("embeddings", "model"),
+    "embeddings_base_url":    ("embeddings", "base_url"),
 }
 
 # Schema-qualified: Curator's asyncpg connection defaults to the `public`
@@ -203,8 +210,10 @@ class CuratorConfig(BaseModel):
             target = getattr(self, section)
             current = getattr(target, field)
             # Coerce to the existing field's type so e.g. Decimal/str from the
-            # DB driver compares/stores cleanly as float/int.
-            new_value = type(current)(row[column])
+            # DB driver compares/stores cleanly as float/int. When the current
+            # value is None (e.g. embeddings.base_url under provider=openai) there
+            # is no type to coerce to — take the raw DB value as-is.
+            new_value = row[column] if current is None else type(current)(row[column])
             if new_value != current:
                 setattr(target, field, new_value)
                 changed = True

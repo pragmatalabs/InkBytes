@@ -26,6 +26,7 @@ use RuntimeException;
  *   page.drop           {"id": "<page id>"}
  *   event.resynthesize  {"id": "<event id>"}
  *   event.recluster     {"id": "<event id>"}
+ *   embeddings.reembed  {"id": "all"|"missing"}   (ADR-0004; corpus re-embed)
  */
 class CuratorCommandService
 {
@@ -35,6 +36,7 @@ class CuratorCommandService
         'page.drop',
         'event.resynthesize',
         'event.recluster',
+        'embeddings.reembed',
     ];
 
     public function publishPage(string $pageId): bool
@@ -60,6 +62,15 @@ class CuratorCommandService
     public function reclusterEvent(string $eventId): bool
     {
         return $this->publish('event.recluster', $eventId);
+    }
+
+    /**
+     * Trigger a corpus re-embed (ADR-0004). $scope is "all" (overwrite every
+     * article's vector with the current embedder) or "missing" (only NULLs).
+     */
+    public function reembedCorpus(string $scope = 'all'): bool
+    {
+        return $this->publish('embeddings.reembed', $scope);
     }
 
     /**

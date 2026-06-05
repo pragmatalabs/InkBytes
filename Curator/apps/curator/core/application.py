@@ -56,6 +56,12 @@ class Application:
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
         # Background settings-refresh task (started in run_consumer).
         self._config_task: asyncio.Task | None = None
+        # Embedding live-reconfigure status (ADR-0004), surfaced on /status:
+        #   embeddings_stale   → provider/model changed; corpus needs a re-embed
+        #   embeddings_blocked → chosen model's dims ≠ column width; needs migration
+        self.embeddings_stale = False
+        self.embeddings_blocked: str | None = None
+        self._reembed_task: asyncio.Task | None = None
 
     # ─────────────────────────────────────────── lifecycle ──────────
     async def startup(self, *, with_db: bool = True) -> None:
@@ -85,9 +91,30 @@ class Application:
         )
 
     async def _refresh_config_from_db(self) -> bool:
-        """Re-read backoffice.curator_settings and overlay it onto live cfg."""
+        """Re-read backoffice.curator_settings and overlay it onto live cfg.
+
+        After overlaying, rebuild the EmbeddingService client if the
+        provider/model/base_url changed (the client is cached per signature, so
+        a cfg mutation alone would not take effect — ADR-0004). The rebuild is
+        dim-guarded: a model whose vectors don't fit the live column width is
+        refused (embeddings_blocked) rather than breaking every INSERT.
+        """
         row = await self.db.fetch_curator_settings()
-        return self.cfg.apply_db_settings(row)
+        changed = self.cfg.apply_db_settings(row)
+        expected = await self.db.embedding_column_dims()
+        result = await self.embed.reconfigure(self.cfg.embeddings, expected_dims=expected)
+        if result.get("changed"):
+            if result.get("applied"):
+                self.embeddings_stale = True
+                self.embeddings_blocked = None
+            elif result.get("reason") == "dim_mismatch":
+                self.embeddings_blocked = (
+                    f"model emits {result.get('probed_dims')}-d but column is "
+                    f"{result.get('expected_dims')}-d — needs a vector-width migration"
+                )
+            elif result.get("reason") == "probe_failed":
+                self.embeddings_blocked = f"embedder unreachable: {result.get('error')}"
+        return changed
 
     async def _config_refresh_loop(self) -> None:
         """Periodically re-read settings so admin edits apply without redeploy."""
@@ -261,8 +288,46 @@ class Application:
         elif routing_key == "event.recluster":
             await self._recluster_event(target_id)
             logger.info("event.recluster %s dispatched", target_id)
+        elif routing_key == "embeddings.reembed":
+            # Corpus-wide re-embed with the CURRENT embedder (ADR-0004). Runs in
+            # the background so the command consumer stays responsive; a second
+            # request while one is running is ignored. payload id is advisory
+            # ("all" | "missing"); default re-embeds the whole corpus.
+            only_missing = str(target_id).lower() == "missing"
+            if self._reembed_task and not self._reembed_task.done():
+                logger.info("embeddings.reembed already running — ignoring duplicate request")
+            else:
+                self._reembed_task = asyncio.create_task(self._reembed_corpus(only_missing))
+                logger.info("embeddings.reembed dispatched (only_missing=%s)", only_missing)
         else:
             logger.warning("unknown command routing_key=%s — ignored", routing_key)
+
+    async def _reembed_corpus(self, only_missing: bool = False) -> None:
+        """(Re-)embed articles with the current embedder, then clear the stale
+        flag. Bounded concurrency; overwrites existing vectors so a post-switch
+        corpus is rebuilt in the new model's vector space."""
+        rows = await self.db.fetch_articles_for_embedding(only_missing=only_missing)
+        logger.info("embeddings.reembed: %d articles (only_missing=%s)", len(rows), only_missing)
+        sem = asyncio.Semaphore(self.cfg.application.max_concurrent_articles)
+        done = 0
+
+        async def one(r: dict[str, Any]) -> None:
+            nonlocal done
+            async with sem:
+                text = f"{r['title']}\n\n{(r['body_text'] or '')[:4000]}"
+                vec = await self.embed.embed(text)
+                await self.db.set_article_embedding(r["id"], vec)
+                done += 1
+                if done % 200 == 0:
+                    logger.info("embeddings.reembed: %d/%d", done, len(rows))
+
+        try:
+            await asyncio.gather(*(one(r) for r in rows))
+        except Exception:
+            logger.exception("embeddings.reembed failed partway (%d/%d done)", done, len(rows))
+            return
+        self.embeddings_stale = False
+        logger.info("embeddings.reembed complete: %d articles embedded.", done)
 
     async def _recluster_event(self, event_id: str) -> None:
         """Re-run clustering for every article currently in an event.

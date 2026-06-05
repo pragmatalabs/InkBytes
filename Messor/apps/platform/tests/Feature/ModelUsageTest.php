@@ -244,6 +244,10 @@ class ModelUsageTest extends TestCase
             'min_sources_to_publish' => 2,
             'recent_window_hours' => 48,
             'monthly_budget_usd' => 12.5,
+            // ADR-0004: embedding tier (required by the update validation).
+            'embeddings_provider' => 'ollama',
+            'embeddings_model' => 'bge-m3',
+            'embeddings_base_url' => 'http://localhost:11434/v1',
         ]);
 
         $response->assertRedirect(route('settings.edit'));

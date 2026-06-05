@@ -48,11 +48,25 @@ def build_app(app: Application) -> FastAPI:
             pages_published = await conn.fetchval(
                 "SELECT COUNT(*) FROM pages"
             )
+            articles_embedded = await conn.fetchval(
+                "SELECT COUNT(*) FROM articles WHERE embedding IS NOT NULL"
+            )
         return {
             "articles_total": articles_total,
             "articles_enriched": articles_enriched,
+            "articles_embedded": articles_embedded,
             "events_total": events_total,
             "pages_published": pages_published,
+            # Live embedding tier + reconfigure status (ADR-0004) so the
+            # Backoffice can show "vectors stale — re-embed" / "blocked".
+            "embeddings": {
+                "provider": app.cfg.embeddings.provider,
+                "model": app.cfg.embeddings.model,
+                "dimensions": app.cfg.embeddings.dimensions,
+                "stale": app.embeddings_stale,
+                "blocked": app.embeddings_blocked,
+                "reembedding": bool(app._reembed_task and not app._reembed_task.done()),
+            },
         }
 
     @api.get("/events")

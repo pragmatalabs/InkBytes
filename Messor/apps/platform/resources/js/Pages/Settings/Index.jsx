@@ -1,8 +1,10 @@
 import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, useForm } from '@inertiajs/react';
+import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import {
+    Alert,
     Box,
     Button,
     Dialog,
@@ -24,8 +26,12 @@ export default function SettingsIndex({
     settings = {},
     enrichModels = [],
     synthesizeModels = [],
+    embeddingProviders = [],
+    embeddingModels = {},
+    embeddingDimensions = {},
 }) {
     const [resetOpen, setResetOpen] = useState(false);
+    const [reembedOpen, setReembedOpen] = useState(false);
 
     const form = useForm({
         enrich_model: settings.enrich_model ?? 'claude-haiku-4-5',
@@ -43,6 +49,10 @@ export default function SettingsIndex({
             settings.monthly_budget_usd === undefined
                 ? ''
                 : settings.monthly_budget_usd,
+        // ADR-0004: embedding tier.
+        embeddings_provider: settings.embeddings_provider ?? 'ollama',
+        embeddings_model: settings.embeddings_model ?? 'bge-m3',
+        embeddings_base_url: settings.embeddings_base_url ?? 'http://localhost:11434/v1',
     });
 
     const num = (field) => (event) =>
@@ -62,6 +72,24 @@ export default function SettingsIndex({
     const doReset = () => {
         setResetOpen(false);
         router.post(route('settings.reset'));
+    };
+
+    const doReembed = () => {
+        setReembedOpen(false);
+        router.post(route('settings.reembed'));
+    };
+
+    // Provider change: keep the model valid for the newly-selected provider.
+    const onProviderChange = (provider) => {
+        const models = embeddingModels[provider] ?? [];
+        const model = models.includes(form.data.embeddings_model)
+            ? form.data.embeddings_model
+            : (models[0] ?? '');
+        form.setData({
+            ...form.data,
+            embeddings_provider: provider,
+            embeddings_model: model,
+        });
     };
 
     const modelField = (field, label, options, helper) => (
@@ -95,10 +123,21 @@ export default function SettingsIndex({
         />
     );
 
+    // Embedding tier derived state.
+    const providerModels = embeddingModels[form.data.embeddings_provider] ?? [];
+    const selectedDims = embeddingDimensions[form.data.embeddings_model] ?? null;
+    const savedDims = embeddingDimensions[settings.embeddings_model] ?? null;
+    const isOllama = form.data.embeddings_provider === 'ollama';
+    const embeddingChanged =
+        form.data.embeddings_provider !== settings.embeddings_provider ||
+        form.data.embeddings_model !== settings.embeddings_model;
+    const dimsWouldChange =
+        selectedDims !== null && savedDims !== null && selectedDims !== savedDims;
+
     return (
         <AppLayout
             title="Curator Settings"
-            subtitle="LLM models, token caps, and clustering thresholds. Curator polls this row and applies changes without a redeploy."
+            subtitle="LLM models, token caps, clustering thresholds, and the embedding tier. Curator polls this row and applies changes without a redeploy."
         >
             <Head title="Curator Settings" />
 
@@ -203,6 +242,115 @@ export default function SettingsIndex({
 
                     <Box>
                         <Typography variant="h6" gutterBottom>
+                            Embeddings
+                        </Typography>
+                        <Grid container spacing={2.5}>
+                            <Grid size={{ xs: 12, md: 3 }}>
+                                <TextField
+                                    select
+                                    label="Provider"
+                                    value={form.data.embeddings_provider}
+                                    onChange={(e) => onProviderChange(e.target.value)}
+                                    error={Boolean(form.errors.embeddings_provider)}
+                                    helperText={
+                                        form.errors.embeddings_provider ??
+                                        'Local Ollama or hosted OpenAI'
+                                    }
+                                    fullWidth
+                                >
+                                    {embeddingProviders.map((p) => (
+                                        <MenuItem key={p} value={p}>
+                                            {p}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 3 }}>
+                                {modelField(
+                                    'embeddings_model',
+                                    'Model',
+                                    providerModels,
+                                    'Embedding model (provider-specific)'
+                                )}
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 2 }}>
+                                <TextField
+                                    label="Vector dims"
+                                    value={selectedDims ?? '—'}
+                                    helperText="Derived (column width)"
+                                    InputProps={{ readOnly: true }}
+                                    fullWidth
+                                />
+                            </Grid>
+                            {isOllama && (
+                                <Grid size={{ xs: 12, md: 4 }}>
+                                    <TextField
+                                        label="Base URL (Ollama)"
+                                        value={form.data.embeddings_base_url}
+                                        onChange={(e) =>
+                                            form.setData('embeddings_base_url', e.target.value)
+                                        }
+                                        error={Boolean(form.errors.embeddings_base_url)}
+                                        helperText={
+                                            form.errors.embeddings_base_url ??
+                                            'e.g. http://ollama:11434/v1'
+                                        }
+                                        fullWidth
+                                    />
+                                </Grid>
+                            )}
+                        </Grid>
+
+                        {dimsWouldChange && (
+                            <Alert severity="warning" sx={{ mt: 2 }}>
+                                This model uses <strong>{selectedDims}-d</strong> vectors
+                                but the live column is <strong>{savedDims}-d</strong>.
+                                Curator will <strong>refuse to switch live</strong> — a
+                                vector-width migration + full re-embed is required first
+                                (an ops task), otherwise inserts would fail.
+                            </Alert>
+                        )}
+                        {!dimsWouldChange && embeddingChanged && (
+                            <Alert severity="info" sx={{ mt: 2 }}>
+                                After saving, existing vectors are from the previous model
+                                and become stale (different vector space). Click{' '}
+                                <strong>Re-embed corpus</strong> below to rebuild every
+                                article's embedding with the new model.
+                            </Alert>
+                        )}
+                        {form.data.embeddings_provider === 'openai' && (
+                            <Alert severity="info" sx={{ mt: 2 }}>
+                                Switching to OpenAI requires <code>OPENAI_API_KEY</code> in
+                                Curator's environment — embedding keys are not managed here
+                                (ADR-0004).
+                            </Alert>
+                        )}
+
+                        <Box sx={{ mt: 2 }}>
+                            <Button
+                                type="button"
+                                variant="outlined"
+                                startIcon={<AutorenewRoundedIcon />}
+                                onClick={() => setReembedOpen(true)}
+                                disabled={form.processing}
+                            >
+                                Re-embed corpus
+                            </Button>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ ml: 1.5 }}
+                            >
+                                Rebuilds all article embeddings with the saved model (runs
+                                in Curator, in the background).
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                        <Typography variant="h6" gutterBottom>
                             Cost
                         </Typography>
                         <Grid container spacing={2.5}>
@@ -256,16 +404,35 @@ export default function SettingsIndex({
                 <DialogContent>
                     <DialogContentText>
                         This restores the canonical defaults (Haiku models, token
-                        caps, temperature 0.2, clustering thresholds) and clears the
-                        monthly budget. Curator polls this row, so the change reaches
-                        the live pipeline within its refresh interval. This action is
-                        recorded in the audit log.
+                        caps, temperature 0.2, clustering thresholds, local Ollama
+                        bge-m3 embeddings) and clears the monthly budget. Curator polls
+                        this row, so the change reaches the live pipeline within its
+                        refresh interval. This action is recorded in the audit log.
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setResetOpen(false)}>Cancel</Button>
                     <Button onClick={doReset} color="warning" variant="contained">
                         Reset to defaults
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={reembedOpen} onClose={() => setReembedOpen(false)}>
+                <DialogTitle>Re-embed the whole corpus?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Curator will rebuild every article's embedding with the currently
+                        saved model, in the background. Do this after switching the
+                        embedding provider/model so clustering uses one consistent vector
+                        space. It uses no LLM budget (embeddings only) but takes a few
+                        minutes. This action is recorded in the audit log.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setReembedOpen(false)}>Cancel</Button>
+                    <Button onClick={doReembed} variant="contained">
+                        Re-embed corpus
                     </Button>
                 </DialogActions>
             </Dialog>

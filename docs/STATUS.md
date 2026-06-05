@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B13 shipped — UX polish; the P0–P3 Backoffice backlog B1–B13 is complete)*
+> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (B14 shipped — embedding provider admin settings; ADR-0004 fully closed)*
 
 ## TL;DR
 
@@ -355,6 +355,33 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
      export = 31 rows, field set matches `outlets.json`; live apply exercised on
      Postgres (create→32 + update) then **restored to 31**. **`public` counts
      unchanged** (articles=309, events=220, pages=29, outlets=31).
+   - **B14 embedding provider settings DONE** (branch `backend/b14-embedding-settings`,
+     ADR-0004 fully closed): admins can now switch Curator's embedding
+     provider/model/base_url from the Backoffice Settings page — Curator live-polls and
+     rebuilds its embedding client without a redeploy. **Backoffice**: new
+     `embeddings_provider`/`embeddings_model`/`embeddings_base_url` columns on
+     `backoffice.curator_settings` (migration `2026_06_04_000001`; defaults to
+     `ollama/bge-m3/localhost:11434`); Settings edit/update/reset wired with an
+     `allowed_embeddings` allowlist in `config/curator.php` (provider×model cross-validation,
+     Ollama base_url `required_if`); new **Re-embed corpus** button publishes
+     `embeddings.reembed` via `CuratorCommandService`; audited. UI shows
+     provider+model **dropdowns** (cross-validated: OpenAI models are blocked under
+     ollama provider), a **read-only dims field** (derived from the model, never stored),
+     a conditional **base-url field** (Ollama only), and a **dim-mismatch warning** when
+     the selected model would need a vector-width migration first. **Curator**:
+     `EmbeddingService.reconfigure()` with a **dimension-probe guard** — before switching
+     client, embeds a probe text with the candidate, compares its width to the live
+     `articles.embedding` pgvector column; mismatch → `embeddings_blocked` (keeps current
+     client, surfaces on `/status`); same dims → applies + sets `embeddings_stale=true`.
+     `_DB_SETTINGS_MAP` extended for `embeddings_provider/model/base_url`; `config.py`
+     None-coerce fix for nullable DB columns. New `DatabaseService` methods:
+     `embedding_column_dims()`, `fetch_articles_for_embedding()`, `set_article_embedding()`.
+     `_handle_command("embeddings.reembed")` runs `_reembed_corpus()` in the background
+     (bounded concurrency, skips duplicate runs, clears `embeddings_stale` on success).
+     `/status` exposes `articles_embedded` + full embedding tier state. **145 Laravel tests
+     pass** (9 new in `CuratorSettingsTest`); `npm run build` green; migration verified:
+     live `curator_settings` row seeds `ollama/bge-m3/http://localhost:11434/v1`. **`public`
+     counts unchanged** (articles=309, events=220, pages=29, outlets=31).
    - **B13 UX polish DONE — completes the P0–P3 backlog** (branch
      `backend/b13-ux-polish`): presentation-only consistency pass, no behavior change.
      (1) **One toast standard** — `resources/js/Providers/ToastProvider.jsx` mounts a

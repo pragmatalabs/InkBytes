@@ -30,6 +30,12 @@ class CuratorSetting extends Model
         // B5: admin-editable monthly LLM-spend budget (USD). NULL = unset.
         // Backoffice-only display knob; Curator does not read it (ADR-0004).
         'monthly_budget_usd',
+        // ADR-0004: admin-managed embedding tier. provider/model/base_url are
+        // live-applied by Curator (it rebuilds its client). Vector width is
+        // derived from the model (config), not stored.
+        'embeddings_provider',
+        'embeddings_model',
+        'embeddings_base_url',
     ];
 
     protected $casts = [

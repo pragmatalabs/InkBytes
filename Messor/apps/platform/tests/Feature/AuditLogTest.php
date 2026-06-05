@@ -139,6 +139,10 @@ class AuditLogTest extends TestCase
             'entity_overlap_min' => 2,
             'min_sources_to_publish' => 2,
             'recent_window_hours' => 48,
+            // ADR-0004: embedding tier (required by the update validation).
+            'embeddings_provider' => 'ollama',
+            'embeddings_model' => 'bge-m3',
+            'embeddings_base_url' => 'http://localhost:11434/v1',
         ])->assertRedirect(route('settings.edit'));
 
         $log = AuditLog::query()->where('action', 'settings.updated')->first();

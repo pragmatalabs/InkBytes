@@ -113,6 +113,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/settings', [CuratorSettingController::class, 'update'])->name('settings.update');
         // B9: restore the canonical defaults from config/curator.php (audited).
         Route::post('/settings/reset', [CuratorSettingController::class, 'reset'])->name('settings.reset');
+        // ADR-0004: trigger a corpus re-embed (publishes embeddings.reembed to
+        // Curator). Used after switching the embedding provider/model.
+        Route::post('/settings/reembed', [CuratorSettingController::class, 'reembed'])->name('settings.reembed');
 
         // Provider API keys — encrypted-at-rest vault for store/rotate/mask/test.
         // Curator does NOT read these (it loads real keys from env — ADR-0004).

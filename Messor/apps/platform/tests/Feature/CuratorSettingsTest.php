@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\CuratorSetting;
 use App\Models\User;
+use App\Services\CuratorCommandService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class CuratorSettingsTest extends TestCase
@@ -23,8 +25,7 @@ class CuratorSettingsTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->put('/settings', [
-            'enrich_model' => 'claude-haiku-4-5',
+        $response = $this->actingAs($user)->put('/settings', $this->validPayload([
             'synthesize_model' => 'claude-sonnet-4-5',
             'max_tokens_enrich' => 1200,
             'max_tokens_synth' => 3000,
@@ -33,7 +34,7 @@ class CuratorSettingsTest extends TestCase
             'entity_overlap_min' => 2,
             'min_sources_to_publish' => 3,
             'recent_window_hours' => 72,
-        ]);
+        ]));
 
         $response->assertRedirect(route('settings.edit'));
 
@@ -48,18 +49,102 @@ class CuratorSettingsTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)
-            ->put('/settings', [
-                'enrich_model' => 'claude-haiku-4-5',
-                'synthesize_model' => 'claude-haiku-4-5',
-                'max_tokens_enrich' => 1200,
-                'max_tokens_synth' => 3000,
-                'temperature' => 9.0, // out of 0..2
-                'similarity_threshold' => 0.7,
-                'entity_overlap_min' => 2,
-                'min_sources_to_publish' => 3,
-                'recent_window_hours' => 72,
-            ])
+            ->put('/settings', $this->validPayload(['temperature' => 9.0])) // out of 0..1
             ->assertSessionHasErrors('temperature');
+    }
+
+    // ── ADR-0004: embedding tier ──────────────────────────────────────────
+
+    /** Embedding provider/model/base_url persist. */
+    public function test_update_persists_embedding_settings(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload([
+                'embeddings_provider' => 'ollama',
+                'embeddings_model' => 'mxbai-embed-large',
+                'embeddings_base_url' => 'http://ollama:11434/v1',
+            ]))
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHasNoErrors();
+
+        $s = CuratorSetting::current();
+        $this->assertSame('ollama', $s->embeddings_provider);
+        $this->assertSame('mxbai-embed-large', $s->embeddings_model);
+        $this->assertSame('http://ollama:11434/v1', $s->embeddings_base_url);
+    }
+
+    /** An unknown embedding provider is rejected. */
+    public function test_update_rejects_unknown_embedding_provider(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload(['embeddings_provider' => 'cohere']))
+            ->assertSessionHasErrors('embeddings_provider');
+    }
+
+    /** A model not allowed for the selected provider is rejected. */
+    public function test_update_rejects_model_not_allowed_for_provider(): void
+    {
+        $user = User::factory()->create();
+
+        // OpenAI model under the ollama provider → invalid.
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload([
+                'embeddings_provider' => 'ollama',
+                'embeddings_model' => 'text-embedding-3-small',
+            ]))
+            ->assertSessionHasErrors('embeddings_model');
+    }
+
+    /** Ollama requires a base URL. */
+    public function test_update_requires_base_url_for_ollama(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload([
+                'embeddings_provider' => 'ollama',
+                'embeddings_model' => 'bge-m3',
+                'embeddings_base_url' => '',
+            ]))
+            ->assertSessionHasErrors('embeddings_base_url');
+    }
+
+    /** OpenAI stores no base_url (uses the SDK default endpoint). */
+    public function test_update_clears_base_url_for_openai(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->put('/settings', $this->validPayload([
+                'embeddings_provider' => 'openai',
+                'embeddings_model' => 'text-embedding-3-small',
+                'embeddings_base_url' => 'http://should-be-ignored/v1',
+            ]))
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull(CuratorSetting::current()->embeddings_base_url);
+    }
+
+    /** Re-embed publishes the embeddings.reembed command and is audited. */
+    public function test_reembed_publishes_command_and_audits(): void
+    {
+        $user = User::factory()->create();
+
+        $mock = Mockery::mock(CuratorCommandService::class);
+        $mock->shouldReceive('reembedCorpus')->once()->with('all')->andReturnTrue();
+        $this->app->instance(CuratorCommandService::class, $mock);
+
+        $this->actingAs($user)
+            ->post('/settings/reembed')
+            ->assertRedirect(route('settings.edit'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, AuditLog::where('action', 'embeddings.reembed')->count());
     }
 
     /** B9: a model id off the allowlist is rejected. */
@@ -160,6 +245,10 @@ class CuratorSettingsTest extends TestCase
             'entity_overlap_min' => 1,
             'min_sources_to_publish' => 2,
             'recent_window_hours' => 48,
+            // ADR-0004: embedding tier (now required by the update validation).
+            'embeddings_provider' => 'ollama',
+            'embeddings_model' => 'bge-m3',
+            'embeddings_base_url' => 'http://localhost:11434/v1',
         ], $overrides);
     }
 }
