@@ -160,7 +160,8 @@ def gen_xlsx() -> Path:
         c.border = border
 
     for idx, s in enumerate(STORIES, start=2):
-        sid, _e, title, *_rest, v, eff, ru, _risk, _adr = s
+        sid, title = s[0], s[2]
+        v, eff, ru = s[9], s[10], s[11]
         score = round(v / (eff + ru), 2) if (eff + ru) > 0 else 0
         rec = recommendation(v, eff, ru)
         ws2.append([sid, title, v, eff, ru, score, rec])
@@ -184,7 +185,8 @@ def gen_xlsx() -> Path:
     ws3 = wb.create_sheet("Sprint Plan")
     sprint_data = {2: [], 3: [], 4: []}
     for s in STORIES:
-        sid, epic, title, *_r, sprint, points, *__r = s
+        sid, epic, title = s[0], s[1], s[2]
+        sprint, points = s[6], s[7]
         sprint_data[sprint].append((sid, epic, title, points))
 
     ws3.append(["Sprint", "ID", "Epic", "Story", "Points"])
@@ -455,7 +457,8 @@ def _add_story_table(doc, stories):
             for r in p.runs:
                 r.bold = True
     for s in stories:
-        sid, _epic, title, *_r, sprint, points, _status, _v, _e, _ru, risk, adr = s
+        sid, title, points = s[0], s[2], s[7]
+        risk, adr = s[12], s[13]
         row = tbl.add_row().cells
         row[0].text = sid
         row[1].text = title
