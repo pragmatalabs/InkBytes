@@ -14,7 +14,8 @@
 #   RabbitMQ mgmt  :15683 → :15672
 #
 # Memory limits prevent OOM crashes on shared host.
-# Total reserved: ~7 GB — leaves 8 GB for OS, Ollama model serving, other projects.
+# Total reserved: ~8.5 GB — leaves ~6.5 GB for OS, Ollama (bge-m3 ~1.6 GB cap 3 GB), other projects.
+# Ollama mem_limit set to 3g in /docker/galvanic/docker-compose.yml (was 10g; bge-m3 peaks at 1.6 GB).
 
 name: inkbytes
 
@@ -111,7 +112,7 @@ services:
     restart: unless-stopped
     networks: [inkbytes-internal]
 
-    mem_limit: 3g
+    mem_limit: 6g
     cpus: 2.0
     environment:
       RABBITMQ_HOST: inkbytes-rabbitmq
