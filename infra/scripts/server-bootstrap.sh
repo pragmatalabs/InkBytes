@@ -86,8 +86,8 @@ NEXT STEPS:
        cd /opt/traefik && docker compose up -d
 
   4. DNS: Add A records BEFORE first deploy (Let's Encrypt needs them):
-       A  inkbytes.pragmata.cloud        → <droplet IP>
-       A  admin.inkbytes.pragmata.cloud  → <droplet IP>
+       A  inkbytes.org        → <droplet IP>
+       A  admin.inkbytes.org  → <droplet IP>
 
   5. First deploy:
        cd ${DEPLOY_PATH} && bash infra/deploy.sh --build

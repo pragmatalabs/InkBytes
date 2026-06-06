@@ -5,8 +5,8 @@
 #   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d
 #
 # Two public surfaces:
-#   inkbytes-reader      → inkbytes.pragmata.cloud        (Next.js :3000)
-#   inkbytes-backoffice  → admin.inkbytes.pragmata.cloud  (nginx :80 → php-fpm)
+#   inkbytes-reader      → inkbytes.org        (Next.js :3000)
+#   inkbytes-backoffice  → admin.inkbytes.org  (nginx :80 → php-fpm)
 #
 # All other containers live on inkbytes-internal only.
 # Host-bound admin ports (127.0.0.1 only, SSH-tunnel access):
@@ -40,14 +40,14 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.inkbytes-reader.rule=Host(`${READER_DOMAIN:-inkbytes.pragmata.cloud}`)
+      - traefik.http.routers.inkbytes-reader.rule=Host(`${READER_DOMAIN:-inkbytes.org}`)
       - traefik.http.routers.inkbytes-reader.entrypoints=websecure
       - traefik.http.routers.inkbytes-reader.tls.certresolver=letsencrypt
       - traefik.http.services.inkbytes-reader.loadbalancer.server.port=3000
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       CURATOR_API_URL: http://inkbytes-curator-api:8060
-      NEXT_PUBLIC_SITE_URL: https://${READER_DOMAIN:-inkbytes.pragmata.cloud}
+      NEXT_PUBLIC_SITE_URL: https://${READER_DOMAIN:-inkbytes.org}
       INKBYTES_DEMO_PASSWORD: ${INKBYTES_DEMO_PASSWORD:-changeme}
       NODE_ENV: production
     depends_on:
@@ -70,7 +70,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.inkbytes-backoffice.rule=Host(`${ADMIN_DOMAIN:-admin.inkbytes.pragmata.cloud}`)
+      - traefik.http.routers.inkbytes-backoffice.rule=Host(`${ADMIN_DOMAIN:-admin.inkbytes.org}`)
       - traefik.http.routers.inkbytes-backoffice.entrypoints=websecure
       - traefik.http.routers.inkbytes-backoffice.tls.certresolver=letsencrypt
       - traefik.http.services.inkbytes-backoffice.loadbalancer.server.port=80
@@ -89,7 +89,7 @@ services:
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY}
-      APP_URL: https://${ADMIN_DOMAIN:-admin.inkbytes.pragmata.cloud}
+      APP_URL: https://${ADMIN_DOMAIN:-admin.inkbytes.org}
       # Database (backoffice schema via search_path in pgsql connection)
       DB_CONNECTION: pgsql
       DB_HOST: inkbytes-postgres

@@ -77,7 +77,7 @@ shell-curator: ## Open a shell in the Curator API container
 	docker exec -it inkbytes-curator-api bash
 
 health: ## Hit Reader + Curator health endpoints
-	@echo "Reader:"; curl -sf https://inkbytes.pragmata.cloud/ > /dev/null && echo "OK" || echo "FAIL"
+	@echo "Reader:"; curl -sf https://inkbytes.org/ > /dev/null && echo "OK" || echo "FAIL"
 	@echo "Curator:"; curl -sf http://localhost:8060/healthz && echo "" || echo "FAIL (check tunnel)"
 
 # ── Network ───────────────────────────────────────────────────────────────────

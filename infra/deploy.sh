@@ -58,8 +58,8 @@ docker image prune -f
 
 echo ""
 echo "✓ InkBytes deployed"
-echo "  Reader:    https://${READER_DOMAIN:-inkbytes.pragmata.cloud}"
-echo "  Backoffice: https://${ADMIN_DOMAIN:-admin.inkbytes.pragmata.cloud}"
+echo "  Reader:    https://${READER_DOMAIN:-inkbytes.org}"
+echo "  Backoffice: https://${ADMIN_DOMAIN:-admin.inkbytes.org}"
 echo ""
 echo "  Logs:  docker compose -f infra/docker-compose.prod.yml logs -f"
 echo "  DB:    docker exec -it inkbytes-postgres psql -U inkbytes -d inkbytes"
