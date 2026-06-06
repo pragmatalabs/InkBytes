@@ -1,4 +1,4 @@
-"""LLM service — wraps Anthropic or OpenAI via `instructor` for structured outputs.
+"""LLM service — wraps Anthropic, OpenAI, or DeepSeek via `instructor` for structured outputs.
 
 If the relevant API key is not set, falls back to a deterministic stub so the
 pipeline can be developed offline (D2). Real calls land on D3.
@@ -9,6 +9,9 @@ anthropic (default) — AsyncAnthropic via instructor.from_anthropic.
 openai              — AsyncOpenAI via instructor.from_openai. Switch via
                       llm.provider=openai in config or the Backoffice live
                       setting `llm_provider`. Key: OPENAI_API_KEY (env only).
+deepseek            — AsyncOpenAI pointed at https://api.deepseek.com/v1 (OpenAI-
+                      compatible endpoint). Key: DEEPSEEK_API_KEY (env only).
+                      Models: deepseek-chat (DeepSeek-V3), deepseek-reasoner (R1).
 
 Error taxonomy
 --------------
@@ -83,30 +86,62 @@ def _build_client(cfg: LlmCfg):
         )
         return client
 
-    if provider == "openai":
-        if cfg.openai_api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", ""):
-            return None  # stub mode
-        import instructor
-        from openai import AsyncOpenAI, BadRequestError as OpenAIBadRequestError
-        from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
+    # ── OpenAI-compatible providers (openai, deepseek, groq, together, …) ──────
+    # All non-Anthropic providers use the AsyncOpenAI client. The API key and
+    # base_url are resolved per provider, with cfg.base_url as a DB override that
+    # takes precedence over the provider's built-in default endpoint.
+    if provider == "deepseek":
+        api_key   = cfg.deepseek_api_key
+        # DeepSeek default; overridden by cfg.base_url if the admin set one.
+        base_url  = cfg.base_url or "https://api.deepseek.com/v1"
+    else:
+        # openai, groq, together, mistral, or any other OpenAI-compatible provider.
+        api_key   = cfg.openai_api_key
+        base_url  = cfg.base_url or None   # None → AsyncOpenAI uses its built-in default
 
-        logger.info("LlmService using OpenAI provider (model=%s)", cfg.enrich_model)
-        client = instructor.from_openai(AsyncOpenAI(api_key=cfg.openai_api_key))
-        client.max_retries = Retrying(
-            stop=stop_after_attempt(3),
-            retry=retry_if_not_exception_type(OpenAIBadRequestError),
-            reraise=True,
-        )
-        return client
+    if api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "", None):
+        return None  # stub mode — no key configured
 
-    raise ValueError(f"Unsupported LLM provider: {provider!r}. Use 'anthropic' or 'openai'.")
+    import instructor
+    from openai import AsyncOpenAI, BadRequestError as OpenAIBadRequestError
+    from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
 
+    # DeepSeek R1 (deepseek-reasoner) uses "thinking mode" which rejects
+    # tool_choice — the default instructor Mode.TOOLS won't work. Use
+    # Mode.JSON for all DeepSeek models so both deepseek-chat (V3) and
+    # deepseek-reasoner (R1) are supported. OpenAI and other providers keep
+    # the default TOOLS mode.
+    if provider == "deepseek":
+        mode = instructor.Mode.JSON
+    else:
+        mode = instructor.Mode.TOOLS   # OpenAI default; supports tool_choice
+
+    logger.info(
+        "LlmService using %s provider (model=%s, base_url=%s, mode=%s)",
+        provider, cfg.enrich_model, base_url or "default", mode.value,
+    )
+    oa_kwargs: dict = {"api_key": api_key}
+    if base_url:
+        oa_kwargs["base_url"] = base_url
+    client = instructor.from_openai(AsyncOpenAI(**oa_kwargs), mode=mode)
+    client.max_retries = Retrying(
+        stop=stop_after_attempt(3),
+        retry=retry_if_not_exception_type(OpenAIBadRequestError),
+        reraise=True,
+    )
+    return client
+
+
+_UNSET = {PLACEHOLDER, "LOCAL_DEV_UNSET", "", None}
 
 def _is_stub_mode(cfg: LlmCfg) -> bool:
     """Return True when the relevant API key is unset for the chosen provider."""
-    if cfg.provider == "openai":
-        return cfg.openai_api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "")
-    return cfg.api_key in (PLACEHOLDER, "LOCAL_DEV_UNSET", "")
+    if cfg.provider == "anthropic":
+        return cfg.api_key in _UNSET
+    if cfg.provider == "deepseek":
+        return cfg.deepseek_api_key in _UNSET
+    # openai, groq, together, mistral, and any other OpenAI-compatible provider.
+    return cfg.openai_api_key in _UNSET
 
 
 class LlmService:
@@ -123,6 +158,29 @@ class LlmService:
             self._client = None
         else:
             self._client = _build_client(cfg)
+
+    async def close(self) -> None:
+        """Close the underlying HTTP transport.
+
+        instructor wraps a provider SDK (AsyncOpenAI / AsyncAnthropic).  Those
+        clients hold an httpx AsyncClient whose transport must be explicitly
+        closed — otherwise the event loop emits
+        'RuntimeWarning: coroutine AsyncClient.aclose was never awaited'
+        on shutdown.  instructor exposes the raw provider client as .client.
+        """
+        if self._client is None:
+            return
+        inner = getattr(self._client, "client", None)
+        if inner is None:
+            return
+        aclose = getattr(inner, "aclose", None) or getattr(
+            getattr(inner, "_client", None), "aclose", None
+        )
+        if callable(aclose):
+            try:
+                await aclose()
+            except Exception:  # pragma: no cover — best-effort cleanup
+                pass
 
     def reconfigure(self, cfg: LlmCfg) -> dict:
         """Hot-swap the LLM client when the provider or models change.
