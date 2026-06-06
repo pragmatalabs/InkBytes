@@ -104,6 +104,10 @@ services:
       # Scraping trigger: queue worker POSTs to Messor's trigger endpoint
       # over the inkbytes-internal network. No Docker socket needed.
       SCRAPING_COMMAND: "curl -sf -X POST http://inkbytes-messor:8050/api/scrape/trigger -H 'Content-Type: application/json' -d '{}' > /dev/null 2>&1 || true"
+      # RabbitMQ management API — used by CuratorCommandService to publish
+      # moderation commands (re-embed, re-synthesize, publish/unpublish).
+      # Default is localhost:15672 which doesn't work inside Docker.
+      RABBITMQ_MANAGEMENT_URL: http://inkbytes-rabbitmq:15672
     depends_on:
       inkbytes-postgres: { condition: service_healthy }
       inkbytes-rabbitmq: { condition: service_healthy }
