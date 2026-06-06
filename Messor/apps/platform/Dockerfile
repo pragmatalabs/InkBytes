@@ -10,7 +10,7 @@ FROM node:20-alpine AS node-builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+RUN npm install --no-audit --ignore-scripts
 
 COPY . .
 RUN npm run build        # emits public/build/
