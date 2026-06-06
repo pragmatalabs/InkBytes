@@ -299,7 +299,14 @@ def check_article_exists_in_all_scrapes(article: Article, outlet_name: str) -> b
         # Log how many files we're checking
         logger.debug(f"Checking {len(outlet_scrape_files)} existing scrape files for outlet: {outlet_name}")
         
-        # Check each file for article ID — and compare content if found.
+        # ── PERF-REVIEW ────────────────────────────────────────────────────────
+        # Content-aware cross-session dedup (2026-06-06, checkpoint/content-aware-dedup).
+        # get_staged_content_hash reads the FULL JSON of each prior staging file
+        # to locate the article and hash its title+text.  At high outlet × session
+        # volume this is O(N_articles × M_staging_files) file I/O per scrape cycle.
+        # Monitor staging-file growth; if dedup becomes a bottleneck, fast revert:
+        #   git revert 6cbef06   # restores pure-ID dedup here
+        # ── END PERF-REVIEW ────────────────────────────────────────────────────
         import hashlib as _hashlib
         article_id    = article.id
         article_title = article.title[:30] if article.title else "Unknown"

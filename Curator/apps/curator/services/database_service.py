@@ -502,6 +502,11 @@ class DatabaseService:
         spaces_key is NULL when the article arrived inline via RabbitMQ before
         the S3 archive step completed. That is the normal v0 path.
         """
+        # PERF-REVIEW (checkpoint/content-aware-dedup, 2026-06-06): hash computed
+        # on every upsert — negligible CPU, but the ON CONFLICT DO UPDATE WHERE
+        # clause now rewrites and resets enrichment on content change.  Fine at
+        # current volume; revisit if DB write contention appears.
+        # Fast revert: git revert 428270e (restores ON CONFLICT DO NOTHING).
         content_hash = hashlib.md5(
             (art["title"] + (art.get("text") or "")).encode("utf-8")
         ).hexdigest()
