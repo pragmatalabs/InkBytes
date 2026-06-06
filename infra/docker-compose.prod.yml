@@ -123,7 +123,7 @@ services:
       DO_SPACES_SECRET: ${DO_SPACES_SECRET}
       DO_SPACES_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       DO_SPACES_BUCKET: ${DO_SPACES_BUCKET:-inkbytes}
-      MESSOR_API_BASE_URL: http://inkbytes-backoffice/api
+      # MESSOR_API_BASE_URL removed — legacy endpoint (B12.3 decommissioned)
     depends_on:
       inkbytes-rabbitmq: { condition: service_healthy }
     healthcheck:
