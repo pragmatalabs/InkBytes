@@ -24,121 +24,83 @@ import { useState } from 'react';
 
 export default function SettingsIndex({
     settings = {},
-    enrichModels = [],
-    synthesizeModels = [],
-    embeddingProviders = [],
-    embeddingModels = {},
-    embeddingDimensions = {},
-    // B15: LLM provider/model allowlists. Drive provider + model dropdowns
-    // so a typo'd provider or cross-provider model can never reach Curator.
     llmProviders = [],
-    llmModels = {},
+    llmModelSuggestions = {},      // { anthropic: { enrich:[…], synthesize:[…] }, openai: {…}, … }
+    embeddingProviders = [],
+    embeddingModelSuggestions = {}, // { ollama: […], openai: […] }
+    embeddingDimensions = {},
 }) {
-    const [resetOpen, setResetOpen] = useState(false);
+    const [resetOpen, setResetOpen]   = useState(false);
     const [reembedOpen, setReembedOpen] = useState(false);
 
     const form = useForm({
-        // B15: LLM provider (anthropic | openai). Curator live-polls.
-        llm_provider: settings.llm_provider ?? 'anthropic',
-        enrich_model: settings.enrich_model ?? 'claude-haiku-4-5',
-        synthesize_model: settings.synthesize_model ?? 'claude-haiku-4-5',
+        // LLM
+        llm_provider:      settings.llm_provider      ?? 'anthropic',
+        enrich_model:      settings.enrich_model      ?? 'claude-haiku-4-5',
+        synthesize_model:  settings.synthesize_model  ?? 'claude-haiku-4-5',
+        llm_base_url:      settings.llm_base_url      ?? '',
         max_tokens_enrich: settings.max_tokens_enrich ?? 1500,
-        max_tokens_synth: settings.max_tokens_synth ?? 2500,
-        temperature: settings.temperature ?? 0.2,
-        similarity_threshold: settings.similarity_threshold ?? 0.62,
-        entity_overlap_min: settings.entity_overlap_min ?? 1,
+        max_tokens_synth:  settings.max_tokens_synth  ?? 2500,
+        temperature:       settings.temperature       ?? 0.2,
+        // Clustering
+        similarity_threshold:   settings.similarity_threshold   ?? 0.62,
+        entity_overlap_min:     settings.entity_overlap_min     ?? 1,
         min_sources_to_publish: settings.min_sources_to_publish ?? 2,
-        recent_window_hours: settings.recent_window_hours ?? 48,
-        // B5: monthly LLM-spend budget (USD). Empty string = unset (sent as null).
-        monthly_budget_usd:
-            settings.monthly_budget_usd === null ||
-            settings.monthly_budget_usd === undefined
-                ? ''
-                : settings.monthly_budget_usd,
-        // ADR-0004: embedding tier.
+        recent_window_hours:    settings.recent_window_hours    ?? 48,
+        // Embeddings
         embeddings_provider: settings.embeddings_provider ?? 'ollama',
-        embeddings_model: settings.embeddings_model ?? 'bge-m3',
+        embeddings_model:    settings.embeddings_model    ?? 'bge-m3',
         embeddings_base_url: settings.embeddings_base_url ?? 'http://localhost:11434/v1',
+        // Budget
+        monthly_budget_usd:
+            settings.monthly_budget_usd == null ? '' : settings.monthly_budget_usd,
+        // API keys — empty = keep existing DB value unchanged; non-empty = save new value.
+        anthropic_api_key:  '',
+        openai_api_key:     '',
+        deepseek_api_key:   '',
+        embeddings_api_key: '',
     });
 
-    const num = (field) => (event) =>
-        form.setData(field, event.target.value === '' ? '' : Number(event.target.value));
+    const num = (field) => (e) =>
+        form.setData(field, e.target.value === '' ? '' : Number(e.target.value));
 
-    const submit = (event) => {
-        event.preventDefault();
-        // Send an empty budget as null (unset) rather than '' so the
-        // `nullable|numeric` rule passes and the widget hides.
+    const submit = (e) => {
+        e.preventDefault();
         form.transform((data) => ({
             ...data,
-            monthly_budget_usd:
-                data.monthly_budget_usd === '' ? null : data.monthly_budget_usd,
-        })).put(route('settings.update'));
+            monthly_budget_usd: data.monthly_budget_usd === '' ? null : data.monthly_budget_usd,
+            llm_base_url:       data.llm_base_url === '' ? null : data.llm_base_url,
+        }));
+        form.put(route('settings.update'));
     };
 
-    const doReset = () => {
-        setResetOpen(false);
-        router.post(route('settings.reset'));
-    };
+    const doReset   = () => { setResetOpen(false);   router.post(route('settings.reset')); };
+    const doReembed = () => { setReembedOpen(false);  router.post(route('settings.reembed')); };
 
-    const doReembed = () => {
-        setReembedOpen(false);
-        router.post(route('settings.reembed'));
-    };
-
-    // B15: LLM provider change — keep enrich/synthesize models valid for the
-    // newly-selected provider (reset to provider's first model if the current
-    // selection isn't in that provider's list).
-    const onLlmProviderChange = (provider) => {
-        const models = llmModels[provider] ?? {};
-        const enrichModelsForProvider = models.enrich ?? [];
-        const synthModelsForProvider = models.synthesize ?? [];
-        form.setData({
-            ...form.data,
-            llm_provider: provider,
-            enrich_model: enrichModelsForProvider.includes(form.data.enrich_model)
-                ? form.data.enrich_model
-                : (enrichModelsForProvider[0] ?? ''),
-            synthesize_model: synthModelsForProvider.includes(form.data.synthesize_model)
-                ? form.data.synthesize_model
-                : (synthModelsForProvider[0] ?? ''),
-        });
-    };
-
-    // Embedding provider change: keep the model valid for the newly-selected provider.
     const onProviderChange = (provider) => {
-        const models = embeddingModels[provider] ?? [];
-        const model = models.includes(form.data.embeddings_model)
-            ? form.data.embeddings_model
-            : (models[0] ?? '');
-        form.setData({
-            ...form.data,
-            embeddings_provider: provider,
-            embeddings_model: model,
+        form.setData({ ...form.data, embeddings_provider: provider,
+            embeddings_model: (embeddingModelSuggestions[provider] ?? [])[0] ?? '',
         });
     };
 
-    const modelField = (field, label, options, helper) => (
-        <TextField
-            select
-            label={label}
-            value={form.data[field]}
-            onChange={(event) => form.setData(field, event.target.value)}
-            error={Boolean(form.errors[field])}
-            helperText={form.errors[field] ?? helper}
-            fullWidth
-        >
-            {options.map((id) => (
-                <MenuItem key={id} value={id}>
-                    {id}
-                </MenuItem>
-            ))}
-        </TextField>
-    );
+    // Helper: free-text field with model suggestions listed as helper text.
+    const modelTextField = (field, label, suggestions, helper) => {
+        const list = (suggestions ?? []).join(', ');
+        return (
+            <TextField
+                label={label}
+                value={form.data[field]}
+                onChange={(e) => form.setData(field, e.target.value)}
+                error={Boolean(form.errors[field])}
+                helperText={form.errors[field] ?? (list ? `${helper} — e.g. ${list}` : helper)}
+                fullWidth
+            />
+        );
+    };
 
     const numberField = (field, label, helper, step = 1) => (
         <TextField
-            label={label}
-            type="number"
+            label={label} type="number"
             value={form.data[field]}
             onChange={num(field)}
             error={Boolean(form.errors[field])}
@@ -148,22 +110,34 @@ export default function SettingsIndex({
         />
     );
 
-    // B15: LLM provider derived state — drive enrich/synthesize dropdowns from
-    // the current provider's allowed list (falls back to the prop lists from the
-    // controller if llmModels is empty, e.g. during tests).
-    const currentLlmModels = llmModels[form.data.llm_provider] ?? {};
-    const currentEnrichModels = currentLlmModels.enrich ?? enrichModels;
-    const currentSynthModels = currentLlmModels.synthesize ?? synthesizeModels;
-    const llmProviderChanged = form.data.llm_provider !== settings.llm_provider;
+    // Key field: shows status when already set in DB; empty = keep unchanged.
+    const keyField = (field, label, isSet) => (
+        <TextField
+            label={label}
+            type="password"
+            value={form.data[field]}
+            onChange={(e) => form.setData(field, e.target.value)}
+            error={Boolean(form.errors[field])}
+            placeholder={isSet ? 'Set in DB — leave blank to keep, or enter new key' : 'Enter API key'}
+            helperText={
+                form.errors[field] ??
+                (isSet
+                    ? '✓ Key stored — Curator uses it automatically'
+                    : 'Not set — Curator falls back to the env var if configured')
+            }
+            fullWidth
+            autoComplete="new-password"
+        />
+    );
 
-    // Embedding tier derived state.
-    const providerModels = embeddingModels[form.data.embeddings_provider] ?? [];
+    const llmSuggestionsForProvider = llmModelSuggestions[form.data.llm_provider] ?? {};
+    const llmProviderChanged = form.data.llm_provider !== settings.llm_provider;
+    const isOllama     = form.data.embeddings_provider === 'ollama';
     const selectedDims = embeddingDimensions[form.data.embeddings_model] ?? null;
-    const savedDims = embeddingDimensions[settings.embeddings_model] ?? null;
-    const isOllama = form.data.embeddings_provider === 'ollama';
+    const savedDims    = embeddingDimensions[settings.embeddings_model]  ?? null;
     const embeddingChanged =
         form.data.embeddings_provider !== settings.embeddings_provider ||
-        form.data.embeddings_model !== settings.embeddings_model;
+        form.data.embeddings_model    !== settings.embeddings_model;
     const dimsWouldChange =
         selectedDims !== null && savedDims !== null && selectedDims !== savedDims;
 
@@ -176,69 +150,64 @@ export default function SettingsIndex({
 
             <Paper component="form" onSubmit={submit} sx={{ p: 3 }}>
                 <Stack spacing={3}>
-                    {/* B15: LLM Provider section — above Models & Tokens */}
+
+                    {/* ── LLM Provider ───────────────────────────────────── */}
                     <Box>
-                        <Typography variant="h6" gutterBottom>
-                            LLM Provider
-                        </Typography>
+                        <Typography variant="h6" gutterBottom>LLM Provider</Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 4 }}>
                                 <TextField
-                                    select
-                                    label="Provider"
+                                    select label="Provider"
                                     value={form.data.llm_provider}
-                                    onChange={(e) => onLlmProviderChange(e.target.value)}
+                                    onChange={(e) => form.setData('llm_provider', e.target.value)}
                                     error={Boolean(form.errors.llm_provider)}
-                                    helperText={
-                                        form.errors.llm_provider ??
-                                        'Anthropic or OpenAI — Curator live-applies on next poll'
-                                    }
+                                    helperText={form.errors.llm_provider ?? 'Anthropic or OpenAI-compatible — Curator live-applies on next poll'}
                                     fullWidth
                                 >
                                     {llmProviders.map((p) => (
-                                        <MenuItem key={p} value={p}>
-                                            {p}
-                                        </MenuItem>
+                                        <MenuItem key={p} value={p}>{p}</MenuItem>
                                     ))}
                                 </TextField>
                             </Grid>
+                            <Grid size={{ xs: 12, md: 8 }}>
+                                <TextField
+                                    label="Base URL (OpenAI-compatible providers)"
+                                    value={form.data.llm_base_url}
+                                    onChange={(e) => form.setData('llm_base_url', e.target.value)}
+                                    error={Boolean(form.errors.llm_base_url)}
+                                    helperText={
+                                        form.errors.llm_base_url ??
+                                        'Leave blank for default (api.openai.com). Override for DeepSeek, Groq, Together, local Ollama text, etc.'
+                                    }
+                                    placeholder="e.g. https://api.deepseek.com/v1 or https://api.groq.com/openai/v1"
+                                    fullWidth
+                                />
+                            </Grid>
                         </Grid>
-
-                        {form.data.llm_provider === 'openai' && (
-                            <Alert severity="info" sx={{ mt: 2 }}>
-                                Switching to OpenAI requires{' '}
-                                <code>OPENAI_API_KEY</code> in Curator's environment —
-                                LLM keys are not managed here (ADR-0004).
-                            </Alert>
-                        )}
                         {llmProviderChanged && (
                             <Alert severity="info" sx={{ mt: 2 }}>
-                                After saving, Curator will switch its LLM client within
-                                30 seconds (next config poll).
+                                After saving, Curator switches its LLM client within 30 seconds (next config poll).
                             </Alert>
                         )}
                     </Box>
 
                     <Divider />
 
+                    {/* ── Models ─────────────────────────────────────────── */}
                     <Box>
-                        <Typography variant="h6" gutterBottom>
-                            Models
-                        </Typography>
+                        <Typography variant="h6" gutterBottom>Models</Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 6 }}>
-                                {modelField(
-                                    'enrich_model',
-                                    'Enrich model',
-                                    currentEnrichModels,
+                                {modelTextField(
+                                    'enrich_model', 'Enrich model',
+                                    llmSuggestionsForProvider.enrich,
                                     'Model used to enrich each article'
                                 )}
                             </Grid>
                             <Grid size={{ xs: 12, md: 6 }}>
-                                {modelField(
-                                    'synthesize_model',
-                                    'Synthesize model',
-                                    currentSynthModels,
+                                {modelTextField(
+                                    'synthesize_model', 'Synthesize model',
+                                    llmSuggestionsForProvider.synthesize,
                                     'Model used to synthesize each page'
                                 )}
                             </Grid>
@@ -247,117 +216,75 @@ export default function SettingsIndex({
 
                     <Divider />
 
+                    {/* ── Generation ─────────────────────────────────────── */}
                     <Box>
-                        <Typography variant="h6" gutterBottom>
-                            Generation
-                        </Typography>
+                        <Typography variant="h6" gutterBottom>Generation</Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 4 }}>
-                                {numberField(
-                                    'max_tokens_enrich',
-                                    'Max tokens (enrich)',
-                                    'Per-article enrichment cap'
-                                )}
+                                {numberField('max_tokens_enrich', 'Max tokens (enrich)',    'Per-article enrichment cap')}
                             </Grid>
                             <Grid size={{ xs: 12, md: 4 }}>
-                                {numberField(
-                                    'max_tokens_synth',
-                                    'Max tokens (synthesize)',
-                                    'Per-page synthesis cap'
-                                )}
+                                {numberField('max_tokens_synth',  'Max tokens (synthesize)', 'Per-page synthesis cap')}
                             </Grid>
                             <Grid size={{ xs: 12, md: 4 }}>
-                                {numberField(
-                                    'temperature',
-                                    'Temperature',
-                                    '0 = deterministic, low for news',
-                                    0.05
-                                )}
+                                {numberField('temperature', 'Temperature', '0 = deterministic, low for news', 0.05)}
                             </Grid>
                         </Grid>
                     </Box>
 
                     <Divider />
 
+                    {/* ── Clustering ─────────────────────────────────────── */}
                     <Box>
-                        <Typography variant="h6" gutterBottom>
-                            Clustering
-                        </Typography>
+                        <Typography variant="h6" gutterBottom>Clustering</Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 3 }}>
-                                {numberField(
-                                    'similarity_threshold',
-                                    'Similarity threshold',
-                                    'Cosine; lower = more merging',
-                                    0.01
-                                )}
+                                {numberField('similarity_threshold',   'Similarity threshold',   'Cosine; lower = more merging', 0.01)}
                             </Grid>
                             <Grid size={{ xs: 12, md: 3 }}>
-                                {numberField(
-                                    'entity_overlap_min',
-                                    'Entity overlap min',
-                                    'Shared entities to join'
-                                )}
+                                {numberField('entity_overlap_min',     'Entity overlap min',     'Shared entities to join')}
                             </Grid>
                             <Grid size={{ xs: 12, md: 3 }}>
-                                {numberField(
-                                    'min_sources_to_publish',
-                                    'Min sources to publish',
-                                    "Don't publish single-source"
-                                )}
+                                {numberField('min_sources_to_publish', 'Min sources to publish', "Don't publish single-source")}
                             </Grid>
                             <Grid size={{ xs: 12, md: 3 }}>
-                                {numberField(
-                                    'recent_window_hours',
-                                    'Recent window (hours)',
-                                    'Cluster lookback window'
-                                )}
+                                {numberField('recent_window_hours',    'Recent window (hours)',  'Cluster lookback window')}
                             </Grid>
                         </Grid>
                     </Box>
 
                     <Divider />
 
+                    {/* ── Embeddings ─────────────────────────────────────── */}
                     <Box>
-                        <Typography variant="h6" gutterBottom>
-                            Embeddings
-                        </Typography>
+                        <Typography variant="h6" gutterBottom>Embeddings</Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 3 }}>
                                 <TextField
-                                    select
-                                    label="Provider"
+                                    select label="Provider"
                                     value={form.data.embeddings_provider}
                                     onChange={(e) => onProviderChange(e.target.value)}
                                     error={Boolean(form.errors.embeddings_provider)}
-                                    helperText={
-                                        form.errors.embeddings_provider ??
-                                        'Local Ollama or hosted OpenAI'
-                                    }
+                                    helperText={form.errors.embeddings_provider ?? 'Local Ollama or hosted OpenAI'}
                                     fullWidth
                                 >
                                     {embeddingProviders.map((p) => (
-                                        <MenuItem key={p} value={p}>
-                                            {p}
-                                        </MenuItem>
+                                        <MenuItem key={p} value={p}>{p}</MenuItem>
                                     ))}
                                 </TextField>
                             </Grid>
                             <Grid size={{ xs: 12, md: 3 }}>
-                                {modelField(
-                                    'embeddings_model',
-                                    'Model',
-                                    providerModels,
-                                    'Embedding model (provider-specific)'
+                                {modelTextField(
+                                    'embeddings_model', 'Model',
+                                    embeddingModelSuggestions[form.data.embeddings_provider],
+                                    'Embedding model'
                                 )}
                             </Grid>
                             <Grid size={{ xs: 12, md: 2 }}>
                                 <TextField
-                                    label="Vector dims"
-                                    value={selectedDims ?? '—'}
+                                    label="Vector dims" value={selectedDims ?? '—'}
                                     helperText="Derived (column width)"
-                                    InputProps={{ readOnly: true }}
-                                    fullWidth
+                                    InputProps={{ readOnly: true }} fullWidth
                                 />
                             </Grid>
                             {isOllama && (
@@ -365,14 +292,9 @@ export default function SettingsIndex({
                                     <TextField
                                         label="Base URL (Ollama)"
                                         value={form.data.embeddings_base_url}
-                                        onChange={(e) =>
-                                            form.setData('embeddings_base_url', e.target.value)
-                                        }
+                                        onChange={(e) => form.setData('embeddings_base_url', e.target.value)}
                                         error={Boolean(form.errors.embeddings_base_url)}
-                                        helperText={
-                                            form.errors.embeddings_base_url ??
-                                            'e.g. http://ollama:11434/v1'
-                                        }
+                                        helperText={form.errors.embeddings_base_url ?? 'e.g. http://ollama:11434/v1'}
                                         fullWidth
                                     />
                                 </Grid>
@@ -381,61 +303,68 @@ export default function SettingsIndex({
 
                         {dimsWouldChange && (
                             <Alert severity="warning" sx={{ mt: 2 }}>
-                                This model uses <strong>{selectedDims}-d</strong> vectors
-                                but the live column is <strong>{savedDims}-d</strong>.
-                                Curator will <strong>refuse to switch live</strong> — a
-                                vector-width migration + full re-embed is required first
-                                (an ops task), otherwise inserts would fail.
+                                This model uses <strong>{selectedDims}-d</strong> vectors but the live column is{' '}
+                                <strong>{savedDims}-d</strong>. Curator will{' '}
+                                <strong>refuse to switch live</strong> — a vector-width migration + full re-embed is
+                                required first.
                             </Alert>
                         )}
                         {!dimsWouldChange && embeddingChanged && (
                             <Alert severity="info" sx={{ mt: 2 }}>
-                                After saving, existing vectors are from the previous model
-                                and become stale (different vector space). Click{' '}
-                                <strong>Re-embed corpus</strong> below to rebuild every
-                                article's embedding with the new model.
-                            </Alert>
-                        )}
-                        {form.data.embeddings_provider === 'openai' && (
-                            <Alert severity="info" sx={{ mt: 2 }}>
-                                Switching to OpenAI requires <code>OPENAI_API_KEY</code> in
-                                Curator's environment — embedding keys are not managed here
-                                (ADR-0004).
+                                After saving, click <strong>Re-embed corpus</strong> below to rebuild vectors with the
+                                new model.
                             </Alert>
                         )}
 
                         <Box sx={{ mt: 2 }}>
                             <Button
-                                type="button"
-                                variant="outlined"
+                                type="button" variant="outlined"
                                 startIcon={<AutorenewRoundedIcon />}
                                 onClick={() => setReembedOpen(true)}
                                 disabled={form.processing}
                             >
                                 Re-embed corpus
                             </Button>
-                            <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ ml: 1.5 }}
-                            >
-                                Rebuilds all article embeddings with the saved model (runs
-                                in Curator, in the background).
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5 }}>
+                                Rebuilds all article embeddings with the saved model (runs in Curator, in the background).
                             </Typography>
                         </Box>
                     </Box>
 
                     <Divider />
 
+                    {/* ── API Keys ───────────────────────────────────────── */}
                     <Box>
-                        <Typography variant="h6" gutterBottom>
-                            Cost
+                        <Typography variant="h6" gutterBottom>API Keys</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Keys stored here are polled by Curator and override the corresponding env vars. Leave a field
+                            blank to keep the current value. Keys are never echoed back to this page.
                         </Typography>
+                        <Grid container spacing={2.5}>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                {keyField('anthropic_api_key', 'Anthropic API Key', settings.anthropic_api_key_set)}
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                {keyField('openai_api_key', 'OpenAI API Key', settings.openai_api_key_set)}
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                {keyField('deepseek_api_key', 'DeepSeek API Key', settings.deepseek_api_key_set)}
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                {keyField('embeddings_api_key', 'Embeddings API Key', settings.embeddings_api_key_set)}
+                            </Grid>
+                        </Grid>
+                    </Box>
+
+                    <Divider />
+
+                    {/* ── Cost ───────────────────────────────────────────── */}
+                    <Box>
+                        <Typography variant="h6" gutterBottom>Cost</Typography>
                         <Grid container spacing={2.5}>
                             <Grid size={{ xs: 12, md: 4 }}>
                                 {numberField(
-                                    'monthly_budget_usd',
-                                    'Monthly budget (USD)',
+                                    'monthly_budget_usd', 'Monthly budget (USD)',
                                     'Month-to-date spend is checked against this on the Cost & Usage page. Leave blank for no budget.',
                                     0.01
                                 )}
@@ -443,11 +372,7 @@ export default function SettingsIndex({
                         </Grid>
                     </Box>
 
-                    <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        alignItems="center"
-                    >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Typography variant="caption" color="text.secondary">
                             {settings.updated_at
                                 ? `Last saved ${new Date(settings.updated_at).toLocaleString()}`
@@ -455,9 +380,7 @@ export default function SettingsIndex({
                         </Typography>
                         <Stack direction="row" spacing={1.5}>
                             <Button
-                                type="button"
-                                variant="outlined"
-                                color="warning"
+                                type="button" variant="outlined" color="warning"
                                 startIcon={<RestartAltRoundedIcon />}
                                 onClick={() => setResetOpen(true)}
                                 disabled={form.processing}
@@ -465,8 +388,7 @@ export default function SettingsIndex({
                                 Reset to defaults
                             </Button>
                             <Button
-                                type="submit"
-                                variant="contained"
+                                type="submit" variant="contained"
                                 startIcon={<SaveRoundedIcon />}
                                 disabled={form.processing}
                             >
@@ -477,41 +399,37 @@ export default function SettingsIndex({
                 </Stack>
             </Paper>
 
+            {/* Reset dialog */}
             <Dialog open={resetOpen} onClose={() => setResetOpen(false)}>
                 <DialogTitle>Reset Curator settings to defaults?</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        This restores the canonical defaults (Anthropic provider, Haiku
-                        models, token caps, temperature 0.2, clustering thresholds, local
-                        Ollama bge-m3 embeddings) and clears the monthly budget. Curator
-                        polls this row, so the change reaches the live pipeline within its
-                        refresh interval. This action is recorded in the audit log.
+                        This restores the canonical defaults (Anthropic provider, Haiku models, token caps,
+                        temperature 0.2, clustering thresholds, local Ollama bge-m3 embeddings) and clears the
+                        monthly budget. API keys are NOT reset. Curator polls this row, so changes reach the live
+                        pipeline within the refresh interval. This action is recorded in the audit log.
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setResetOpen(false)}>Cancel</Button>
-                    <Button onClick={doReset} color="warning" variant="contained">
-                        Reset to defaults
-                    </Button>
+                    <Button onClick={doReset} color="warning" variant="contained">Reset to defaults</Button>
                 </DialogActions>
             </Dialog>
 
+            {/* Re-embed dialog */}
             <Dialog open={reembedOpen} onClose={() => setReembedOpen(false)}>
                 <DialogTitle>Re-embed the whole corpus?</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Curator will rebuild every article's embedding with the currently
-                        saved model, in the background. Do this after switching the
-                        embedding provider/model so clustering uses one consistent vector
-                        space. It uses no LLM budget (embeddings only) but takes a few
-                        minutes. This action is recorded in the audit log.
+                        Curator will rebuild every article's embedding with the currently saved model, in the
+                        background. Do this after switching the embedding provider/model so clustering uses one
+                        consistent vector space. Uses no LLM budget (embeddings only) but takes a few minutes.
+                        This action is recorded in the audit log.
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setReembedOpen(false)}>Cancel</Button>
-                    <Button onClick={doReembed} variant="contained">
-                        Re-embed corpus
-                    </Button>
+                    <Button onClick={doReembed} color="primary" variant="contained">Re-embed corpus</Button>
                 </DialogActions>
             </Dialog>
         </AppLayout>

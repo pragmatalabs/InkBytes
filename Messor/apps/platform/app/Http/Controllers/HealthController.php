@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
@@ -228,6 +229,43 @@ class HealthController extends Controller
         return Http::withBasicAuth($cfg['user'] ?? '', $cfg['password'] ?? '')
             ->timeout(self::TIMEOUT)
             ->acceptJson();
+    }
+
+    /**
+     * Curator pipeline live status — JSON endpoint for the admin status modal.
+     *
+     * Proxies Curator GET /status (which now includes synths_in_flight, LLM
+     * tier, and articles_pending) and returns the full payload as JSON.
+     * Defensive: returns a structured error shape if Curator is unreachable so
+     * the modal can show a graceful "offline" state instead of crashing.
+     */
+    public function curatorPipeline(): JsonResponse
+    {
+        $base    = rtrim((string) config('services.curator.url'), '/');
+        $started = microtime(true);
+
+        try {
+            $response = Http::timeout(self::TIMEOUT)->acceptJson()->get($base.'/status');
+
+            if (! $response->successful()) {
+                return response()->json([
+                    'reachable'   => false,
+                    'latency_ms'  => $this->elapsedMs($started),
+                    'error'       => "HTTP {$response->status()}",
+                ], 200);
+            }
+
+            return response()->json(array_merge(
+                $response->json() ?? [],
+                ['reachable' => true, 'latency_ms' => $this->elapsedMs($started)],
+            ));
+        } catch (\Throwable) {
+            return response()->json([
+                'reachable'   => false,
+                'latency_ms'  => $this->elapsedMs($started),
+                'error'       => 'Curator unreachable',
+            ], 200);
+        }
     }
 
     private function elapsedMs(float $started): int

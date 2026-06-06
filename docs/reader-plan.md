@@ -83,7 +83,7 @@ is first-class**; richer surfaces (esp. the graph) degrade gracefully, never blo
 | Phase | Scope | Backend dep |
 |---|---|---|
 | **R1 ✅ done (2026-06-05)** | **Event page → parity, desktop + mobile** (the core): DEVELOPING badge, stat cards (Sources + Coverage; Factuality deferred), drop-cap; keep citations + evidence rail + entity chips; mobile-first responsive | none (existing PageV1) |
-| **R2** | Feed upgrade + nav/search (desktop + mobile) | none |
+| **R2 ✅ done (2026-06-04)** | Feed upgrade + nav/search (desktop + mobile) | none |
 | **R3** | Entity graph: Curator `GET /graph` endpoint → desktop force graph + mobile entity-list | **Curator `/graph`** |
 | **R4** | Global responsive / perf / SEO pass (keep SSR + OG tags) | none |
 | **R5** | Gating boundary (free vs paid) wired to subscriber status | **Phase 3 / Stripe** |
@@ -101,6 +101,14 @@ both desktop and mobile.
 > **Next 16 gotcha noted:** the `/event/[id]` route uses ISR (`revalidate=300`) + fetch cache,
 > so time-derived UI (the DEVELOPING badge) can serve a stale render after the source data's
 > recency window changes — clear `.next/cache` / restart to re-verify time-based logic locally.
+>
+> **R2 status (done 2026-06-04):** Nav updated (Topics removed from header, Entities added —
+> links to the R3 placeholder page). Search pill in the header now wires through
+> `searchParams` → `focusSearch` prop → `useRef.focus()` so clicking "Search events" in the
+> header auto-focuses the search input. Feed cards gained a freshness left-border stripe
+> (`border-l-4` + `freshnessClass()`: green <1 h, amber <6 h, sky <24 h, gray older). Feed
+> header shows today's date above the "Today's events" title. Search now matches on both
+> `headline` and `topic`. Build green, TypeScript clean.
 
 ## 8. Tech guardrails
 - ⚠️ **Heed [`Reader/apps/web/AGENTS.md`](../Reader/apps/web/AGENTS.md)** — "this is NOT the

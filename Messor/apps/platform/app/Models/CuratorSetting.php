@@ -36,8 +36,17 @@ class CuratorSetting extends Model
         'embeddings_provider',
         'embeddings_model',
         'embeddings_base_url',
-        // B15: LLM provider (anthropic | openai). Curator live-polls and rebuilds its client.
+        // B15: LLM provider (anthropic | openai | deepseek | …). Curator live-polls.
         'llm_provider',
+        // API keys — stored in DB override the corresponding env vars. Curator polls
+        // these from the DB (30-s refresh loop, ADR-0004). Never echoed back to the UI.
+        'anthropic_api_key',
+        'openai_api_key',
+        'deepseek_api_key',
+        // Base URL for OpenAI-compatible providers (overrides provider's default endpoint).
+        'llm_base_url',
+        // Embedding provider key (used when embeddings.provider = openai).
+        'embeddings_api_key',
     ];
 
     protected $casts = [

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getEvent, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
-import type { EvidenceItem, EntityItem } from "@/lib/types";
+import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
+import type { EvidenceItem, EntityItem, RelatedEvent } from "@/lib/types";
 
 export const revalidate = 300;
 
@@ -88,6 +88,14 @@ export default async function EventPage(
   const evidence = parseJson<EvidenceItem[]>(page.evidence_rail);
   const entities = parseJson<EntityItem[]>(page.entities);
   const developing = isDeveloping(page.freshness_at);
+
+  // Fetch related events in parallel — silent failure (empty list) if unavailable.
+  let related: RelatedEvent[] = [];
+  try {
+    related = await getRelatedEvents(id);
+  } catch {
+    // non-fatal: the event page renders fine without related events
+  }
 
   // Outlet-initials avatar stack, de-duped, built from the evidence source names.
   const outletNames = Array.from(new Set(evidence.map((e) => e.source_name))).slice(0, 6);
@@ -231,6 +239,65 @@ export default async function EventPage(
                   &ldquo;{item.quote}&rdquo;
                 </blockquote>
               </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Related events strip — entity + topic overlap (ADR-0005 Approach A) */}
+      {related.length > 0 && (
+        <div className="border-t border-[var(--border)] pt-7">
+          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-4">
+            Related events
+          </h2>
+          <div className="flex flex-col gap-2">
+            {related.map((ev) => (
+              <Link
+                key={ev.id}
+                href={`/event/${ev.id}`}
+                className="group flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-white px-4 py-3 hover:border-gray-300 hover:shadow-sm transition-all"
+              >
+                <div className="min-w-0">
+                  {ev.topic && (
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] block mb-1">
+                      {ev.topic}
+                    </span>
+                  )}
+                  <p className="text-[14px] font-medium leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors line-clamp-2">
+                    {ev.headline}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[var(--ink-muted)]">
+                    {/* Outlet initials */}
+                    <span className="flex items-center gap-0.5">
+                      {(ev.outlet_names ?? []).slice(0, 3).map((name) => (
+                        <span
+                          key={name}
+                          title={name}
+                          className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-white"
+                          style={{ width: 16, height: 16, fontSize: 6, fontWeight: 700 }}
+                        >
+                          {outletInitials(name)}
+                        </span>
+                      ))}
+                    </span>
+                    <span>{ev.source_count} {ev.source_count === 1 ? "source" : "sources"}</span>
+                    <span>·</span>
+                    <span>{relativeTime(ev.freshness_at)}</span>
+                    {ev.language !== "en" && (
+                      <span className="font-mono uppercase px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-[9px]">
+                        {ev.language}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Similarity score badge */}
+                <span
+                  className="shrink-0 mt-0.5 text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-gray-100 text-[var(--ink-muted)]"
+                  title={`Similarity score: ${ev.score}`}
+                >
+                  {Math.round(ev.score * 100)}%
+                </span>
+              </Link>
             ))}
           </div>
         </div>

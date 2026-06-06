@@ -1,4 +1,5 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import CuratorStatusModal from '@/Components/CuratorStatusModal';
 import { ToastProvider } from '@/providers/ToastProvider';
 import { useAuthRole } from '@/Hooks/useAuthRole';
 import { Link, usePage } from '@inertiajs/react';
@@ -9,6 +10,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
+import PrecisionManufacturingRoundedIcon from '@mui/icons-material/PrecisionManufacturingRounded';
 import MonitorHeartRoundedIcon from '@mui/icons-material/MonitorHeartRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
@@ -178,7 +180,8 @@ export default function AppLayout({
 }) {
     const { auth, alerts } = usePage().props;
     const gates = useAuthRole();
-    const [mobileOpen, setMobileOpen] = useState(false);
+    const [mobileOpen, setMobileOpen]           = useState(false);
+    const [curatorModalOpen, setCuratorModalOpen] = useState(false);
     const user = auth?.user;
     const openAlertCount = alerts?.open_count ?? 0;
 
@@ -265,6 +268,17 @@ export default function AppLayout({
                     <Box sx={{ flexGrow: 1 }} />
 
                     <Stack direction="row" alignItems="center" spacing={1.25}>
+                        {/* Curator live-status modal trigger */}
+                        <Tooltip title="Curator pipeline status">
+                            <IconButton
+                                color="inherit"
+                                onClick={() => setCuratorModalOpen(true)}
+                                aria-label="curator status"
+                            >
+                                <PrecisionManufacturingRoundedIcon />
+                            </IconButton>
+                        </Tooltip>
+
                         <Tooltip
                             title={
                                 openAlertCount > 0
@@ -396,6 +410,12 @@ export default function AppLayout({
                 </Box>
             </Box>
             </Box>
+
+            {/* Curator pipeline status modal — triggered by the ⚙ icon in the header */}
+            <CuratorStatusModal
+                open={curatorModalOpen}
+                onClose={() => setCuratorModalOpen(false)}
+            />
         </ToastProvider>
     );
 }

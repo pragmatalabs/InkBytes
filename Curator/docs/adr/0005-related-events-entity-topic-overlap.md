@@ -127,6 +127,11 @@ appropriate for a read-time request.
   Reader API contract.
 - No new dependency — pure PostgreSQL JSONB operators.
 
+**Note on case normalisation**: entity names are lowercased before comparison
+(`LOWER(ent->>'name')`). Without this, "DONALD TRUMP" (from a Spanish-language
+article) ≠ "Donald Trump" (from an English-language article) — a false miss for
+a strongly related pair. The SQL query normalises both sides.
+
 **Negative**
 - Blind to semantic similarity without shared entity names. "Inflation concerns"
   and "Fed rate decision" may not match unless both mention "Federal Reserve".

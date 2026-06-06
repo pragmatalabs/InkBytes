@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getGraph } from "@/lib/api";
+import GraphClient from "./graph-client";
+
+export const revalidate = 120; // graph refreshes every 2 minutes
 
 export const metadata: Metadata = {
   title: "Entity Graph",
@@ -8,26 +12,37 @@ export const metadata: Metadata = {
   openGraph: { title: "Entity Graph — InkBytes", type: "website" },
 };
 
-export default function EntitiesPage() {
-  return (
-    <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-6">
-        <svg className="w-6 h-6 text-[var(--ink-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="7" r="2.4"/><circle cx="12" cy="18" r="2.4"/>
-          <path d="M7 7 17 7M6.5 8 11 16M17.5 9 13 16"/>
-        </svg>
+export default async function EntitiesPage() {
+  let data;
+  try {
+    data = await getGraph();
+  } catch {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <h1 className="text-xl font-bold tracking-tight mb-2">Entity Graph</h1>
+        <p className="text-sm text-[var(--ink-muted)] max-w-xs mx-auto">
+          Could not reach the Curator service. Make sure it is running on port 8060.
+        </p>
+        <Link href="/" className="inline-block mt-8 text-sm text-[var(--accent)] underline hover:no-underline">
+          ← Back to events
+        </Link>
       </div>
-      <h1 className="text-xl font-bold tracking-tight mb-2">Entity Graph</h1>
-      <p className="text-sm text-[var(--ink-muted)] max-w-xs mx-auto">
-        Navigate the news by who &amp; what — places, people, orgs, and topics linked across events.
-        Coming in R3.
-      </p>
-      <Link
-        href="/"
-        className="inline-block mt-8 text-sm text-[var(--accent)] underline hover:no-underline"
-      >
-        ← Back to events
-      </Link>
-    </div>
-  );
+    );
+  }
+
+  if (!data.nodes.length) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <h1 className="text-xl font-bold tracking-tight mb-2">Entity Graph</h1>
+        <p className="text-sm text-[var(--ink-muted)] max-w-xs mx-auto">
+          No entities yet — publish some events first and they will appear here.
+        </p>
+        <Link href="/" className="inline-block mt-8 text-sm text-[var(--accent)] underline hover:no-underline">
+          ← Back to events
+        </Link>
+      </div>
+    );
+  }
+
+  return <GraphClient data={data} />;
 }

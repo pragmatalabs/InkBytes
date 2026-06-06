@@ -1,4 +1,4 @@
-import type { EventSummary, EventPage } from "./types";
+import type { EventSummary, EventPage, RelatedEvent, GraphData } from "./types";
 
 const BASE = process.env.CURATOR_API_URL ?? "http://localhost:8060";
 
@@ -6,6 +6,31 @@ async function apiFetch<T>(path: string, revalidate = 300): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { next: { revalidate } });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+/** Entity co-occurrence graph data for /entities (ADR-0005 Approach A). */
+export function getGraph(
+  minEventCount = 2,
+  limitNodes = 80,
+  minEdgeWeight = 2,
+  limitEdges = 250,
+): Promise<GraphData> {
+  return apiFetch<GraphData>(
+    `/graph?min_event_count=${minEventCount}&limit_nodes=${limitNodes}&min_edge_weight=${minEdgeWeight}&limit_edges=${limitEdges}`,
+    120, // revalidate every 2 min — graph changes as new events are published
+  );
+}
+
+/** Related events by entity + topic overlap (ADR-0005, Approach A). */
+export function getRelatedEvents(
+  id: string,
+  minScore = 0.4,
+  limit = 5,
+): Promise<RelatedEvent[]> {
+  return apiFetch<RelatedEvent[]>(
+    `/events/${id}/related?min_score=${minScore}&limit=${limit}`,
+    300,
+  );
 }
 
 export function getEvents(limit = 100): Promise<EventSummary[]> {

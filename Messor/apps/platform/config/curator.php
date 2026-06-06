@@ -89,7 +89,7 @@ return [
     | independently (e.g. Haiku for enrichment, Sonnet for synthesis).
     */
     'allowed_llm' => [
-        'providers' => ['anthropic', 'openai'],
+        'providers' => ['anthropic', 'openai', 'deepseek'],
         'models' => [
             'anthropic' => [
                 'enrich'     => ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
@@ -98,6 +98,13 @@ return [
             'openai' => [
                 'enrich'     => ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1'],
                 'synthesize' => ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1'],
+            ],
+            // DeepSeek — OpenAI-compatible API (https://api.deepseek.com/v1).
+            // Key: DEEPSEEK_API_KEY in Curator's environment (env-only, ADR-0004).
+            // deepseek-chat = DeepSeek-V3 (fast, cheap); deepseek-reasoner = R1 (CoT).
+            'deepseek' => [
+                'enrich'     => ['deepseek-chat', 'deepseek-reasoner'],
+                'synthesize' => ['deepseek-chat', 'deepseek-reasoner'],
             ],
         ],
     ],

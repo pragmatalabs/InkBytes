@@ -37,9 +37,14 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "max_tokens_enrich":      ("llm", "max_tokens_enrich"),
     "max_tokens_synth":       ("llm", "max_tokens_synth"),
     "temperature":            ("llm", "temperature"),
-    # LLM provider live-switch (ADR-0004). The Backoffice column is `llm_provider`;
-    # API keys stay env-only and are intentionally NOT in this map.
+    # LLM provider + custom base URL (OpenAI-compatible endpoint override).
     "llm_provider":           ("llm", "provider"),
+    "llm_base_url":           ("llm", "base_url"),
+    # API keys from Backoffice — override env vars when set (non-null, non-empty).
+    "anthropic_api_key":      ("llm", "api_key"),
+    "openai_api_key":         ("llm", "openai_api_key"),
+    "deepseek_api_key":       ("llm", "deepseek_api_key"),
+    "embeddings_api_key":     ("embeddings", "api_key"),
     "similarity_threshold":   ("clustering", "similarity_threshold"),
     "entity_overlap_min":     ("clustering", "entity_overlap_min"),
     "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
@@ -76,8 +81,12 @@ class LlmCfg(BaseModel):
     max_tokens_enrich: int = 1500
     max_tokens_synth: int = 2500
     temperature: float = 0.2
-    api_key: str = PLACEHOLDER          # Anthropic key — env: ANTHROPIC_API_KEY
-    openai_api_key: str = PLACEHOLDER   # OpenAI key — env: OPENAI_API_KEY; used when provider=openai
+    api_key: str = PLACEHOLDER           # Anthropic key  — env: ANTHROPIC_API_KEY
+    openai_api_key: str = PLACEHOLDER    # OpenAI key     — env: OPENAI_API_KEY;    provider=openai
+    deepseek_api_key: str = PLACEHOLDER  # DeepSeek key   — env: DEEPSEEK_API_KEY;  provider=deepseek
+    # Custom base URL for OpenAI-compatible providers (Groq, Together, DeepSeek, etc.).
+    # When set via Backoffice, overrides the provider's built-in default endpoint.
+    base_url: str | None = None
     # Standard list prices for cost accounting. Defaults = Claude Haiku 4.5
     # ($1/M input, $5/M output). Override in env if you use batch (~50% off)
     # or switch models. Verify against platform.claude.com/docs pricing.
@@ -251,9 +260,12 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         val = os.environ.get(env_var)
         if val:
             data[section][key] = val
-    # OPENAI_API_KEY also feeds llm.openai_api_key so LlmService can use OpenAI
-    # as the LLM backend when llm.provider=openai (separate from embeddings key).
+    # Provider-specific API keys feed their dedicated llm.* fields so LlmService
+    # can hot-swap between providers via Backoffice (ADR-0004).
     openai_key = os.environ.get("OPENAI_API_KEY")
     if openai_key:
         data["llm"]["openai_api_key"] = openai_key
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+    if deepseek_key:
+        data["llm"]["deepseek_api_key"] = deepseek_key
     return CuratorConfig.model_validate(data)
