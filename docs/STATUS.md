@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on Hostinger VPS · Owner: Julian · Last updated: 2026-06-06 (migrated to 82.112.250.139, galvanic.cloud, GHCR — all services healthy, 20 Docker fixes documented)*
+> *Status: v0 live on Hostinger VPS · Owner: Julian · Last updated: 2026-06-06 (26 Docker fixes, Ollama limits, all services healthy — see deployment-log.md)*
 
 ## TL;DR
 

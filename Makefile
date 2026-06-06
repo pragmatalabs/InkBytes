@@ -4,7 +4,9 @@ SHELL := /bin/bash
 COMPOSE_DEV  = docker compose -f orchestrator/docker-compose.dev.yaml
 COMPOSE_PROD = docker compose -f infra/docker-compose.prod.yml --env-file infra/.env
 DEPLOY_USER  ?= root
-DEPLOY_HOST  ?= pragmata-001
+DEPLOY_HOST  ?= 82.112.250.139          # Hostinger VPS
+DEPLOY_KEY   ?= ~/.ssh/galvanic_id
+DEPLOY_PATH  ?= /docker/inkbytes
 
 # ── Local development ─────────────────────────────────────────────────────────
 infra: ## Start local infra only (Postgres + RabbitMQ + MinIO)
@@ -48,37 +50,40 @@ prod-down: ## Stop prod stack
 	$(COMPOSE_PROD) down
 
 # ── Deploy ────────────────────────────────────────────────────────────────────
-deploy: ## Deploy to pragmata-001 via SSH (pull registry images)
-	ssh -t $(DEPLOY_USER)@$(DEPLOY_HOST) "cd /opt/inkbytes && bash infra/deploy.sh"
+deploy: ## Deploy to Hostinger via SSH (git pull + up)
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "cd $(DEPLOY_PATH) && git pull origin master && docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d"
 
-deploy-build: ## Deploy + build images on the server (no registry needed)
-	ssh -t $(DEPLOY_USER)@$(DEPLOY_HOST) "cd /opt/inkbytes && bash infra/deploy.sh --build"
+deploy-build: ## Deploy + rebuild all images on the server
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "cd $(DEPLOY_PATH) && git pull origin master && bash infra/deploy.sh --build"
 
 # ── Maintenance ───────────────────────────────────────────────────────────────
 migrate: ## Run Backoffice migrations (prod)
-	docker exec inkbytes-backoffice-fpm php artisan migrate --force
+	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec inkbytes-backoffice php artisan migrate --force"
 
 migrate-status: ## Show migration status (prod)
-	docker exec inkbytes-backoffice-fpm php artisan migrate:status
+	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec inkbytes-backoffice php artisan migrate:status"
 
 seed: ## Run Backoffice seeders (prod — caution)
-	docker exec inkbytes-backoffice-fpm php artisan db:seed --force
+	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec inkbytes-backoffice php artisan db:seed --force"
 
 backup: ## Backup Postgres DB to /var/backups/inkbytes
 	bash scripts/backup.sh
 
-shell-php: ## Open a shell in the Backoffice FPM container
-	docker exec -it inkbytes-backoffice-fpm bash
+shell-php: ## Open a shell in the Backoffice container
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec -it inkbytes-backoffice bash"
 
-shell-db: ## Open psql in the Postgres container
-	docker exec -it inkbytes-postgres psql -U inkbytes -d inkbytes
+shell-db: ## Open psql in the Postgres container (remote)
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec -it inkbytes-postgres psql -U inkbytes -d inkbytes"
 
-shell-curator: ## Open a shell in the Curator API container
-	docker exec -it inkbytes-curator-api bash
+shell-curator: ## Open a shell in the Curator API container (remote)
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec -it inkbytes-curator-api bash"
 
-health: ## Hit Reader + Curator health endpoints
-	@echo "Reader:"; curl -sf https://inkbytes.org/ > /dev/null && echo "OK" || echo "FAIL"
-	@echo "Curator:"; curl -sf http://localhost:8060/healthz && echo "" || echo "FAIL (check tunnel)"
+health: ## Hit live endpoints
+	@echo "Reader:";    curl -sk https://inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
+	@echo "Backoffice:"; curl -sk https://admin.inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
+
+status: ## Show prod container status (remote)
+	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "docker ps --filter 'name=inkbytes-' --format 'table {{.Names}}\t{{.Status}}' | sort"
 
 # ── Network ───────────────────────────────────────────────────────────────────
 network: ## Ensure traefik-public network exists (idempotent)
