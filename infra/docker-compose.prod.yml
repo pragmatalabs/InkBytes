@@ -48,7 +48,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       CURATOR_API_URL: http://inkbytes-curator-api:8060
       NEXT_PUBLIC_SITE_URL: https://${READER_DOMAIN:-inkbytes.galvanic.cloud}
-      INKBYTES_DEMO_PASSWORD: ${INKBYTES_DEMO_PASSWORD:-changeme}
+      INKBYTES_DEMO_PASSWORD: ${INKBYTES_DEMO_PASSWORD:-}   # blank = open access (no login required)
       NODE_ENV: production
     depends_on:
       inkbytes-postgres:    { condition: service_healthy }
@@ -119,6 +119,9 @@ services:
       RABBITMQ_PORT: "5672"
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASS: ${RABBITMQ_PASS}
+      # Wait this many minutes before the first scrape cycle after (re)start.
+      # Prevents back-to-back sweeps during crash-restart loops.
+      MESSOR_STARTUP_DELAY_MINUTES: "5"
       # DigitalOcean Spaces for article archival (S3-compatible)
       DO_SPACES_KEY: ${DO_SPACES_KEY}
       DO_SPACES_SECRET: ${DO_SPACES_SECRET}
