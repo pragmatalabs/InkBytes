@@ -42,6 +42,30 @@ class Config:
             return int(interval)
         except (AttributeError, ValueError, TypeError):
             return 60
+
+    def get_startup_delay_minutes(self) -> int:
+        """Minutes to wait before the FIRST scraping cycle on startup.
+
+        Prevents a burst of back-to-back full-outlet sweeps when Docker
+        restarts Messor repeatedly (e.g. during OOM recovery).  The API
+        is still available immediately; only the scheduled scrape is delayed.
+        Default: 0 (no delay) — set scraping.startup_delay_minutes in env.yaml
+        to override.  The env var MESSOR_STARTUP_DELAY_MINUTES takes precedence.
+        """
+        import os
+        env_val = os.environ.get("MESSOR_STARTUP_DELAY_MINUTES")
+        if env_val is not None:
+            try:
+                return max(0, int(env_val))
+            except (ValueError, TypeError):
+                pass
+        try:
+            val = getattr(self._config.scraping, 'startup_delay_minutes', 0)
+            if hasattr(val, 'value'):
+                return max(0, int(val.value))
+            return max(0, int(val))
+        except (AttributeError, ValueError, TypeError):
+            return 0
     
     @property
     def curator_api(self):

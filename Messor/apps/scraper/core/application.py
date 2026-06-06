@@ -312,16 +312,27 @@ class Application:
     def _run_scheduled_mode(self, scrape_args=None):
         """Run the application in scheduled mode for Docker environments."""
         import time
-        
+
         interval_minutes = self.config.get_schedule_interval_minutes()
-        
+        startup_delay   = self.config.get_startup_delay_minutes()
+
         self.logger.info(f"Starting scheduled mode with {interval_minutes} minute intervals")
         print(f"\n=== SCHEDULED MODE ACTIVE ===")
         print(f"Running scraping every {interval_minutes} minutes")
         print(f"Docker environment detected: {self._is_docker_environment()}")
         print("Press Ctrl+C to stop scheduled execution")
         print("================================\n")
-        
+
+        # Startup delay — prevents a burst of full sweeps when Docker restarts
+        # Messor repeatedly (OOM recovery, deploy, etc.). The FastAPI is already
+        # up; we're just holding the first scrape until the cluster has settled.
+        if startup_delay > 0:
+            first_run = time.time() + startup_delay * 60
+            first_run_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(first_run))
+            self.logger.info(f"Startup delay: {startup_delay} min — first cycle at {first_run_str}")
+            print(f"⏳ Startup delay {startup_delay} min — first cycle at {first_run_str}\n")
+            time.sleep(startup_delay * 60)
+
         try:
             while True:
                 # Execute scraping
