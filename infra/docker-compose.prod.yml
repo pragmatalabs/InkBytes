@@ -12,6 +12,9 @@
 # Host-bound admin ports (127.0.0.1 only, SSH-tunnel access):
 #   MinIO console  :9030 → :9001
 #   RabbitMQ mgmt  :15683 → :15672
+#
+# Memory limits prevent OOM crashes on shared host.
+# Total reserved: ~7 GB — leaves 8 GB for OS, Ollama model serving, other projects.
 
 name: inkbytes
 
@@ -37,6 +40,9 @@ services:
     networks: [inkbytes-internal]
     ports:
       - "127.0.0.1:18050:3000"
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 512M }
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       CURATOR_API_URL: http://inkbytes-curator-api:8060
@@ -60,6 +66,9 @@ services:
     networks: [inkbytes-internal]
     ports:
       - "127.0.0.1:18051:80"
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 512M }
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -101,6 +110,9 @@ services:
     container_name: inkbytes-messor
     restart: unless-stopped
     networks: [inkbytes-internal]
+    deploy:
+      resources:
+        limits: { cpus: '2.0', memory: 1500M }  # newspaper3k is CPU-hungry; cap it
     environment:
       RABBITMQ_HOST: inkbytes-rabbitmq
       RABBITMQ_PORT: "5672"
@@ -128,7 +140,10 @@ services:
     command: ["python", "main.py", "--config", "env.yaml", "--api-only"]
     networks: [inkbytes-internal]
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # reach host Ollama at host.docker.internal:11434
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 512M }
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@inkbytes-rabbitmq:5672/
@@ -159,7 +174,10 @@ services:
     command: ["python", "main.py", "--config", "env.yaml", "--worker"]
     networks: [inkbytes-internal]
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # reach host Ollama at host.docker.internal:11434
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits: { cpus: '2.0', memory: 1G }
     # Override image healthcheck: worker has no HTTP port — just check process is alive
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"open('/proc/1/cmdline').read()\" 2>/dev/null || exit 1"]
