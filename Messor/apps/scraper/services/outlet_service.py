@@ -108,6 +108,17 @@ class OutletService:
             which may indicate external service issues.
         """
         self.logger.info("Starting get_outlets")
+
+        # ── 1. Curator API (primary) ─────────────────────────────────────────
+        # The Curator API reads directly from public.outlets (the authoritative
+        # table managed by the Backoffice) and is always available as a separate
+        # Python process on :8060.  The Backoffice API (:8011) is unavailable
+        # during Backoffice-triggered scraping jobs (the PHP process is busy).
+        curator_outlets = self._get_outlets_from_curator()
+        if curator_outlets:
+            return curator_outlets
+
+        # ── 2. Backoffice platform API (secondary) ───────────────────────────
         try:
             api_base_url = os.getenv("MESSOR_API_BASE_URL", self.config.platform_api.base_url())
             outlet_manager = OutletsManagerAPI(
@@ -116,24 +127,68 @@ class OutletService:
                 ""
             )
             outlets_handler_payload = outlet_manager.get_outlets_payload(source)
-            
-            # Check if API returned empty payload, fallback to local data
-            if not outlets_handler_payload:
-                self.logger.warning("External API returned empty payload, falling back to local data file")
-                return self._get_outlets_from_local_file()
-            
-            # organize outlets by name field ascending
-            outlets_handler_payload.sort(key=lambda x: x['name'])
 
-            self.logger.info(f"Got raw payload: {outlets_handler_payload}")
+            if not outlets_handler_payload:
+                self.logger.warning("Backoffice API returned empty payload, falling back to local data file")
+                return self._get_outlets_from_local_file()
+
+            outlets_handler_payload.sort(key=lambda x: x['name'])
             outlets_handler = OutletsHandler()
             outlets_handler.add_outlets_from_payload(outlets_handler_payload)
-            self.logger.info(f"Completed get_outlets, found {len(outlets_handler.news_outlets)} outlets")
+            self.logger.info(f"Got {len(outlets_handler.news_outlets)} outlets from Backoffice API")
             return outlets_handler.news_outlets
         except (ValueError, Exception) as error:
-            self.logger.error(f"Error in get_outlets from external API: {error}")
+            self.logger.error(f"Error in get_outlets from Backoffice API: {error}")
             self.logger.info("Falling back to local data file")
             return self._get_outlets_from_local_file()
+
+    def _get_outlets_from_curator(self) -> List[OutletsSource]:
+        """Fetch outlets from the Curator API (GET /outlets).
+
+        The Curator API reads directly from public.outlets — the authoritative
+        table managed by the Backoffice — and runs as a separate Python process
+        (:8060) that is always available, even during Backoffice-triggered scraps.
+
+        Returns an empty list (never raises) so the caller can fall through to
+        the next source in the chain.
+        """
+        try:
+            curator_url = os.getenv(
+                "CURATOR_OUTLETS_URL",
+                getattr(getattr(self.config, "curator_api", None), "outlets_url", lambda: None)()
+                if hasattr(getattr(self.config, "curator_api", None), "outlets_url")
+                else None,
+            )
+            if not curator_url:
+                return []
+
+            import requests as _requests
+            resp = _requests.get(curator_url, timeout=5)
+            if not resp.ok:
+                self.logger.warning(
+                    "Curator API returned %d for %s", resp.status_code, curator_url
+                )
+                return []
+
+            raw: list = resp.json()
+            if not isinstance(raw, list) or not raw:
+                return []
+
+            # Curator returns all outlets; filter to active-only (mirrors local file behaviour).
+            active = [o for o in raw if o.get("active", True)]
+            active.sort(key=lambda x: x.get("name", ""))
+
+            outlets_handler = OutletsHandler()
+            outlets_handler.add_outlets_from_payload(active)
+            count = len(outlets_handler.news_outlets)
+            self.logger.info(
+                "Got %d active outlets from Curator API (%s)", count, curator_url
+            )
+            return outlets_handler.news_outlets
+
+        except Exception as exc:
+            self.logger.warning("Curator API unavailable (%s), trying next source", exc)
+            return []
 
     def _get_outlets_from_local_file(self) -> List[OutletsSource]:
         """Load outlets from the canonical outlets.json file.
