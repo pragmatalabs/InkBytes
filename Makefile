@@ -82,8 +82,31 @@ health: ## Hit live endpoints
 	@echo "Reader:";    curl -sk https://inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
 	@echo "Backoffice:"; curl -sk https://admin.inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
 
-status: ## Show prod container status (remote)
-	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "docker ps --filter 'name=inkbytes-' --format 'table {{.Names}}\t{{.Status}}' | sort"
+status: ## Show prod container status + memory (remote)
+	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "\
+	  docker ps --filter 'name=inkbytes-' --format 'table {{.Names}}\t{{.Status}}\t{{.RunningFor}}' | sort; \
+	  echo ''; \
+	  docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}' \$$(docker ps --filter 'name=inkbytes-' -q) 2>/dev/null | sort"
+
+watch: ## Live stats every 5 s (Ctrl-C to quit)
+	watch -n 5 "ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) \
+	  \"docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}' \$$(docker ps --filter 'name=inkbytes-' -q) 2>/dev/null | sort\""
+
+logs: ## Follow all prod logs from server (Ctrl-C to quit)
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) \
+	  "docker compose -f $(DEPLOY_PATH)/infra/docker-compose.prod.yml --env-file $(DEPLOY_PATH)/infra/.env logs -f --tail 50"
+
+logs-messor: ## Follow Messor logs from server
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker logs -f --tail 50 inkbytes-messor"
+
+logs-curator: ## Follow Curator worker logs from server
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker logs -f --tail 50 inkbytes-curator-worker"
+
+logs-backoffice: ## Follow Backoffice logs from server
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker logs -f --tail 50 inkbytes-backoffice"
+
+shell: ## SSH into server
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST)
 
 # ── Network ───────────────────────────────────────────────────────────────────
 network: ## Ensure traefik-public network exists (idempotent)
@@ -101,4 +124,5 @@ help: ## Show this help
 .PHONY: infra infra-full infra-down infra-nuke cycle cycle-stop cycle-status cycle-logs \
         prod prod-ps prod-logs prod-logs-curator prod-down \
         deploy deploy-build migrate migrate-status seed backup \
-        shell-php shell-db shell-curator health network validate-prod help
+        shell-php shell-db shell-curator health network validate-prod help \
+        watch logs logs-messor logs-curator logs-backoffice shell
