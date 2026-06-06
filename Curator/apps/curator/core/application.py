@@ -75,6 +75,26 @@ class Application:
         self.embeddings_blocked: str | None = None
         self._reembed_task: asyncio.Task | None = None
 
+    # ─────────────────────────────────────────── properties ─────────
+
+    @property
+    def synths_in_flight(self) -> int:
+        """Live count of per-event synthesis locks currently held.
+
+        Exposed on /status so the API layer doesn't access _synth_locks
+        directly (ADR-0006 §D5).
+        """
+        return sum(1 for lock in self._synth_locks.values() if lock.locked())
+
+    @property
+    def reembedding(self) -> bool:
+        """True when a corpus re-embed background task is currently running.
+
+        Exposed on /status so the API layer doesn't access _reembed_task
+        directly (ADR-0006 §D5).
+        """
+        return bool(self._reembed_task and not self._reembed_task.done())
+
     # ─────────────────────────────────────────── lifecycle ──────────
     async def startup(self, *, with_db: bool = True) -> None:
         if with_db:
@@ -457,6 +477,12 @@ class Application:
         async with lock:
             await self.synthesize.run(event_id)
             self._last_synth_source_count[event_id] = source_count
+        # Prune the lock entry — synthesis just completed and no one else can
+        # be waiting (callers skip when lock.locked(), and asyncio is
+        # single-threaded: no await between lock release and pop, so no new
+        # waiter can sneak in).  Keeps _synth_locks bounded (ADR-0006 §D6).
+        if not lock.locked():
+            self._synth_locks.pop(event_id, None)
 
     async def _handle_event(self, payload: dict[str, Any]) -> None:
         async with self._sem:
@@ -514,6 +540,61 @@ class Application:
                 )
 
     # ──────────────────────────────────────── reenrich-missing ──────
+
+    async def _run_reenrich(self, rows: list[dict[str, Any]], label: str) -> None:
+        """Shared loop body for reenrich-missing and reenrich-stubs (ADR-0006 §D7).
+
+        Runs the full ENRICH → EMBED → CLUSTER → SYNTHESIZE pipeline on each
+        row with bounded concurrency. Aborts immediately on LlmQuotaError;
+        other per-article errors are logged + skipped so one bad article never
+        kills the rest.
+        """
+        total = len(rows)
+        logger.info("%s: found %d articles to process", label, total)
+        if not total:
+            logger.info("%s: nothing to do.", label)
+            return
+
+        sem = asyncio.Semaphore(self.cfg.application.max_concurrent_articles)
+        done = 0
+        errors = 0
+        quota_hit = False
+
+        async def one(row: dict[str, Any]) -> None:
+            nonlocal done, errors, quota_hit
+            async with sem:
+                if quota_hit:
+                    return
+                try:
+                    await self._reenrich_article(row)
+                    done += 1
+                    if done % 50 == 0:
+                        logger.info(
+                            "%s progress: %d/%d done, %d errors",
+                            label, done, total, errors,
+                        )
+                except LlmQuotaError:
+                    quota_hit = True
+                    raise
+                except Exception:
+                    logger.exception(
+                        "%s: error on article %s — skipping",
+                        label, row.get("id"),
+                    )
+                    errors += 1
+
+        try:
+            await asyncio.gather(*(one(r) for r in rows), return_exceptions=False)
+        except LlmQuotaError:
+            logger.critical(
+                "Quota exhausted during %s (%d/%d done). "
+                "Re-run when quota resets.",
+                label, done, total,
+            )
+            return
+
+        logger.info("%s complete: %d done, %d errors", label, done, errors)
+
     async def _reenrich_article(self, row: dict[str, Any]) -> None:
         """Enrich, embed, cluster, and optionally synthesize one unenriched article.
 
@@ -573,61 +654,14 @@ class Application:
 
         Fetches articles where topic IS NULL AND body_text IS NOT NULL, then
         runs the full ENRICH → EMBED → CLUSTER → SYNTHESIZE pipeline on each
-        with bounded concurrency.
+        with bounded concurrency via _run_reenrich (ADR-0006 §D7).
 
         On LlmQuotaError the batch is aborted immediately (quota is hard wall).
         Other per-article errors are logged + skipped so one bad article never
         kills the rest.
         """
         rows = await self.db.fetch_unenriched_articles()
-        total = len(rows)
-        logger.info("reenrich-missing: found %d articles to process", total)
-        if not total:
-            logger.info("reenrich-missing: nothing to do.")
-            return
-
-        sem = asyncio.Semaphore(self.cfg.application.max_concurrent_articles)
-        done = 0
-        errors = 0
-        quota_hit = False
-
-        async def one(row: dict[str, Any]) -> None:
-            nonlocal done, errors, quota_hit
-            async with sem:
-                if quota_hit:
-                    return
-                try:
-                    await self._reenrich_article(row)
-                    done += 1
-                    if done % 50 == 0:
-                        logger.info(
-                            "reenrich-missing progress: %d/%d done, %d errors",
-                            done, total, errors,
-                        )
-                except LlmQuotaError:
-                    quota_hit = True
-                    raise
-                except Exception:
-                    logger.exception(
-                        "reenrich-missing: error on article %s — skipping",
-                        row.get("id"),
-                    )
-                    errors += 1
-
-        try:
-            await asyncio.gather(*(one(r) for r in rows), return_exceptions=False)
-        except LlmQuotaError:
-            logger.critical(
-                "Quota exhausted during reenrich-missing (%d/%d done). "
-                "Re-run when quota resets.",
-                done, total,
-            )
-            return
-
-        logger.info(
-            "reenrich-missing complete: %d done, %d errors",
-            done, errors,
-        )
+        await self._run_reenrich(rows, "reenrich-missing")
 
     async def run_reenrich_stubs(self) -> None:
         """Re-enrich articles that were processed in stub mode.
@@ -637,53 +671,7 @@ class Application:
         This mode detects them via 'stub' = ANY(keywords_canonical) and runs the
         full ENRICH → EMBED → CLUSTER → SYNTHESIZE pipeline with the real LLM,
         overwriting the fake data.  Stub pages are overwritten by re-synthesis.
+        See _run_reenrich for the shared loop body (ADR-0006 §D7).
         """
         rows = await self.db.fetch_stub_enriched_articles()
-        total = len(rows)
-        logger.info("reenrich-stubs: found %d stub-enriched articles to reprocess", total)
-        if not total:
-            logger.info("reenrich-stubs: nothing to do.")
-            return
-
-        sem = asyncio.Semaphore(self.cfg.application.max_concurrent_articles)
-        done = 0
-        errors = 0
-        quota_hit = False
-
-        async def one(row: dict[str, Any]) -> None:
-            nonlocal done, errors, quota_hit
-            async with sem:
-                if quota_hit:
-                    return
-                try:
-                    await self._reenrich_article(row)
-                    done += 1
-                    if done % 50 == 0:
-                        logger.info(
-                            "reenrich-stubs progress: %d/%d done, %d errors",
-                            done, total, errors,
-                        )
-                except LlmQuotaError:
-                    quota_hit = True
-                    raise
-                except Exception:
-                    logger.exception(
-                        "reenrich-stubs: error on article %s — skipping",
-                        row.get("id"),
-                    )
-                    errors += 1
-
-        try:
-            await asyncio.gather(*(one(r) for r in rows), return_exceptions=False)
-        except LlmQuotaError:
-            logger.critical(
-                "Quota exhausted during reenrich-stubs (%d/%d done). "
-                "Re-run when quota resets.",
-                done, total,
-            )
-            return
-
-        logger.info(
-            "reenrich-stubs complete: %d done, %d errors",
-            done, errors,
-        )
+        await self._run_reenrich(rows, "reenrich-stubs")

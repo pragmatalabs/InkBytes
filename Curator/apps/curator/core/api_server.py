@@ -60,27 +60,39 @@ def build_app(app: Application) -> FastAPI:
 
     @api.get("/status")
     async def status() -> dict[str, Any]:
+        # Two queries instead of six sequential fetchvals — saves ~4 DB
+        # round-trips on every /status poll (ADR-0006 §D3).
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
-            articles_total    = await conn.fetchval("SELECT COUNT(*) FROM articles")
-            articles_enriched = await conn.fetchval(
-                "SELECT COUNT(*) FROM articles WHERE enriched_at IS NOT NULL"
+            # Query 1: article-level counts in one table scan
+            art = await conn.fetchrow(
+                """
+                SELECT
+                    COUNT(*)                                          AS total,
+                    COUNT(*) FILTER (WHERE enriched_at IS NOT NULL)  AS enriched,
+                    COUNT(*) FILTER (WHERE embedding  IS NOT NULL)   AS embedded
+                  FROM articles
+                """
             )
-            articles_embedded = await conn.fetchval(
-                "SELECT COUNT(*) FROM articles WHERE embedding IS NOT NULL"
-            )
-            events_total      = await conn.fetchval("SELECT COUNT(*) FROM events")
-            events_published  = await conn.fetchval(
-                "SELECT COUNT(*) FROM events WHERE status = 'published'"
-            )
-            pages_published   = await conn.fetchval(
-                "SELECT COUNT(*) FROM pages WHERE published_at IS NOT NULL"
+            # Query 2: event + page counts via a single LEFT JOIN
+            evp = await conn.fetchrow(
+                """
+                SELECT
+                    COUNT(DISTINCT e.id)                                        AS events_total,
+                    COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'published')  AS events_published,
+                    COUNT(DISTINCT p.id) FILTER (WHERE p.published_at IS NOT NULL)
+                                                                                AS pages_published
+                  FROM events e
+                  LEFT JOIN pages p ON p.event_id = e.id
+                """
             )
 
-        # Live in-flight counts from the Application instance.
-        synths_in_flight = sum(
-            1 for lock in app._synth_locks.values() if lock.locked()
-        )
-        articles_pending = max(0, (articles_total or 0) - (articles_enriched or 0))
+        articles_total    = art["total"]
+        articles_enriched = art["enriched"]
+        articles_embedded = art["embedded"]
+        events_total      = evp["events_total"]
+        events_published  = evp["events_published"]
+        pages_published   = evp["pages_published"]
+        articles_pending  = max(0, (articles_total or 0) - (articles_enriched or 0))
 
         return {
             "articles_total":    articles_total,
@@ -90,14 +102,14 @@ def build_app(app: Application) -> FastAPI:
             "events_total":      events_total,
             "events_published":  events_published,
             "pages_published":   pages_published,
-            # Live pipeline activity
-            "synths_in_flight":  synths_in_flight,
+            # Live pipeline state — via Application properties (ADR-0006 §D5)
+            "synths_in_flight":  app.synths_in_flight,
             # LLM tier (live — hot-reloaded by reconfigure)
             "llm": {
-                "provider":        app.cfg.llm.provider,
-                "enrich_model":    app.cfg.llm.enrich_model,
+                "provider":         app.cfg.llm.provider,
+                "enrich_model":     app.cfg.llm.enrich_model,
                 "synthesize_model": app.cfg.llm.synthesize_model,
-                "base_url":        app.cfg.llm.base_url,
+                "base_url":         app.cfg.llm.base_url,
             },
             # Embedding tier + reconfigure status (ADR-0004)
             "embeddings": {
@@ -106,12 +118,14 @@ def build_app(app: Application) -> FastAPI:
                 "dimensions":  app.cfg.embeddings.dimensions,
                 "stale":       app.embeddings_stale,
                 "blocked":     app.embeddings_blocked,
-                "reembedding": bool(app._reembed_task and not app._reembed_task.done()),
+                "reembedding": app.reembedding,
             },
         }
 
     @api.get("/events")
-    async def list_events(limit: int = 100) -> list[dict[str, Any]]:
+    async def list_events(response: Response, limit: int = 100) -> list[dict[str, Any]]:
+        limit = min(limit, _MAX_EVENTS_LIMIT)  # ADR-0006 §D1
+        response.headers["Cache-Control"] = "public, max-age=30"
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
                 """
@@ -217,6 +231,7 @@ def build_app(app: Application) -> FastAPI:
 
     @api.get("/graph")
     async def get_graph(
+        response: Response,
         min_event_count: int = 2,
         limit_nodes: int = 80,
         min_edge_weight: int = 2,
@@ -232,6 +247,9 @@ def build_app(app: Application) -> FastAPI:
         (event, entity_name_lower) before the self-join so edge weight counts
         distinct events, not article repetitions.
         """
+        limit_nodes = min(limit_nodes, _MAX_GRAPH_NODES)  # ADR-0006 §D1
+        limit_edges = min(limit_edges, _MAX_GRAPH_EDGES)
+        response.headers["Cache-Control"] = "public, max-age=120"
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             row = await conn.fetchrow(
                 """
@@ -330,17 +348,9 @@ def build_app(app: Application) -> FastAPI:
                 """,
                 min_event_count, limit_nodes, min_edge_weight, limit_edges,
             )
-        def _decode(v: Any) -> list:
-            """asyncpg returns JSON_AGG columns as raw JSON strings; parse them."""
-            if v is None:
-                return []
-            if isinstance(v, str):
-                return _json.loads(v)
-            return v  # already decoded (e.g. jsonb)
-
         return {
-            "nodes": _decode(row["nodes"]),
-            "edges": _decode(row["edges"]),
+            "nodes": _decode_json_col(row["nodes"]),
+            "edges": _decode_json_col(row["edges"]),
             "meta": {
                 "node_count":  row["node_count"],
                 "edge_count":  row["edge_count"],
@@ -362,9 +372,20 @@ def build_app(app: Application) -> FastAPI:
           topic_multiplier = 1.3 if same non-null topic, else 1.0
 
         Returns events with score ≥ min_score, ordered by score desc.
-        Empty list when no related events exceed the threshold.
+        Returns 404 when event_id does not exist or is not published (ADR-0006 §D2).
         """
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            # Pre-flight: fast PK lookup before the heavy scoring CTE.
+            # Consistent with GET /events/{id} which also 404s for unknown IDs.
+            exists = await conn.fetchval(
+                "SELECT EXISTS("
+                "  SELECT 1 FROM pages"
+                "  WHERE id = $1 AND published_at IS NOT NULL"
+                ")",
+                event_id,
+            )
+            if not exists:
+                raise HTTPException(404, f"event {event_id} not found")
             rows = await conn.fetch(
                 """
                 WITH target AS (

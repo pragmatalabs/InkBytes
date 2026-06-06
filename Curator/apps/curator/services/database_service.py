@@ -285,15 +285,24 @@ class DatabaseService:
 
     async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:
         """Rows to (re-)embed. only_missing=True → just NULL embeddings;
-        False → ALL articles with body_text (a full corpus re-embed)."""
+        False → ALL articles with body_text (a full corpus re-embed).
+
+        Two explicit query branches instead of f-string interpolation so each
+        path is statically readable and safe for query-analysis tools (ADR-0006 §D8).
+        """
         if not self.pool:
             return []
-        where = "embedding IS NULL AND " if only_missing else ""
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
-            rows = await conn.fetch(
-                f"SELECT id, title, body_text FROM articles "
-                f"WHERE {where}body_text IS NOT NULL"
-            )
+            if only_missing:
+                rows = await conn.fetch(
+                    "SELECT id, title, body_text FROM articles "
+                    "WHERE embedding IS NULL AND body_text IS NOT NULL"
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT id, title, body_text FROM articles "
+                    "WHERE body_text IS NOT NULL"
+                )
         return [dict(r) for r in rows]
 
     async def set_article_embedding(self, article_id: str, vec: list[float]) -> None:
@@ -533,7 +542,12 @@ class DatabaseService:
                     factuality           = NULL,
                     summary_50w          = NULL,
                     keywords_canonical   = NULL,
-                    embedding            = NULL
+                    embedding            = NULL,
+                    -- Reset cluster assignment so the article re-enters CLUSTER
+                    -- with a clean slate.  Invariant: event_id IS NOT NULL ↔
+                    -- embedding IS NOT NULL (ADR-0006 §D4).
+                    event_id             = NULL,
+                    cluster_distance     = NULL
                 WHERE articles.content_hash IS DISTINCT FROM EXCLUDED.content_hash
                 """,
                 art["id"],
