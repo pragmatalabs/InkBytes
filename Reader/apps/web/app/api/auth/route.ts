@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
 
   const correct = process.env.INKBYTES_DEMO_PASSWORD;
 
-  if (!correct || password !== correct) {
+  // No password configured → gate is open; auth route is a no-op (proxy.ts already allows through)
+  if (correct && password !== correct) {
     const loginUrl = new URL("/login", base);
     loginUrl.searchParams.set("next", next);
     loginUrl.searchParams.set("error", "1");

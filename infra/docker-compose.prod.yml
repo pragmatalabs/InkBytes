@@ -111,7 +111,7 @@ services:
     restart: unless-stopped
     networks: [inkbytes-internal]
 
-    mem_limit: 1536m
+    mem_limit: 3g
     cpus: 2.0
     environment:
       RABBITMQ_HOST: inkbytes-rabbitmq
