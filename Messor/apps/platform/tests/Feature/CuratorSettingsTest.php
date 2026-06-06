@@ -85,18 +85,22 @@ class CuratorSettingsTest extends TestCase
             ->assertSessionHasErrors('embeddings_provider');
     }
 
-    /** A model not allowed for the selected provider is rejected. */
-    public function test_update_rejects_model_not_allowed_for_provider(): void
+    /** Embedding model is free-text (max 120) — any provider-specific id is accepted.
+     *  Note: Rule::in() allowlist was intentionally removed to support custom providers.
+     *  Provider itself is still validated (Rule::in); model string is not.
+     */
+    public function test_update_accepts_any_valid_model_string_for_embedding_provider(): void
     {
         $user = User::factory()->create();
 
-        // OpenAI model under the ollama provider → invalid.
+        // "text-embedding-3-small" under provider=ollama is now accepted
+        // (free-text; operator is trusted to supply a valid model id).
         $this->actingAs($user)
             ->put('/settings', $this->validPayload([
                 'embeddings_provider' => 'ollama',
                 'embeddings_model' => 'text-embedding-3-small',
             ]))
-            ->assertSessionHasErrors('embeddings_model');
+            ->assertSessionHasNoErrors();
     }
 
     /** Ollama requires a base URL. */
@@ -147,13 +151,16 @@ class CuratorSettingsTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'embeddings.reembed')->count());
     }
 
-    /** B9: a model id off the allowlist is rejected. */
-    public function test_update_rejects_model_not_on_allowlist(): void
+    /** Model ids are free-text (max 120 chars) to support custom providers.
+     *  Rule::in() allowlist removed — any string ≤120 chars is accepted.
+     *  Over-length ids and empty values are still rejected.
+     */
+    public function test_update_rejects_enrich_model_exceeding_max_length(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user)
-            ->put('/settings', $this->validPayload(['enrich_model' => 'not-a-model']))
+            ->put('/settings', $this->validPayload(['enrich_model' => str_repeat('x', 121)]))
             ->assertSessionHasErrors('enrich_model');
     }
 
@@ -259,18 +266,22 @@ class CuratorSettingsTest extends TestCase
             ->assertSessionHasErrors('llm_provider');
     }
 
-    /** B15: an OpenAI model under provider=anthropic is rejected. */
-    public function test_update_rejects_model_not_allowed_for_llm_provider(): void
+    /** B15 (updated): model ids are now free-text — cross-provider model strings
+     *  are accepted to support DeepSeek, Groq, Together, and other providers
+     *  without maintaining an exhaustive allowlist.
+     *  The provider field itself is still validated with Rule::in().
+     */
+    public function test_update_accepts_cross_provider_model_string(): void
     {
         $user = User::factory()->create();
 
-        // gpt-4o-mini is an OpenAI model — invalid under provider=anthropic.
+        // gpt-4o-mini under anthropic provider is now accepted (free-text model).
         $this->actingAs($user)
             ->put('/settings', $this->validPayload([
                 'llm_provider' => 'anthropic',
                 'enrich_model' => 'gpt-4o-mini',
             ]))
-            ->assertSessionHasErrors('enrich_model');
+            ->assertSessionHasNoErrors();
     }
 
     /** B15: reset includes llm_provider = 'anthropic' (the default). */

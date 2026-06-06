@@ -39,6 +39,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/scraping', [ScrapingJobController::class, 'index'])->name('scraping.index');
     Route::get('/scraping/status', [ScrapingJobController::class, 'status'])->name('scraping.status');
     Route::get('/scraping/{id}/stream', [ScrapingJobController::class, 'stream'])->name('scraping.stream');
+    // Short-poll log tail — returns new log lines since byte-offset `from` and closes immediately.
+    // Replaces the blocking SSE stream so php artisan serve is free between 1.5s polls.
+    Route::get('/scraping/{id}/tail', [ScrapingJobController::class, 'tail'])->name('scraping.tail');
 
     Route::get('/runtime', [RuntimeController::class, 'index'])->name('runtime.index');
     Route::get('/runtime/snapshot', [RuntimeController::class, 'snapshot'])->name('runtime.snapshot');
@@ -52,6 +55,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // per-outlet detail. All authenticated roles; no mutations, no secrets.
     Route::get('/scrape-results', [ScrapeResultsController::class, 'index'])->name('scrape-results.index');
     Route::get('/scrape-results/{session}', [ScrapeResultsController::class, 'show'])->name('scrape-results.show');
+
+    // Curator pipeline live-status — lightweight JSON for the status modal.
+    // Polls Curator GET /status and returns it as JSON (no Inertia). All roles.
+    Route::get('/api/curator-pipeline', [HealthController::class, 'curatorPipeline'])
+        ->name('curator-pipeline');
 
     // Unified health dashboard (B6) — read-only observability across Postgres /
     // Curator / Messor / RabbitMQ. All authenticated roles; no role gate.

@@ -137,6 +137,10 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [], outlets: out
         };
     }, [fetchJobs]);
 
+    // Short-poll log tail — replaces the blocking SSE EventSource.
+    // Each axios.get returns quickly; php artisan serve is free between 1.5s polls.
+    // Navigating away unmounts the component → useEffect cleanup clears the interval
+    // → polling stops automatically, job continues running in background.
     useEffect(() => {
         if (!selectedJobId) {
             return undefined;
@@ -145,45 +149,42 @@ export default function ScrapingJobsIndex({ jobs: initialJobs = [], outlets: out
         setLogLines([]);
         setStreamState('live');
 
-        const eventSource = new EventSource(route('scraping.stream', { id: selectedJobId }));
+        let offset = 0;
+        let stopped = false;
 
-        eventSource.onmessage = (event) => {
+        const poll = async () => {
+            if (stopped) return;
             try {
-                const payload = JSON.parse(event.data);
+                const response = await window.axios.get(
+                    route('scraping.tail', { id: selectedJobId }),
+                    { params: { from: offset } },
+                );
+                const { lines, next_from, done } = response.data;
 
-                if (payload.type === 'line' && typeof payload.line === 'string') {
-                    setLogLines((current) => [...current, payload.line].slice(-2000));
+                if (Array.isArray(lines) && lines.length > 0) {
+                    setLogLines((current) => [...current, ...lines].slice(-2000));
                 }
+                offset = next_from ?? offset;
 
-                if (payload.type === 'end') {
+                if (done && !stopped) {
+                    stopped = true;
                     setStreamState('ended');
-                    eventSource.close();
                     fetchJobs();
                 }
-            } catch (error) {
-                setLogLines((current) => [...current, event.data].slice(-2000));
+            } catch {
+                if (!stopped) setStreamState('error');
             }
         };
 
-        eventSource.onerror = () => {
-            setStreamState((current) => (current === 'ended' ? current : 'error'));
-            eventSource.close();
-        };
+        // Kick off immediately, then every 1.5 s.
+        poll();
+        const intervalId = window.setInterval(poll, 1500);
 
         return () => {
-            eventSource.close();
+            stopped = true;
+            window.clearInterval(intervalId);
         };
     }, [fetchJobs, selectedJobId]);
-
-    useEffect(() => {
-        if (!selectedJob) {
-            return;
-        }
-
-        if (['completed', 'failed'].includes(selectedJob.status) && streamState === 'live') {
-            setStreamState('ended');
-        }
-    }, [selectedJob, streamState]);
 
     useEffect(() => {
         if (!logContainerRef.current) {

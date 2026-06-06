@@ -228,6 +228,57 @@ class ScrapingJobController extends Controller
     }
 
     /**
+     * Short-poll log tail — returns new log lines since byte-offset `from`.
+     *
+     * Replaces the blocking SSE stream for non-blocking log observation.
+     * Each call reads only the new bytes written since the last poll and
+     * returns immediately, so php artisan serve is free between 1.5s client
+     * intervals. The client stops polling when done=true.
+     *
+     * GET /scraping/{id}/tail?from=0
+     * Response: { lines: string[], next_from: int, status: string, done: bool }
+     */
+    public function tail(Request $request, int $id): JsonResponse
+    {
+        $job      = ScrapingJob::query()->findOrFail($id);
+        $logPath  = $this->localLogPath($job);
+        $from     = max(0, (int) $request->query('from', 0));
+
+        $lines    = [];
+        $nextFrom = $from;
+
+        if (is_file($logPath)) {
+            $size = (int) filesize($logPath);
+            if ($size > $from) {
+                $handle = fopen($logPath, 'rb');
+                if ($handle !== false) {
+                    fseek($handle, $from);
+                    $chunk = fread($handle, $size - $from);
+                    $nextFrom = (int) (ftell($handle) ?: $size);
+                    fclose($handle);
+
+                    if (is_string($chunk) && $chunk !== '') {
+                        foreach (preg_split("/\r\n|\n|\r/", $chunk) as $line) {
+                            if ($line !== '') {
+                                $lines[] = $line;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $status = (string) $job->status;
+
+        return response()->json([
+            'lines'     => $lines,
+            'next_from' => $nextFrom,
+            'status'    => $status,
+            'done'      => in_array($status, ['completed', 'failed'], true),
+        ]);
+    }
+
+    /**
      * Return the current scraping job list for polling updates.
      */
     public function status(): JsonResponse
