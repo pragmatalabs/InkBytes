@@ -23,4 +23,7 @@ RUN pip install --upgrade pip \
 
 COPY apps/scraper /workspace/apps/scraper
 
+# Create dirs that Messor's logging config expects at runtime
+RUN mkdir -p /workspace/apps/scraper/logs /workspace/apps/scraper/data/scrapes
+
 CMD ["python", "main.py", "env.yaml", "--schedule"]

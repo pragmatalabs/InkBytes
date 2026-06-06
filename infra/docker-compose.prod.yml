@@ -180,6 +180,12 @@ services:
     restart: unless-stopped
     command: ["python", "main.py", "--config", "env.yaml", "--worker"]
     networks: [inkbytes-internal, infra-shared]   # infra-shared → reaches infra-ollama
+    # Override image healthcheck: worker has no HTTP port — just check process is alive
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'main.py' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@inkbytes-rabbitmq:5672/
