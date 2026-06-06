@@ -7,6 +7,9 @@ env.local.yaml
 *.log
 logs/
 data/
+# Exception: outlets seed file is committed so the Docker image can seed on first boot
+!apps/curator/data/
+!apps/curator/data/outlets.json
 .DS_Store
 .idea/
 .vscode/

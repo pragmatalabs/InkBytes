@@ -108,11 +108,17 @@ class Application:
             # seed_outlets() is seed-if-empty (ADR-0003): once the table has
             # rows, the Laravel Backoffice owns outlet data and a Curator
             # restart must not overwrite admin edits.
-            outlets_cfg = Path(__file__).resolve().parents[4] / \
-                "Messor" / "apps" / "scraper" / "data" / "outlets" / "outlets.json"
-            if not outlets_cfg.exists():
-                # Fallback: look for a local copy next to the curator app
-                outlets_cfg = Path(__file__).resolve().parents[1] / "data" / "outlets.json"
+            # Resolve outlets.json — three search paths:
+            # 1. Monorepo root sibling (local dev, parents[4] = InkBytes/)
+            # 2. Curator app-local copy /app/data/outlets.json (Docker image)
+            # 3. Skip seed — table already populated (backoffice owns it post-seed)
+            try:
+                monorepo_outlets = Path(__file__).resolve().parents[4] / \
+                    "Messor" / "apps" / "scraper" / "data" / "outlets" / "outlets.json"
+            except IndexError:
+                monorepo_outlets = Path("/nonexistent")  # Docker: path too shallow
+            local_outlets = Path(__file__).resolve().parents[1] / "data" / "outlets.json"
+            outlets_cfg = monorepo_outlets if monorepo_outlets.exists() else local_outlets
             await self.db.seed_outlets(outlets_cfg)
             # Overlay Backoffice-owned tunables from the DB over env/YAML.
             # Absent table/row → keep env/YAML (fallback). Keys stay env-only.
