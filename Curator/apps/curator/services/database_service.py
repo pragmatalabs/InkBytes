@@ -5,6 +5,7 @@ the migration), and the small set of CRUD helpers the skills need.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime
@@ -70,6 +71,13 @@ class DatabaseService:
                 "FROM pg_attribute "
                 "WHERE attrelid = to_regclass('public.articles') "
                 "AND attname = 'embedding' AND NOT attisdropped), FALSE)"
+            ),
+            # 006 adds articles.content_hash. TRUE when the column exists.
+            "006_article_content_hash.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'articles' "
+                "AND column_name = 'content_hash')"
             ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
@@ -482,17 +490,46 @@ class DatabaseService:
     async def upsert_article_raw(self, art: dict[str, Any], spaces_key: str | None) -> None:
         """Insert the article shell (Messor's v1 fields). Enrichment fills the rest later.
 
+        Content-change detection (migration 006):
+          - content_hash = MD5(title + body_text) is stored on first insert.
+          - On re-scrape of the same URL (same id), the ON CONFLICT clause
+            updates the body and RESETS all enrichment fields (topic, embedding,
+            etc.) **only when the hash changes**.  Unchanged content → no-op.
+          - Resetting to NULL causes the normal ENRICH→CLUSTER→SYNTHESIZE path
+            to re-process the updated article, so synthesized pages reflect the
+            latest content rather than the stale original.
+
         spaces_key is NULL when the article arrived inline via RabbitMQ before
         the S3 archive step completed. That is the normal v0 path.
         """
+        content_hash = hashlib.md5(
+            (art["title"] + (art.get("text") or "")).encode("utf-8")
+        ).hexdigest()
+
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             await conn.execute(
                 """
                 INSERT INTO articles (id, outlet_id, outlet_name, url, canonical_url,
                                       title, body_text, language, published_at,
-                                      scraped_at, word_count, spaces_key, raw_meta)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-                ON CONFLICT (id) DO NOTHING
+                                      scraped_at, word_count, spaces_key, raw_meta,
+                                      content_hash)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                ON CONFLICT (id) DO UPDATE SET
+                    -- Content fields: overwrite with the freshest scrape.
+                    title            = EXCLUDED.title,
+                    body_text        = EXCLUDED.body_text,
+                    content_hash     = EXCLUDED.content_hash,
+                    scraped_at       = EXCLUDED.scraped_at,
+                    word_count       = EXCLUDED.word_count,
+                    -- Reset enrichment so the pipeline re-processes fresh content.
+                    enriched_at          = NULL,
+                    topic                = NULL,
+                    sentiment            = NULL,
+                    factuality           = NULL,
+                    summary_50w          = NULL,
+                    keywords_canonical   = NULL,
+                    embedding            = NULL
+                WHERE articles.content_hash IS DISTINCT FROM EXCLUDED.content_hash
                 """,
                 art["id"],
                 art["outlet"]["id"],
@@ -505,8 +542,9 @@ class DatabaseService:
                 art.get("published_at"),
                 art["scraped_at"],
                 art["word_count"],
-                spaces_key or None,  # "" → NULL; real S3 key passes through
+                spaces_key or None,
                 json.dumps(art.get("metadata") or {}),
+                content_hash,
             )
 
     async def write_enrichment(
