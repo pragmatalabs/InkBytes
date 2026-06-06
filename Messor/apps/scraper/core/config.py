@@ -44,6 +44,11 @@ class Config:
             return 60
     
     @property
+    def curator_api(self):
+        """Curator API config (primary outlet source — always available)."""
+        return getattr(self._config, "curator_api", None)
+
+    @property
     def articles(self):
         return self._config.articles
     

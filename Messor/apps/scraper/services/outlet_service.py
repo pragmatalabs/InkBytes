@@ -147,20 +147,36 @@ class OutletService:
 
         The Curator API reads directly from public.outlets — the authoritative
         table managed by the Backoffice — and runs as a separate Python process
-        (:8060) that is always available, even during Backoffice-triggered scraps.
+        (:8060) that is always available, even during Backoffice-triggered scrapes.
 
-        Returns an empty list (never raises) so the caller can fall through to
+        URL resolution (first wins):
+          1. CURATOR_OUTLETS_URL env var
+          2. curator_api.outlets_url in config (via _config raw access)
+          3. http://localhost:8060/outlets  (hard default)
+
+        Returns an empty list (never raises) so the caller falls through to
         the next source in the chain.
         """
         try:
+            # Try config via raw _config accessor first (Config class only
+            # exposes named properties; curator_api has no explicit property).
+            config_url: Optional[str] = None
+            try:
+                raw = getattr(self.config, "_config", None)
+                if raw is not None:
+                    curator_section = getattr(raw, "curator_api", None)
+                    if curator_section is not None:
+                        url_node = getattr(curator_section, "outlets_url", None)
+                        if url_node is not None:
+                            config_url = str(url_node) if not callable(url_node) else str(url_node())
+            except Exception:
+                pass
+
             curator_url = os.getenv(
                 "CURATOR_OUTLETS_URL",
-                getattr(getattr(self.config, "curator_api", None), "outlets_url", lambda: None)()
-                if hasattr(getattr(self.config, "curator_api", None), "outlets_url")
-                else None,
+                config_url or "http://localhost:8060/outlets",
             )
-            if not curator_url:
-                return []
+            self.logger.info("Trying Curator API for outlets: %s", curator_url)
 
             import requests as _requests
             resp = _requests.get(curator_url, timeout=5)
@@ -174,12 +190,30 @@ class OutletService:
             if not isinstance(raw, list) or not raw:
                 return []
 
-            # Curator returns all outlets; filter to active-only (mirrors local file behaviour).
-            active = [o for o in raw if o.get("active", True)]
-            active.sort(key=lambda x: x.get("name", ""))
+            # Filter to active-only, then apply the same field-stripping that
+            # _get_outlets_from_local_file uses.  OutletsSource.id is a legacy
+            # Strapi integer — Curator returns string slugs (e.g. "bbc") in
+            # the id field.  Map id → slug so --outlets=bbc matching works,
+            # and strip everything the Pydantic model doesn't accept.
+            SCRAPER_FIELDS = {"name", "url", "active", "description", "slug", "logo"}
+            scraper_payload = []
+            for o in raw:
+                if not o.get("active", True):
+                    continue
+                rec = {k: v for k, v in o.items() if k in SCRAPER_FIELDS}
+                # Curator id is a string slug (e.g. "apnews") — map to slug so
+                # the --outlets=apnews filter resolves correctly.
+                if not rec.get("slug") and isinstance(o.get("id"), str) and o["id"]:
+                    rec["slug"] = o["id"]
+                # Use display_name as name if name is missing or equals id
+                if not rec.get("name") and o.get("display_name"):
+                    rec["name"] = o["display_name"]
+                scraper_payload.append(rec)
+
+            scraper_payload.sort(key=lambda x: x.get("name", ""))
 
             outlets_handler = OutletsHandler()
-            outlets_handler.add_outlets_from_payload(active)
+            outlets_handler.add_outlets_from_payload(scraper_payload)
             count = len(outlets_handler.news_outlets)
             self.logger.info(
                 "Got %d active outlets from Curator API (%s)", count, curator_url
