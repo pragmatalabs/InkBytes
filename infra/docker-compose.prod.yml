@@ -40,9 +40,9 @@ services:
     networks: [inkbytes-internal]
     ports:
       - "127.0.0.1:18050:3000"
-    deploy:
-      resources:
-        limits: { cpus: '1.0', memory: 512M }
+
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       CURATOR_API_URL: http://inkbytes-curator-api:8060
@@ -66,9 +66,9 @@ services:
     networks: [inkbytes-internal]
     ports:
       - "127.0.0.1:18051:80"
-    deploy:
-      resources:
-        limits: { cpus: '1.0', memory: 512M }
+
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -110,9 +110,9 @@ services:
     container_name: inkbytes-messor
     restart: unless-stopped
     networks: [inkbytes-internal]
-    deploy:
-      resources:
-        limits: { cpus: '2.0', memory: 1500M }  # newspaper3k is CPU-hungry; cap it
+
+    mem_limit: 1536m
+    cpus: 2.0
     environment:
       RABBITMQ_HOST: inkbytes-rabbitmq
       RABBITMQ_PORT: "5672"
@@ -141,9 +141,9 @@ services:
     networks: [inkbytes-internal]
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    deploy:
-      resources:
-        limits: { cpus: '1.0', memory: 512M }
+
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@inkbytes-rabbitmq:5672/
@@ -175,9 +175,9 @@ services:
     networks: [inkbytes-internal]
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    deploy:
-      resources:
-        limits: { cpus: '2.0', memory: 1G }
+
+    mem_limit: 1g
+    cpus: 2.0
     # Override image healthcheck: worker has no HTTP port — just check process is alive
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"open('/proc/1/cmdline').read()\" 2>/dev/null || exit 1"]
