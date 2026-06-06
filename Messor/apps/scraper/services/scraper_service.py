@@ -25,7 +25,11 @@ class ScraperService:
         self.outlet_service = outlet_service
         self.storage_service = storage_service
         self.message_service = message_service
+        # max_threads controls outlet-level parallelism (how many outlets run
+        # concurrently). Article-level workers per outlet is fixed at 2 so total
+        # concurrent downloads = outlet_threads × 2 (predictable, memory-safe).
         self.num_threads = config.get_thread_count()
+        self.article_workers_per_outlet = 2
     
     def create_outlet_scraping_session(self, outlet: OutletsSource):
         """
@@ -39,7 +43,7 @@ class ScraperService:
                 outlet,
                 agent=self.config.scraping.agent.default(),
                 headers=self.config.scraping.headers.default(),
-                num_workers=self.num_threads,
+                num_workers=self.article_workers_per_outlet,
                 languages=self.config.articles.supported_languages()
             )
             session_info = scraping_session.to_json()

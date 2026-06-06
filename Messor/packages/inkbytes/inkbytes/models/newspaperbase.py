@@ -66,6 +66,12 @@ class NewsPaper:
             "http_success_only": False,
             "headers": self.headers,
             "agent": self.agent,
+            # Prevent hung connections from freezing a scraper thread indefinitely.
+            # newspaper3k passes this to requests; 30 s is generous for news articles.
+            "request_timeout": 30,
+            # Limit redirects — BBC-style infinite redirect loops hit this ceiling
+            # cleanly instead of consuming a thread until Python's 30-redirect cap.
+            "MAX_REDIRECTS": 10,
         }
         try:
             paper = self.newspaper.build(outlet.url, **self.config)

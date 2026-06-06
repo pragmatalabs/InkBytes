@@ -173,18 +173,16 @@ class ScraperResults(BaseModel):
 def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> ScrapingSession:
     """
     Scrape articles from a given outlet.
-    
-    This function coordinates the scraping process for a single outlet:
-    1. Initializes the newspaper and scraper
-    2. Scrapes the outlet
-    3. Handles duplicate article detection across sessions
-    4. Completes the session with statistics
-    
+
     Args:
         outlet: The news outlet to scrape.
         agent: The user agent to use.
         headers: The headers to use for the request.
-        num_workers: Number of concurrent workers.
+        num_workers: Number of concurrent article-download workers per outlet.
+                     Intentionally separate from the outlet-level parallelism
+                     in ScraperService — caller should pass a small fixed value
+                     (e.g. 2) so total threads = outlet_threads × num_workers
+                     stays predictable regardless of max_threads setting.
         languages: List of languages to filter articles by.
 
     Returns:
@@ -196,7 +194,7 @@ def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> Scra
     session = ScrapingSession()
     try:
         newsPaper = NewsPaper(agent=agent, headers=headers)
-    except ValueError as e:
+    except Exception as e:
         logger.error(f"Failed to initialize NewsPaper for: {outlet.name} with error: {e}")
         return session
 
@@ -204,13 +202,6 @@ def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> Scra
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             newsScraper = NewsScraper(outlet, newsPaper, executor, session=session, languages=languages)
             newsScraper.scrape_news_outlet(executor, outlet)
-            
-            # At this point, the session should have all information including:
-            # - The file path and name
-            # - Number of articles processed, successful, and failed
-            # - Detailed stats about duplicates
-            # The calling ScraperService will use this session to handle S3 upload and RabbitMQ messaging
-            
         return newsScraper.session
     except Exception as e:
         logger.error(f"Scraping articles from: {outlet.name} failed with error: {e}")
@@ -369,10 +360,20 @@ def pre_process_article(article: newspaper.Article) -> newspaper.Article:
         # INK-11: do NOT call article.nlp() here. newspaper3k's .nlp() does
         # heuristic keyword extraction + summary — that's enrichment, which
         # belongs to Curator (Skill 1: ENRICH). Messor stays a pure harvester.
-        if article.is_parsed and article.text and article.meta_lang:
+        #
+        # Drop the meta_lang guard: langdetect is used downstream in
+        # ArticleBuilder.buildFromNewspaper3K, so a missing/wrong meta_lang
+        # no longer causes valid articles (especially from Spanish outlets) to
+        # be silently discarded here.
+        if article.is_parsed and article.text:
             return article
     except ValueError as e:
         handle_error_in_article_processing(article, e)
+    except Exception as e:
+        # Catch network errors (Timeout, ConnectionError, TooManyRedirects, …)
+        # that newspaper3k raises beyond ValueError so they are logged and
+        # counted as failures rather than crashing the thread.
+        logging.getLogger().warning(f"Download/parse failed for {getattr(article, 'url', '?')}: {type(e).__name__}: {e}")
 
 
 def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str) -> Article:
@@ -390,8 +391,12 @@ def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str) -> Ar
         newspaperArticle = build_newspaper_article(article)
         if newspaperArticle and len(newspaperArticle.text) > 150:
             return create_article_record(newspaperArticle, newsPaperBrand)
-    except ValueError as e:
-        logging.getLogger().error(f"Error processing article: {str(e)}")
+    except Exception as e:
+        # Catch all exceptions (not just ValueError) so a single bad article
+        # never brings down the thread or silently drops without a log entry.
+        logging.getLogger().warning(
+            f"scrape_outlet_article failed for {getattr(article, 'url', '?')}: {type(e).__name__}: {e}"
+        )
 
 
 def extract_metadata_category(data: dict) -> List[str]:
