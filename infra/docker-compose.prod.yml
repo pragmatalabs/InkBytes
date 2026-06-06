@@ -20,12 +20,13 @@ networks:
     external: true       # shared; created once on host by server-bootstrap.sh
   inkbytes-internal:
     driver: bridge
+  infra-shared:
+    external: true       # shared Ollama (infra-ollama) lives on this network
 
 volumes:
   inkbytes-postgres-data:
   inkbytes-rabbitmq-data:
   inkbytes-minio-data:
-  inkbytes-ollama-models:
 
 services:
 
@@ -149,7 +150,7 @@ services:
     container_name: inkbytes-curator-api
     restart: unless-stopped
     command: ["python", "main.py", "--config", "env.yaml", "--api-only"]
-    networks: [inkbytes-internal]
+    networks: [inkbytes-internal, infra-shared]   # infra-shared → reaches infra-ollama
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@inkbytes-rabbitmq:5672/
@@ -157,7 +158,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
-      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://inkbytes-ollama:11434/v1}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://infra-ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
       S3_ENDPOINT: http://inkbytes-minio:9000
       S3_KEY: ${MINIO_KEY}
@@ -178,7 +179,7 @@ services:
     container_name: inkbytes-curator-worker
     restart: unless-stopped
     command: ["python", "main.py", "--config", "env.yaml", "--worker"]
-    networks: [inkbytes-internal]
+    networks: [inkbytes-internal, infra-shared]   # infra-shared → reaches infra-ollama
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@inkbytes-rabbitmq:5672/
@@ -186,7 +187,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
-      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://inkbytes-ollama:11434/v1}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://infra-ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
       S3_ENDPOINT: http://inkbytes-minio:9000
       S3_KEY: ${MINIO_KEY}
@@ -195,7 +196,7 @@ services:
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }
-      inkbytes-ollama:    { condition: service_healthy }
+      # infra-ollama (shared) assumed healthy — no depends_on for external services
 
   # ── STATEFUL: Postgres + pgvector ───────────────────────────────────────────
   inkbytes-postgres:
@@ -274,28 +275,6 @@ services:
         echo 'MinIO bucket inkbytes ready.'
       "
 
-  # ── STATEFUL: Ollama (local embeddings — bge-m3) ─────────────────────────────
-  inkbytes-ollama:
-    image: ollama/ollama:latest
-    container_name: inkbytes-ollama
-    restart: unless-stopped
-    networks: [inkbytes-internal]
-    volumes:
-      - inkbytes-ollama-models:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # ── INIT: Pull bge-m3 model ───────────────────────────────────────────────────
-  inkbytes-ollama-init:
-    image: ollama/ollama:latest
-    container_name: inkbytes-ollama-init
-    restart: "no"
-    networks: [inkbytes-internal]
-    depends_on:
-      inkbytes-ollama: { condition: service_healthy }
-    environment:
-      OLLAMA_HOST: http://inkbytes-ollama:11434
-    entrypoint: ["/bin/sh", "-c", "ollama pull bge-m3 && echo 'bge-m3 ready.'"]
+  # Ollama: uses shared infra-ollama on infra-shared network.
+  # bge-m3 already pulled. Curator containers join infra-shared to reach it.
+  # EMBEDDINGS_BASE_URL=http://infra-ollama:11434/v1
