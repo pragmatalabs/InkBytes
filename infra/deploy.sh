@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # InkBytes — idempotent on-host deploy script.
-# Run on pragmata-001 inside /opt/inkbytes.
+# Run on the VPS inside /opt/inkbytes.
 #
 # Usage:
 #   ./infra/deploy.sh          # pull registry images + restart
@@ -37,8 +37,12 @@ if [[ "${1:-}" == "--build" ]]; then
     echo "[deploy] Building images locally..."
     docker compose -f "$COMPOSE" --env-file "$ENV_FILE" build --parallel
 else
-    echo "[deploy] Pulling images from registry..."
-    doctl registry login --expiry-seconds 600 || true
+    echo "[deploy] Pulling images from GitHub Container Registry..."
+    # GHCR login — uses the GHCR_TOKEN secret (PAT with read:packages scope)
+    # stored in infra/.env or exported in the environment.
+    if [ -n "${GHCR_TOKEN:-}" ]; then
+        echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-pragmatalabs}" --password-stdin 2>/dev/null || true
+    fi
     docker compose -f "$COMPOSE" --env-file "$ENV_FILE" pull --ignore-pull-failures || true
 fi
 
@@ -58,8 +62,8 @@ docker image prune -f
 
 echo ""
 echo "✓ InkBytes deployed"
-echo "  Reader:    https://${READER_DOMAIN:-inkbytes.org}"
-echo "  Backoffice: https://${ADMIN_DOMAIN:-admin.inkbytes.org}"
+echo "  Reader:    https://${READER_DOMAIN:-inkbytes.galvanic.cloud}"
+echo "  Backoffice: https://${ADMIN_DOMAIN:-admin.inkbytes.galvanic.cloud}"
 echo ""
 echo "  Logs:  docker compose -f infra/docker-compose.prod.yml logs -f"
 echo "  DB:    docker exec -it inkbytes-postgres psql -U inkbytes -d inkbytes"

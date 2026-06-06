@@ -5,8 +5,8 @@
 #   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d
 #
 # Two public surfaces:
-#   inkbytes-reader      → inkbytes.org        (Next.js :3000)
-#   inkbytes-backoffice  → admin.inkbytes.org  (nginx :80 → php-fpm)
+#   inkbytes-reader      → inkbytes.galvanic.cloud        (Next.js :3000)
+#   inkbytes-backoffice  → admin.inkbytes.galvanic.cloud  (nginx :80 → php-fpm)
 #
 # All other containers live on inkbytes-internal only.
 # Host-bound admin ports (127.0.0.1 only, SSH-tunnel access):
@@ -16,12 +16,8 @@
 name: inkbytes
 
 networks:
-  traefik-public:
-    external: true       # shared; created once on host by server-bootstrap.sh
   inkbytes-internal:
     driver: bridge
-  infra-shared:
-    external: true       # shared Ollama (infra-ollama) lives on this network
 
 volumes:
   inkbytes-postgres-data:
@@ -31,24 +27,20 @@ volumes:
 services:
 
   # ── PUBLIC: Reader (Next.js) ─────────────────────────────────────────────────
+  # Traefik on this host uses file-based routing (host network mode).
+  # Reader publishes 127.0.0.1:18050 so Traefik can reach it at localhost.
+  # The /docker/traefik/config/inkbytes.yml file maps the domain to this port.
   inkbytes-reader:
-    image: ${READER_IMAGE:-registry.digitalocean.com/pragmata/inkbytes-reader:latest}
+    image: ${READER_IMAGE:-ghcr.io/pragmatalabs/inkbytes-reader:latest}
     container_name: inkbytes-reader
     restart: unless-stopped
-    networks:
-      - traefik-public
-      - inkbytes-internal
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik-public
-      - traefik.http.routers.inkbytes-reader.rule=Host(`${READER_DOMAIN:-inkbytes.org}`)
-      - traefik.http.routers.inkbytes-reader.entrypoints=websecure
-      - traefik.http.routers.inkbytes-reader.tls.certresolver=letsencrypt
-      - traefik.http.services.inkbytes-reader.loadbalancer.server.port=3000
+    networks: [inkbytes-internal]
+    ports:
+      - "127.0.0.1:18050:3000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       CURATOR_API_URL: http://inkbytes-curator-api:8060
-      NEXT_PUBLIC_SITE_URL: https://${READER_DOMAIN:-inkbytes.org}
+      NEXT_PUBLIC_SITE_URL: https://${READER_DOMAIN:-inkbytes.galvanic.cloud}
       INKBYTES_DEMO_PASSWORD: ${INKBYTES_DEMO_PASSWORD:-changeme}
       NODE_ENV: production
     depends_on:
@@ -61,27 +53,18 @@ services:
       retries: 5
 
   # ── PUBLIC: Backoffice (nginx + php-fpm in one container via supervisord) ─────
-  # Combined image: nginx serves :80, proxies PHP to localhost:9000 (php-fpm).
-  # App files live in the image so nginx can serve Vite assets directly.
   inkbytes-backoffice:
-    image: ${BACKOFFICE_IMAGE:-registry.digitalocean.com/pragmata/inkbytes-backoffice:latest}
+    image: ${BACKOFFICE_IMAGE:-ghcr.io/pragmatalabs/inkbytes-backoffice:latest}
     container_name: inkbytes-backoffice
     restart: unless-stopped
-    networks:
-      - traefik-public
-      - inkbytes-internal
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik-public
-      - traefik.http.routers.inkbytes-backoffice.rule=Host(`${ADMIN_DOMAIN:-admin.inkbytes.org}`)
-      - traefik.http.routers.inkbytes-backoffice.entrypoints=websecure
-      - traefik.http.routers.inkbytes-backoffice.tls.certresolver=letsencrypt
-      - traefik.http.services.inkbytes-backoffice.loadbalancer.server.port=80
+    networks: [inkbytes-internal]
+    ports:
+      - "127.0.0.1:18051:80"
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY}
-      APP_URL: https://${ADMIN_DOMAIN:-admin.inkbytes.org}
+      APP_URL: https://${ADMIN_DOMAIN:-admin.inkbytes.galvanic.cloud}
       DB_CONNECTION: pgsql
       DB_HOST: inkbytes-postgres
       DB_PORT: "5432"
@@ -114,7 +97,7 @@ services:
 
   # ── INTERNAL: Messor harvester (schedule + API) ──────────────────────────────
   inkbytes-messor:
-    image: ${MESSOR_IMAGE:-registry.digitalocean.com/pragmata/inkbytes-messor:latest}
+    image: ${MESSOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-messor:latest}
     container_name: inkbytes-messor
     restart: unless-stopped
     networks: [inkbytes-internal]
@@ -139,11 +122,13 @@ services:
 
   # ── INTERNAL: Curator API (:8060, --api-only) ────────────────────────────────
   inkbytes-curator-api:
-    image: ${CURATOR_IMAGE:-registry.digitalocean.com/pragmata/inkbytes-curator:latest}
+    image: ${CURATOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-curator:latest}
     container_name: inkbytes-curator-api
     restart: unless-stopped
     command: ["python", "main.py", "--config", "env.yaml", "--api-only"]
-    networks: [inkbytes-internal, infra-shared]   # infra-shared → reaches infra-ollama
+    networks: [inkbytes-internal]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach host Ollama at host.docker.internal:11434
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@inkbytes-rabbitmq:5672/
@@ -151,7 +136,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
-      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://infra-ollama:11434/v1}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://host.docker.internal:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
       S3_ENDPOINT: http://inkbytes-minio:9000
       S3_KEY: ${MINIO_KEY}
@@ -168,11 +153,13 @@ services:
 
   # ── INTERNAL: Curator Worker (--worker, RabbitMQ consumer) ──────────────────
   inkbytes-curator-worker:
-    image: ${CURATOR_IMAGE:-registry.digitalocean.com/pragmata/inkbytes-curator:latest}
+    image: ${CURATOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-curator:latest}
     container_name: inkbytes-curator-worker
     restart: unless-stopped
     command: ["python", "main.py", "--config", "env.yaml", "--worker"]
-    networks: [inkbytes-internal, infra-shared]   # infra-shared → reaches infra-ollama
+    networks: [inkbytes-internal]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach host Ollama at host.docker.internal:11434
     # Override image healthcheck: worker has no HTTP port — just check process is alive
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"open('/proc/1/cmdline').read()\" 2>/dev/null || exit 1"]
@@ -186,7 +173,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
-      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://infra-ollama:11434/v1}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://host.docker.internal:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
       S3_ENDPOINT: http://inkbytes-minio:9000
       S3_KEY: ${MINIO_KEY}
@@ -195,7 +182,7 @@ services:
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }
-      # infra-ollama (shared) assumed healthy — no depends_on for external services
+      # Ollama runs on the host — no depends_on needed (reached via host.docker.internal)
 
   # ── STATEFUL: Postgres + pgvector ───────────────────────────────────────────
   inkbytes-postgres:
@@ -274,6 +261,6 @@ services:
         echo 'MinIO bucket inkbytes ready.'
       "
 
-  # Ollama: uses shared infra-ollama on infra-shared network.
-  # bge-m3 already pulled. Curator containers join infra-shared to reach it.
-  # EMBEDDINGS_BASE_URL=http://infra-ollama:11434/v1
+  # Ollama: uses host's existing Ollama instance (bge-m3 pulled separately).
+  # Curator containers reach it at http://host.docker.internal:11434/v1
+  # To pull bge-m3:  docker exec ollama ollama pull bge-m3

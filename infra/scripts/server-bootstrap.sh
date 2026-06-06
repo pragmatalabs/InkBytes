@@ -19,19 +19,63 @@ if ! command -v docker &>/dev/null; then
 fi
 apt-get install -y docker-compose-plugin gettext-base curl git
 
-echo "==> [3/7] doctl"
-if ! command -v doctl &>/dev/null; then
-    V=$(curl -s https://api.github.com/repos/digitalocean/doctl/releases/latest \
-        | grep '"tag_name"' | cut -d'"' -f4 | tr -d v)
-    curl -sL "https://github.com/digitalocean/doctl/releases/download/v${V}/doctl-${V}-linux-amd64.tar.gz" \
-        | tar -xz
-    mv doctl /usr/local/bin/
-fi
-echo "  doctl version: $(doctl version --short 2>/dev/null || echo 'run: doctl auth init')"
+echo "==> [3/7] Traefik (own instance — not shared)"
+mkdir -p /opt/traefik/acme /opt/traefik/config /opt/traefik/dynamic
+touch /opt/traefik/acme/acme.json && chmod 600 /opt/traefik/acme/acme.json
+if [ ! -f /opt/traefik/docker-compose.yml ]; then
+    cat > /opt/traefik/docker-compose.yml <<'TRAEFIK_COMPOSE'
+name: traefik
+networks:
+  traefik-public:
+    external: true
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    networks: [traefik-public]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./acme:/acme
+      - ./config:/config:ro
+      - ./dynamic:/dynamic:ro
+TRAEFIK_COMPOSE
 
-echo "==> [4/7] Shared networks (no-op if already exist)"
+    cat > /opt/traefik/traefik.yml <<'TRAEFIK_YML'
+global: { checkNewVersion: false, sendAnonymousUsage: false }
+log: { level: INFO }
+api: { dashboard: false }
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint: { to: websecure, scheme: https, permanent: true }
+  websecure:
+    address: ":443"
+    http: { tls: { certResolver: letsencrypt } }
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: julian.delarosa.suncar@gmail.com
+      storage: /acme/acme.json
+      httpChallenge: { entryPoint: web }
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    network: traefik-public
+    exposedByDefault: false
+  file:
+    directory: /config
+    watch: true
+TRAEFIK_YML
+    echo "  Traefik config written to /opt/traefik/"
+fi
+
+echo "==> [4/7] Shared networks"
 docker network create traefik-public 2>/dev/null || echo "  traefik-public already exists"
-docker network create infra-shared   2>/dev/null || echo "  infra-shared already exists"
 
 echo "==> [5/7] Per-project SSH key for GitHub (read-only repo access)"
 KEY_PATH="$HOME/.ssh/${PROJECT}_repo"
@@ -86,8 +130,8 @@ NEXT STEPS:
        cd /opt/traefik && docker compose up -d
 
   4. DNS: Add A records BEFORE first deploy (Let's Encrypt needs them):
-       A  inkbytes.org        → <droplet IP>
-       A  admin.inkbytes.org  → <droplet IP>
+       A  inkbytes.galvanic.cloud        → <droplet IP>
+       A  admin.inkbytes.galvanic.cloud  → <droplet IP>
 
   5. First deploy:
        cd ${DEPLOY_PATH} && bash infra/deploy.sh --build
