@@ -148,7 +148,9 @@ export default function ScrapeResultsIndex({
                                 onSort={list.toggleSort}
                                 align="right"
                             >
-                                Success
+                                <Tooltip title="Saved ÷ (total − duplicates) — parse success rate on genuinely new articles">
+                                    <span>Parse %</span>
+                                </Tooltip>
                             </SortableTableCell>
                             <SortableTableCell
                                 column="total_outlets"
@@ -318,18 +320,9 @@ export default function ScrapeResultsIndex({
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell>Outlet</TableCell>
-                                                <TableCell align="right">
-                                                    Articles
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    Successful
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    Failed
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    Duplicates
-                                                </TableCell>
+                                                <TableCell align="right">Saved</TableCell>
+                                                <TableCell align="right">Dupes</TableCell>
+                                                <TableCell align="right">Parse %</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -339,38 +332,24 @@ export default function ScrapeResultsIndex({
                                                         <Typography variant="body2">
                                                             {o.name || o.slug || '—'}
                                                         </Typography>
-                                                        {o.slug && o.name && (
-                                                            <Typography
-                                                                variant="caption"
-                                                                color="text.secondary"
-                                                                sx={{
-                                                                    fontFamily:
-                                                                        'monospace',
-                                                                }}
-                                                            >
-                                                                {o.slug}
-                                                            </Typography>
-                                                        )}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        {numberFormatter.format(
-                                                            o.articles
-                                                        )}
+                                                        {numberFormatter.format(o.successful)}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        {numberFormatter.format(
-                                                            o.successful
-                                                        )}
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {numberFormatter.format(o.duplicates)}
+                                                        </Typography>
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        {numberFormatter.format(
-                                                            o.failed
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell align="right">
-                                                        {numberFormatter.format(
-                                                            o.duplicates
-                                                        )}
+                                                        {o.parse_success_pct != null ? (
+                                                            <Chip
+                                                                size="small"
+                                                                label={`${o.parse_success_pct}%`}
+                                                                color={successColor(o.parse_success_pct)}
+                                                                variant="outlined"
+                                                            />
+                                                        ) : '—'}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}

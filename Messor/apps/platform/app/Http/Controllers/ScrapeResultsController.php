@@ -110,20 +110,31 @@ class ScrapeResultsController extends Controller
      */
     private function presentRow(ScrapeSession $s): array
     {
-        $rate = $s->success_rate !== null ? (float) $s->success_rate : null;
+        $successful  = (int) $s->successful_articles;
+        $total       = (int) $s->total_articles;
+        $duplicates  = (int) $s->duplicates_total;
+
+        // Messor counts duplicates as "failed", so the stored success_rate
+        // (successful / total) is misleading — a session with 90% duplicates
+        // and perfect parse success would show ~10% success.
+        //
+        // Real parse success = successful / (total − duplicates).
+        // This answers: "of articles we hadn't seen before, how many did we save?"
+        $trueNew  = max(0, $total - $duplicates);
+        $realRate = $trueNew > 0 ? $successful / $trueNew : null;
 
         return [
-            'session_id' => $s->session_id,
-            'started_at' => $s->started_at?->toIso8601String(),
-            'ended_at' => $s->ended_at?->toIso8601String(),
-            'total_articles' => (int) $s->total_articles,
-            'successful_articles' => (int) $s->successful_articles,
-            'failed_articles' => (int) $s->failed_articles,
-            'duplicates_total' => (int) $s->duplicates_total,
-            'success_rate' => $rate,
-            'success_rate_pct' => $rate !== null ? round($rate * 100, 1) : null,
-            'duration_seconds' => $s->duration_seconds !== null ? (float) $s->duration_seconds : null,
-            'total_outlets' => (int) $s->total_outlets,
+            'session_id'          => $s->session_id,
+            'started_at'          => $s->started_at?->toIso8601String(),
+            'ended_at'            => $s->ended_at?->toIso8601String(),
+            'total_articles'      => $total,
+            'successful_articles' => $successful,
+            'failed_articles'     => (int) $s->failed_articles,
+            'duplicates_total'    => $duplicates,
+            'success_rate'        => $realRate,
+            'success_rate_pct'    => $realRate !== null ? round($realRate * 100, 1) : null,
+            'duration_seconds'    => $s->duration_seconds !== null ? (float) $s->duration_seconds : null,
+            'total_outlets'       => (int) $s->total_outlets,
         ];
     }
 
@@ -137,14 +148,25 @@ class ScrapeResultsController extends Controller
         $outlets = is_array($s->outlets) ? $s->outlets : [];
 
         return $this->presentRow($s) + [
-            'outlets' => array_map(fn ($o): array => [
-                'name' => (string) ($o['name'] ?? ''),
-                'slug' => (string) ($o['slug'] ?? ''),
-                'articles' => (int) ($o['articles'] ?? 0),
-                'successful' => (int) ($o['successful'] ?? 0),
-                'failed' => (int) ($o['failed'] ?? 0),
-                'duplicates' => (int) ($o['duplicates'] ?? 0),
-            ], array_values($outlets)),
+            'outlets' => array_map(function ($o): array {
+                $saved   = (int) ($o['successful'] ?? 0);
+                $dupes   = (int) ($o['duplicates'] ?? 0);
+                $failed  = (int) ($o['failed'] ?? 0);
+                // true new = failed - dupes (Messor counts dupes as failed)
+                $trueNew = max(0, $failed - $dupes);
+                $pct     = ($saved + $trueNew) > 0
+                    ? round($saved / ($saved + $trueNew) * 100, 1)
+                    : null;
+                return [
+                    'name'        => (string) ($o['name'] ?? ''),
+                    'slug'        => (string) ($o['slug'] ?? ''),
+                    'articles'    => (int) ($o['articles'] ?? 0),
+                    'successful'  => $saved,
+                    'failed'      => $failed,
+                    'duplicates'  => $dupes,
+                    'parse_success_pct' => $pct,
+                ];
+            }, array_values($outlets)),
         ];
     }
 }
