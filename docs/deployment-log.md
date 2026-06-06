@@ -116,6 +116,10 @@ Every fix below is committed to `master`. This log captures WHY each change was 
 **File:** `infra/docker-compose.prod.yml`  
 **Why:** Python's slim image strips most system utilities. Healthcheck using `pgrep` or `ps` fails with "executable not found". Changed to `python3 -c "open('/proc/1/cmdline').read()"` — reads the PID 1 cmdline via procfs, available on all Linux containers.
 
+### 19. Re-embed / moderation commands — RabbitMQ management URL wrong in Docker
+**File:** `infra/docker-compose.prod.yml` — added `RABBITMQ_MANAGEMENT_URL: http://inkbytes-rabbitmq:15672`  
+**Why:** `CuratorCommandService` publishes moderation commands (re-embed, re-synthesize, publish/unpublish) via the RabbitMQ management HTTP API. Default URL is `http://localhost:15672` — unreachable from inside the Docker container. Fixed by pointing to the service name on the internal network.
+
 ---
 
 ## Pending items after deploy
