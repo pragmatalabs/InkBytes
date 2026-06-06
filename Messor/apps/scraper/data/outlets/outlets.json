@@ -323,11 +323,11 @@
     "name": "cnn",
     "display_name": "CNN",
     "url": "https://www.cnn.com/",
-    "region": "global",
+    "region": "US",
     "language": "en",
     "vertical": "general",
-    "active": false,
-    "priority": 3
+    "active": true,
+    "priority": 80
   },
   {
     "id": "foxbusiness",
@@ -345,11 +345,11 @@
     "name": "latimes",
     "display_name": "LA Times",
     "url": "https://www.latimes.com/",
-    "region": "global",
+    "region": "US",
     "language": "en",
     "vertical": "general",
-    "active": false,
-    "priority": 3
+    "active": true,
+    "priority": 50
   },
   {
     "id": "gizmodo",
