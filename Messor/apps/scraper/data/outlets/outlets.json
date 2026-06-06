@@ -350,5 +350,16 @@
     "vertical": "general",
     "active": false,
     "priority": 3
+  },
+  {
+    "id": "gizmodo",
+    "name": "gizmodo",
+    "display_name": "Gizmodo",
+    "url": "https://gizmodo.com/",
+    "region": "US",
+    "language": "en",
+    "vertical": "tech",
+    "active": true,
+    "priority": 50
   }
 ]
