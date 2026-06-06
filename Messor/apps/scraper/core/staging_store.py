@@ -118,3 +118,32 @@ def article_id_exists_in_file(file_path: str, article_id: str) -> bool:
     except (OSError, json.JSONDecodeError) as e:
         logger.warning("Could not scan staging file %s: %s", file_path, e)
     return False
+
+
+def get_staged_content_hash(file_path: str, article_id: str):
+    """Return the MD5(title + text) hash of a stored article, or None if not found.
+
+    Used by cross-session dedup to detect updated articles: same URL (same id)
+    but changed body → different hash → treat as new, re-publish to Curator.
+
+    Returns:
+        str: MD5 hex digest of the stored (title + text) if found.
+        None: if the article is not in this file, or if the file is unreadable.
+    """
+    import hashlib
+    if not os.path.exists(file_path):
+        return None
+    try:
+        with open(file_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        records = (
+            data.get("_default", {}).values() if isinstance(data, dict) else data
+        )
+        for rec in records:
+            if rec.get("id") == article_id:
+                title = rec.get("title", "") or ""
+                text  = rec.get("text",  "") or ""
+                return hashlib.md5((title + text).encode("utf-8")).hexdigest()
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Could not read staging file %s: %s", file_path, e)
+    return None

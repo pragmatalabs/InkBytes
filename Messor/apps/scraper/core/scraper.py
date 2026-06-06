@@ -35,7 +35,7 @@ from inkbytes.models.newspaperbase import NewsPaper
 from inkbytes.models.outlets import OutletsSource
 
 # v1: TinyDB was retired (INK-5). Per-cycle staging now uses a plain JSON store.
-from core.staging_store import StagingStore, article_id_exists_in_file
+from core.staging_store import StagingStore, article_id_exists_in_file, get_staged_content_hash
 
 # Module setup
 MODULE_NAME = get_module_name(2)
@@ -299,24 +299,44 @@ def check_article_exists_in_all_scrapes(article: Article, outlet_name: str) -> b
         # Log how many files we're checking
         logger.debug(f"Checking {len(outlet_scrape_files)} existing scrape files for outlet: {outlet_name}")
         
-        # Check each file for article ID
-        article_id = article.id
+        # Check each file for article ID — and compare content if found.
+        import hashlib as _hashlib
+        article_id    = article.id
         article_title = article.title[:30] if article.title else "Unknown"
-        
+        new_hash = _hashlib.md5(
+            ((article.title or "") + (article.text or "")).encode("utf-8")
+        ).hexdigest()
+
         for idx, file_path in enumerate(outlet_scrape_files, 1):
-            # Log progress every 5 files
             if idx % 5 == 0 or idx == 1 or idx == len(outlet_scrape_files):
                 logger.debug(f"Checking file {idx}/{len(outlet_scrape_files)}: {os.path.basename(file_path)}")
-                
+
             try:
-                if article_id_exists_in_file(file_path, article_id):
-                    logger.info(f"Article '{article_title}' (ID: {article_id}) already exists in {os.path.basename(file_path)}")
+                stored_hash = get_staged_content_hash(file_path, article_id)
+                if stored_hash is None:
+                    continue  # article not in this file
+
+                if stored_hash == new_hash:
+                    # Same URL, same content — genuine duplicate, skip.
+                    logger.info(
+                        f"Article '{article_title}' (ID: {article_id}) unchanged in "
+                        f"{os.path.basename(file_path)} — skipping"
+                    )
                     return True
+
+                # Same URL, different content — article has been updated.
+                # Allow re-publication so Curator can re-enrich with fresh body.
+                logger.info(
+                    f"Article '{article_title}' (ID: {article_id}) has updated content "
+                    f"vs {os.path.basename(file_path)} — re-publishing"
+                )
+                return False
+
             except Exception as e:
                 logger.error(f"Error checking scrape file {file_path}: {e}")
                 continue
-        
-        logger.debug(f"Article '{article_title}' (ID: {article_id}) not found in any existing scrape files for {outlet_name}")        
+
+        logger.debug(f"Article '{article_title}' (ID: {article_id}) not found in any existing scrape files for {outlet_name}")
         return False
     except Exception as e:
         logger.error(f"Error checking if article exists in scrape files: {e}")
