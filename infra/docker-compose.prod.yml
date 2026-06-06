@@ -101,9 +101,9 @@ services:
       AWS_BUCKET: inkbytes
       AWS_ENDPOINT: http://inkbytes-minio:9000
       AWS_USE_PATH_STYLE_ENDPOINT: "true"
-      # Scraping trigger: queue worker POSTs to Messor's trigger endpoint
-      # over the inkbytes-internal network. No Docker socket needed.
-      SCRAPING_COMMAND: "curl -sf -X POST http://inkbytes-messor:8050/api/scrape/trigger -H 'Content-Type: application/json' -d '{}' > /dev/null 2>&1 || true"
+      # Scraping trigger — messor-trigger.sh parses {SCRAPE_ARGS} (outlets/limit),
+      # POSTs to Messor's internal trigger endpoint, echoes status to the job log.
+      SCRAPING_COMMAND: "/usr/local/bin/messor-trigger {SCRAPE_ARGS}"
       # RabbitMQ management API — used by CuratorCommandService to publish
       # moderation commands (re-embed, re-synthesize, publish/unpublish).
       # Default is localhost:15672 which doesn't work inside Docker.

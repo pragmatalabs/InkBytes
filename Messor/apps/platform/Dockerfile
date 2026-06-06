@@ -70,7 +70,8 @@ COPY infra/docker/nginx-backoffice.conf /etc/nginx/http.d/default.conf
 COPY infra/docker/supervisord.conf /etc/supervisord.conf
 
 COPY infra/docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY infra/docker/messor-trigger.sh /usr/local/bin/messor-trigger
+RUN chmod +x /entrypoint.sh /usr/local/bin/messor-trigger
 
 # Port 80 for HTTP (nginx); 9000 internal php-fpm
 EXPOSE 80
