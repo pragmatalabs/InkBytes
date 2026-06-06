@@ -47,9 +47,17 @@ COPY --from=node-builder /app/public/build ./public/build
 # Laravel bootstrap
 RUN php artisan package:discover --ansi || true
 
-# Permissions
-RUN chown -R www-data:www-data storage bootstrap/cache && \
-    chmod -R 775 storage bootstrap/cache
+# Ensure storage + cache dirs exist (storage/ is gitignored so may be absent)
+RUN mkdir -p \
+      storage/app/public \
+      storage/framework/cache/data \
+      storage/framework/sessions \
+      storage/framework/testing \
+      storage/framework/views \
+      storage/logs \
+      bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 # trustProxies is set directly in bootstrap/app.php (no inline patch needed)
 
