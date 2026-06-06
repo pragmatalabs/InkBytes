@@ -286,26 +286,33 @@ def check_article_exists_in_all_scrapes(article: Article, outlet_name: str) -> b
             logger.warning(f"Scrapes directory does not exist: {scrapes_dir}")
             return False
             
-        # Find all scrape files for this outlet
-        outlet_scrape_files = []
-        for filename in os.listdir(scrapes_dir):
-            if outlet_name in filename and filename.endswith(".db.json"):
-                outlet_scrape_files.append(os.path.join(scrapes_dir, filename))
-                
+        # Find all scrape files for this outlet, sorted NEWEST FIRST.
+        # Critical: we must compare against the most recent staging file, not
+        # an arbitrary one. Comparing against an old file where the article had
+        # a different hash would incorrectly trigger re-publication for articles
+        # that haven't changed since the last scrape.
+        outlet_scrape_files = sorted(
+            [
+                os.path.join(scrapes_dir, f)
+                for f in os.listdir(scrapes_dir)
+                if outlet_name in f and f.endswith(".db.json")
+            ],
+            key=os.path.getmtime,
+            reverse=True,          # newest first — stop at first match
+        )
+
         if not outlet_scrape_files:
             logger.debug(f"No existing scrape files found for outlet: {outlet_name}")
             return False
-            
-        # Log how many files we're checking
-        logger.debug(f"Checking {len(outlet_scrape_files)} existing scrape files for outlet: {outlet_name}")
-        
+
+        logger.debug(f"Checking {len(outlet_scrape_files)} scrape files (newest-first) for outlet: {outlet_name}")
+
         # ── PERF-REVIEW ────────────────────────────────────────────────────────
         # Content-aware cross-session dedup (2026-06-06, checkpoint/content-aware-dedup).
-        # get_staged_content_hash reads the FULL JSON of each prior staging file
-        # to locate the article and hash its title+text.  At high outlet × session
-        # volume this is O(N_articles × M_staging_files) file I/O per scrape cycle.
-        # Monitor staging-file growth; if dedup becomes a bottleneck, fast revert:
-        #   git revert 6cbef06   # restores pure-ID dedup here
+        # Iterate newest-first and stop at the FIRST file that contains this
+        # article ID — that file holds the most recent known version.
+        # Fast revert if this becomes a bottleneck:
+        #   git revert 6cbef06   # restores pure-ID dedup
         # ── END PERF-REVIEW ────────────────────────────────────────────────────
         import hashlib as _hashlib
         article_id    = article.id
@@ -314,25 +321,21 @@ def check_article_exists_in_all_scrapes(article: Article, outlet_name: str) -> b
             ((article.title or "") + (article.text or "")).encode("utf-8")
         ).hexdigest()
 
-        for idx, file_path in enumerate(outlet_scrape_files, 1):
-            if idx % 5 == 0 or idx == 1 or idx == len(outlet_scrape_files):
-                logger.debug(f"Checking file {idx}/{len(outlet_scrape_files)}: {os.path.basename(file_path)}")
-
+        for file_path in outlet_scrape_files:
             try:
                 stored_hash = get_staged_content_hash(file_path, article_id)
                 if stored_hash is None:
-                    continue  # article not in this file
+                    continue  # article not in this file — check older files
 
+                # Found the most recent prior record for this article.
                 if stored_hash == new_hash:
-                    # Same URL, same content — genuine duplicate, skip.
                     logger.info(
                         f"Article '{article_title}' (ID: {article_id}) unchanged in "
                         f"{os.path.basename(file_path)} — skipping"
                     )
-                    return True
+                    return True  # genuine duplicate
 
-                # Same URL, different content — article has been updated.
-                # Allow re-publication so Curator can re-enrich with fresh body.
+                # Content changed since last scrape — re-publish.
                 logger.info(
                     f"Article '{article_title}' (ID: {article_id}) has updated content "
                     f"vs {os.path.basename(file_path)} — re-publishing"
