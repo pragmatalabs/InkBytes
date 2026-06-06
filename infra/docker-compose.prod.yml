@@ -182,7 +182,7 @@ services:
     networks: [inkbytes-internal, infra-shared]   # infra-shared → reaches infra-ollama
     # Override image healthcheck: worker has no HTTP port — just check process is alive
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -q '[m]ain.py' || exit 1"]
+      test: ["CMD-SHELL", "python3 -c \"open('/proc/1/cmdline').read()\" 2>/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
