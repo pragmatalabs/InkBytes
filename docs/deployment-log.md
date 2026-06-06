@@ -122,6 +122,14 @@ Every fix below is committed to `master`. This log captures WHY each change was 
 
 ---
 
+### 20. Scrape sessions not writing to `public.scrape_sessions`
+**Status:** Known bug — `scrape_sessions` table stays empty in production.  
+**Root cause:** Messor's `ScraperService` uses a `ThreadPoolExecutor` (one thread per outlet). Each thread calls `channel.basic_publish` on the **same pika `BlockingConnection` channel**, which is not thread-safe. Concurrent publishes from scraper threads corrupt the channel state, so `publish_scrape_session_completed` (called after all threads complete) silently fails.  
+**Impact:** B12.2 Scrape Results browser shows no data. B4 Run History still works (reads from Messor's `/api/scrapesessions` via filesystem staging files — different path, unaffected).  
+**Fix (post-v0):** Funnel all RabbitMQ publishes through a thread-safe queue in Messor's main thread, or use one pika channel per scraper thread.
+
+---
+
 ## Pending items after deploy
 
 1. **`inkbytes.org` DNS** — add `A inkbytes.org → 67.205.136.61` at registrar. Let's Encrypt will auto-issue once DNS resolves.
