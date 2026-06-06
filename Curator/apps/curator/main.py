@@ -54,7 +54,7 @@ async def _run(args: argparse.Namespace) -> None:
     # --dry-run skips Postgres entirely (LLM-only path for prompt iteration).
     # --reenrich-missing always needs DB (fetches + writes enrichment rows).
     needs_db = not args.dry_run
-    if args.reenrich_missing:
+    if args.reenrich_missing or args.synthesize_pending:
         needs_db = True
     await app.startup(with_db=needs_db)
 
@@ -92,6 +92,8 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_reenrich_missing()
         elif args.reenrich_stubs:
             await app.run_reenrich_stubs()
+        elif args.synthesize_pending:
+            await app.run_synthesize_pending()
         elif args.api_only:
             assert api_task is not None
             await api_task
@@ -135,6 +137,15 @@ def main() -> int:
             "Re-enrich articles that were processed in stub mode "
             "(keywords_canonical contains 'stub'). Overwrites fake topic/entity "
             "data and re-synthesizes any stub pages."
+        ),
+    )
+    grp.add_argument(
+        "--synthesize-pending",
+        action="store_true",
+        help=(
+            "Synthesize events that have ≥2 distinct sources but no published "
+            "page yet. Runs once and exits. Use after restarts or bulk re-ingests "
+            "when the in-memory synthesis gate was reset."
         ),
     )
     args = parser.parse_args()

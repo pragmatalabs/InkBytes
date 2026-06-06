@@ -669,6 +669,38 @@ class Application:
         rows = await self.db.fetch_unenriched_articles()
         await self._run_reenrich(rows, "reenrich-missing")
 
+    async def run_synthesize_pending(self) -> None:
+        """Synthesize events that have ≥2 sources but no published page yet.
+
+        Useful after restarts (in-memory gate reset) or when the synthesis
+        trigger was missed during a bulk re-ingest.  Passes source_count=0 to
+        ``_synthesize_once`` to bypass the source-count gate — the DB query
+        already filters for events that genuinely need synthesis.
+        """
+        rows = await self.db.fetch_events_pending_synthesis()
+        total = len(rows)
+        if not total:
+            logger.info("synthesize-pending: no events to process")
+            return
+        logger.info("synthesize-pending: %d events to synthesize", total)
+        done = errors = 0
+        for row in rows:
+            event_id = row["id"]
+            source_count = row["source_count"]
+            try:
+                # Pass source_count=0 to bypass the in-memory gate — these
+                # events were never synthesized so there is nothing to skip.
+                await self._synthesize_once(event_id, 0)
+                done += 1
+                logger.info(
+                    "synthesize-pending [%d/%d] event=%s sources=%d",
+                    done, total, event_id, source_count,
+                )
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                logger.error("synthesize-pending event=%s error: %s", event_id, exc)
+        logger.info("synthesize-pending complete: %d done, %d errors", done, errors)
+
     async def run_reenrich_stubs(self) -> None:
         """Re-enrich articles that were processed in stub mode.
 

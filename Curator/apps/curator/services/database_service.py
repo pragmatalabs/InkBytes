@@ -283,6 +283,35 @@ class DatabaseService:
             )
         return [dict(r) for r in rows]
 
+    async def fetch_events_pending_synthesis(self) -> list[dict[str, Any]]:
+        """Events that have ≥2 distinct sources but no published page yet.
+
+        Used by ``--synthesize-pending`` to backfill synthesis for events that
+        accumulated enough sources before the synthesis trigger was introduced,
+        or that were skipped due to in-memory gate resets across restarts.
+
+        Returns [{id, source_count}] ordered by source_count DESC so the
+        richest events get synthesized first.
+        """
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                """
+                SELECT e.id,
+                       COUNT(DISTINCT a.outlet_id) AS source_count
+                  FROM events e
+                  JOIN articles a ON a.event_id = e.id
+                 WHERE NOT EXISTS (
+                         SELECT 1 FROM pages p WHERE p.event_id = e.id
+                       )
+                 GROUP BY e.id
+                HAVING COUNT(DISTINCT a.outlet_id) >= 2
+                 ORDER BY source_count DESC
+                """
+            )
+        return [dict(r) for r in rows]
+
     async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:
         """Rows to (re-)embed. only_missing=True → just NULL embeddings;
         False → ALL articles with body_text (a full corpus re-embed).
