@@ -217,6 +217,10 @@ class Application:
             if no_api:
                 self.logger.info("Skipping API server start (--no-api); :8050 left untouched")
             else:
+                # Wire self into the scrape router so /api/scrape/trigger
+                # can call execute_scraping_with_lock() from the Backoffice.
+                from api.routers.scrape import set_app as _set_scrape_app
+                _set_scrape_app(self)
                 self.api_server.start()
                 # Give the server a moment to start
                 time.sleep(1)

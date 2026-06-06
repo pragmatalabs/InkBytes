@@ -21,7 +21,9 @@ Author: juliandelarosa@icloud.com
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
@@ -29,6 +31,17 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Request
 
 router = APIRouter()
+
+# Module-level reference to the Application instance — set by APIServer.start()
+# so the /api/scrape/trigger endpoint can call execute_scraping_with_lock().
+_messor_app = None
+
+
+def set_app(app_instance) -> None:  # type: ignore[type-arg]
+    """Called once by APIServer.start() to wire in the Application instance."""
+    global _messor_app
+    _messor_app = app_instance
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -195,6 +208,56 @@ async def list_sessions(request: Request) -> Dict[str, Any]:
                 "total":     total,
             }
         },
+    }
+
+
+@router.post("/api/scrape/trigger")
+async def trigger_scrape(request: Request) -> Dict[str, Any]:
+    """Trigger a one-shot scrape run in the background.
+
+    Called by the Backoffice queue worker via SCRAPING_COMMAND
+    (curl POST from within the Docker network). Accepts optional JSON body:
+      { "outlet_slugs": ["apnews", "bbc"], "limit": 50 }
+
+    Returns immediately with 202; the scrape runs asynchronously so the
+    queue job does not time out waiting for a long harvest.
+    """
+    body: Dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    outlet_slugs: List[str] = body.get("outlet_slugs", [])
+    limit: int | None = body.get("limit")
+
+    # Build the scrape args string (same format as SCRAPE_ARGS in RunScrapingWorker)
+    parts: List[str] = []
+    if outlet_slugs:
+        parts.append(f"--outlets={','.join(outlet_slugs)}")
+    if limit:
+        parts.append(f"--limit={limit}")
+    scrape_args = " ".join(parts) if parts else ""
+
+    if _messor_app is None:
+        return {"status": "error", "message": "Application not initialised yet — retry shortly."}
+
+    # Run the scrape in a background thread so this endpoint returns immediately.
+    def _run() -> None:
+        try:
+            _messor_app.execute_scraping_with_lock(scrape_args or None)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("Background scrape error: %s", exc)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    return {
+        "status": "accepted",
+        "message": "Scrape started in background",
+        "outlet_slugs": outlet_slugs,
+        "limit": limit,
     }
 
 
