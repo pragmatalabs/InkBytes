@@ -1,6 +1,6 @@
 # InkBytes — Production Deployment Log
 
-> *Status: Live · Droplet: pragmata-001 (67.205.136.61) · Last updated: 2026-06-06*
+> *Status: Live on Hostinger VPS (82.112.250.139) · Last updated: 2026-06-06 · 26 fixes documented*
 
 ## Deployment summary
 
@@ -193,3 +193,57 @@ ssh -L 9030:localhost:9030 root@67.205.136.61
 | `POST /api/scrape/trigger` in Messor | Docker container can't run `docker exec` — HTTP endpoint over internal network is the clean alternative |
 | `backoffice` schema created manually on first deploy | Laravel doesn't auto-create schemas; `migrate:fresh` runs after schema exists |
 | DeepSeek as default LLM (post-deploy) | Anthropic quota exhausted until July 1; DeepSeek-chat (enrich) + DeepSeek-reasoner (synthesize) at ~$2/1000 articles |
+
+---
+
+## Hostinger VPS migration (2026-06-06)
+
+**From:** pragmata-001 (67.205.136.61, shared DO droplet, 7.8 GB RAM, 50+ competing containers)  
+**To:** Hostinger VPS (82.112.250.139, dedicated, 15 GB RAM, 193 GB NVMe)  
+**Registry:** DO Container Registry → **GitHub Container Registry** (`ghcr.io/pragmatalabs`, free)  
+**Domains:** `inkbytes.galvanic.cloud` + `admin.inkbytes.galvanic.cloud` (temporary; → inkbytes.news)
+
+### Differences from pragmata-001
+
+| Aspect | pragmata-001 | Hostinger |
+|---|---|---|
+| Traefik | Shared, `traefik-public` network | Own instance, `host` network mode |
+| Routing | Docker labels on `traefik-public` | File-based (`/docker/traefik/config/inkbytes.yml`) |
+| Ollama | Shared `infra-ollama` on `infra-shared` net | Shared host `ollama` on `inkbytes_inkbytes-internal` |
+| Registry | `registry.digitalocean.com/pragmata` | `ghcr.io/pragmatalabs` |
+| Projects path | `/opt/inkbytes` | `/docker/inkbytes` |
+
+### Additional fixes during Hostinger deploy (fixes #21–26)
+
+**#21. Traefik file-based routing** — On Hostinger, Traefik runs with `network_mode: host`. Instead of Docker labels, routing is configured in `/docker/traefik/config/inkbytes.yml` pointing to `http://127.0.0.1:18050` (Reader) and `http://127.0.0.1:18051` (Backoffice) which the containers publish to `127.0.0.1` only.
+
+**#22. Ollama network bridging** — Host's `ollama` container binds to `127.0.0.1:11434` (not `0.0.0.0`), so `host.docker.internal` approach fails. Fix: `docker network connect inkbytes_inkbytes-internal ollama` — containers reach it by container name `ollama:11434`.
+
+**#23. OOM crash on first deploy** — Parallel image builds + all containers + Ollama's large models (deepseek-r1:14b = 9 GB) exhausted the 15 GB RAM. Fix: added `mem_limit` + `cpus` per container (total ~5 GB reserved for InkBytes).
+
+**#24. `deploy.resources.limits` doesn't work standalone** — Docker Compose `deploy.resources.limits` only applies in Swarm mode. Switched to top-level `mem_limit: Xm` + `cpus: X.X` which standalone Docker Compose respects.
+
+**#25. APP_KEY empty in .env** — The `.env` was written via a bash heredoc where `${APP_KEY}` expanded from the local shell (which had no APP_KEY set) rather than a generated value. Fix: generate inside the container with `php artisan key:generate --show` then patch `.env` directly.
+
+**#26. Admin password hash mismatch after APP_KEY change** — Changing APP_KEY doesn't affect bcrypt password hashes, but the seeded hash from pragmata-001 was made with a different cost factor. Fix: regenerate hash with `password_hash('admin2026!', PASSWORD_BCRYPT, ['cost'=>12])` on the new server.
+
+### Production SSH key
+
+The `galvanic_id` key (`~/.ssh/galvanic_id`) is the correct key for `root@82.112.250.139`. Added to `~/.ssh/config`:
+```
+Host github.com-inkbytes
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/inkbytes_repo
+```
+
+### Post-deploy state
+
+```
+Articles:  7,369  (migrated from local dev via pg_dump pipe)
+Events:    7,216
+Pages:     362 published
+Outlets:   34
+Embeddings: ollama/bge-m3 (1024d) — healthy, no block
+LLM:       deepseek/deepseek-chat + deepseek-reasoner
+```

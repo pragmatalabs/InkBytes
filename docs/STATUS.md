@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on pragmata-001 · Owner: Julian · Last updated: 2026-06-06 (D6 deployed — admin.inkbytes.org live, all services healthy, 18 Docker fixes documented)*
+> *Status: v0 live on Hostinger VPS · Owner: Julian · Last updated: 2026-06-06 (migrated to 82.112.250.139, galvanic.cloud, GHCR — all services healthy, 20 Docker fixes documented)*
 
 ## TL;DR
 
@@ -92,9 +92,17 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
 - [x] At least one outlet returned ≥ 5 articles via Messor (3 outlets, 319 articles)
 - [x] First event pages in `pages` table (29 multi-source pages, hand-checkable)
 - [x] Reader renders events at localhost:3000
-- [x] DO Droplet running docker-compose.prod.yaml — **admin.inkbytes.org LIVE** (2026-06-06)
+- [x] DO Droplet running docker-compose.prod.yaml — initially on pragmata-001
+- [x] **Migrated to Hostinger VPS** (82.112.250.139) — 2026-06-06
+  - Reader: https://inkbytes.galvanic.cloud (→ inkbytes.news when ready)
+  - Backoffice: https://admin.inkbytes.galvanic.cloud
+  - Registry: GitHub Container Registry (ghcr.io/pragmatalabs, free)
+  - Ollama: shared host instance, bge-m3 serving embeddings
+  - Memory limits enforced — OOM resolved
+- [x] 7,369 articles · 362 published pages migrated from dev → production
 - [ ] 24h of green scheduled cycles + first paying user invited
-- [ ] `inkbytes.org` DNS → `67.205.136.61` (Reader not yet public)
+- [ ] Switch to inkbytes.news domain (DNS records pending)
+- [ ] GHCR CI/CD: set GitHub Secrets for auto-deploy on push
 
 ## Open items / next steps
 
