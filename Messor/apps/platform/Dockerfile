@@ -51,19 +51,7 @@ RUN php artisan package:discover --ansi || true
 RUN chown -R www-data:www-data storage bootstrap/cache && \
     chmod -R 775 storage bootstrap/cache
 
-# Laravel trust proxies for Traefik (inline patch — idempotent)
-# If bootstrap/app.php already has trustProxies this is a no-op.
-RUN php -r "
-\$f = 'bootstrap/app.php'; \$c = file_get_contents(\$f);
-if (strpos(\$c, 'trustProxies') === false) {
-    \$c = str_replace(
-        '\$app->withMiddleware(function (Middleware \$middleware) {',
-        '\$app->withMiddleware(function (Middleware \$middleware) { \$middleware->trustProxies(at: \"*\");',
-        \$c
-    );
-    file_put_contents(\$f, \$c);
-}
-" || true
+# trustProxies is set directly in bootstrap/app.php (no inline patch needed)
 
 COPY infra/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

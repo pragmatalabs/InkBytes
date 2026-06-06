@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace/apps/scraper
 
+# Copy the shared kernel package first so the relative -e ../../packages/inkbytes
+# editable install in requirements.txt resolves correctly inside the container.
+COPY packages /workspace/packages
 COPY apps/scraper/requirements.txt /tmp/requirements.txt
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r /tmp/requirements.txt
