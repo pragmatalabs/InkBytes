@@ -27,8 +27,10 @@ env/
 ENV/
 .venv/
 .forget/.env/
-env.yaml
 env.do.yaml
+# env.yaml is gitignored at root Messor level BUT the scraper's committed
+# template is whitelisted below so Docker builds can find it at startup.
+!apps/scraper/env.yaml
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
