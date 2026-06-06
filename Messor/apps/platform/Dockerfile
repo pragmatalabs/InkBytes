@@ -19,10 +19,12 @@ RUN npm run build        # emits public/build/
 # ── Stage 2: PHP-FPM runtime ─────────────────────────────────────────────────
 FROM php:8.4-fpm-alpine AS runtime
 
-# System deps
+# System deps — includes nginx + supervisor so this single container
+# serves both HTTP (nginx :80) and FastCGI (php-fpm :9000)
 RUN apk add --no-cache \
     git curl unzip bash libpng-dev libjpeg-turbo-dev freetype-dev \
-    libpq-dev oniguruma-dev icu-dev libzip-dev gettext
+    libpq-dev oniguruma-dev icu-dev libzip-dev gettext \
+    nginx supervisor
 
 # PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
@@ -61,9 +63,16 @@ RUN mkdir -p \
 
 # trustProxies is set directly in bootstrap/app.php (no inline patch needed)
 
+# Nginx config — listens :80, proxies PHP to localhost:9000 (same container)
+COPY infra/docker/nginx-backoffice.conf /etc/nginx/http.d/default.conf
+
+# Supervisor config — runs nginx + php-fpm together
+COPY infra/docker/supervisord.conf /etc/supervisord.conf
+
 COPY infra/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 9000
+# Port 80 for HTTP (nginx); 9000 internal php-fpm
+EXPOSE 80
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["php-fpm"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

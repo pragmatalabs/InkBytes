@@ -29,5 +29,5 @@ fi
 echo "[entrypoint] Fixing storage permissions..."
 chown -R www-data:www-data storage/ bootstrap/cache/ 2>/dev/null || true
 
-echo "[entrypoint] Starting php-fpm..."
+echo "[entrypoint] Starting nginx + php-fpm via supervisord..."
 exec "$@"
