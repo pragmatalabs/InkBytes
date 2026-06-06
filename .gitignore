@@ -11,6 +11,10 @@
 !Reader/
 !orchestrator/
 !docs/
+!infra/
+!.github/
+!Makefile
+!scripts/
 !database/
 !common/
 !models/
@@ -45,6 +49,8 @@ data/local/
 .env
 .env.*
 !.env.example
+!.env.production.example
+infra/.env         # production secrets — never commit
 env.local.yaml
 *.local.yaml
 .secrets.env

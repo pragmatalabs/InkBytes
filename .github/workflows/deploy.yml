@@ -1,0 +1,86 @@
+name: Build & Deploy InkBytes
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: "Skip image build (deploy existing :latest — use for config-only changes)"
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: registry.digitalocean.com/${{ secrets.DO_REGISTRY }}
+
+jobs:
+  # ── Build images (matrix — one job per Dockerfile) ──────────────────────────
+  build:
+    name: Build & push ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_build }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: reader
+            context: Reader
+            dockerfile: Reader/apps/web/Dockerfile
+
+          - service: backoffice
+            context: Messor/apps/platform
+            dockerfile: Messor/apps/platform/Dockerfile
+
+          - service: curator
+            context: Curator
+            dockerfile: Curator/apps/curator/Dockerfile
+
+          - service: messor
+            context: Messor
+            dockerfile: Messor/infra/docker/scraper.Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - run: doctl registry login --expiry-seconds 1200
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64    # pragmata-001 is x86_64
+          tags: |
+            ${{ env.REGISTRY }}/inkbytes-${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/inkbytes-${{ matrix.service }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-${{ matrix.service }}:latest
+          cache-to: type=inline
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+  # ── Deploy to pragmata-001 ───────────────────────────────────────────────────
+  deploy:
+    name: Deploy to pragmata-001
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd /opt/inkbytes
+            bash infra/deploy.sh
