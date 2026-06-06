@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 pipeline proven end-to-end · Owner: Julian · Last updated: 2026-06-04 (D7 — continuous cycle wired: cycle.sh, prod compose gains Messor, Docker RabbitMQ env-var fix)*
+> *Status: v0 live on pragmata-001 · Owner: Julian · Last updated: 2026-06-06 (D6 deployed — admin.inkbytes.org live, all services healthy, 18 Docker fixes documented)*
 
 ## TL;DR
 
@@ -92,8 +92,9 @@ load the arm64 Messor venv under Rosetta and fail (pydantic `.so` arch mismatch)
 - [x] At least one outlet returned ≥ 5 articles via Messor (3 outlets, 319 articles)
 - [x] First event pages in `pages` table (29 multi-source pages, hand-checkable)
 - [x] Reader renders events at localhost:3000
-- [ ] DO Droplet running docker-compose.prod.yaml
+- [x] DO Droplet running docker-compose.prod.yaml — **admin.inkbytes.org LIVE** (2026-06-06)
 - [ ] 24h of green scheduled cycles + first paying user invited
+- [ ] `inkbytes.org` DNS → `67.205.136.61` (Reader not yet public)
 
 ## Open items / next steps
 
