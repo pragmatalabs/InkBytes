@@ -101,6 +101,9 @@ services:
       AWS_BUCKET: inkbytes
       AWS_ENDPOINT: http://inkbytes-minio:9000
       AWS_USE_PATH_STYLE_ENDPOINT: "true"
+      # Scraping trigger: queue worker POSTs to Messor's trigger endpoint
+      # over the inkbytes-internal network. No Docker socket needed.
+      SCRAPING_COMMAND: "curl -sf -X POST http://inkbytes-messor:8050/api/scrape/trigger -H 'Content-Type: application/json' -d '{}' > /dev/null 2>&1 || true"
     depends_on:
       inkbytes-postgres: { condition: service_healthy }
       inkbytes-rabbitmq: { condition: service_healthy }
