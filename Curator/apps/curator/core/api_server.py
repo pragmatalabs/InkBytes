@@ -5,15 +5,36 @@ are intentionally minimal.
 """
 from __future__ import annotations
 
+import json as _json
 import logging
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.application import Application
 
 logger = logging.getLogger(__name__)
+
+# ── Query parameter caps (ADR-0006 §D1) ─────────────────────────────────────
+# Prevent runaway DB scans via unbounded caller-supplied values.
+_MAX_EVENTS_LIMIT = 500
+_MAX_GRAPH_NODES  = 200
+_MAX_GRAPH_EDGES  = 500
+
+
+def _decode_json_col(v: Any) -> list:
+    """Parse a JSON_AGG column returned by asyncpg (ADR-0006).
+
+    asyncpg returns ``json``-typed columns (e.g. from JSON_AGG) as raw JSON
+    strings.  ``jsonb`` columns arrive already decoded.  This helper normalises
+    both so callers always receive a Python list.
+    """
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return _json.loads(v)
+    return v  # already decoded (jsonb)
 
 
 def build_app(app: Application) -> FastAPI:
@@ -40,31 +61,51 @@ def build_app(app: Application) -> FastAPI:
     @api.get("/status")
     async def status() -> dict[str, Any]:
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
-            articles_total = await conn.fetchval("SELECT COUNT(*) FROM articles")
+            articles_total    = await conn.fetchval("SELECT COUNT(*) FROM articles")
             articles_enriched = await conn.fetchval(
                 "SELECT COUNT(*) FROM articles WHERE enriched_at IS NOT NULL"
-            )
-            events_total = await conn.fetchval("SELECT COUNT(*) FROM events")
-            pages_published = await conn.fetchval(
-                "SELECT COUNT(*) FROM pages"
             )
             articles_embedded = await conn.fetchval(
                 "SELECT COUNT(*) FROM articles WHERE embedding IS NOT NULL"
             )
+            events_total      = await conn.fetchval("SELECT COUNT(*) FROM events")
+            events_published  = await conn.fetchval(
+                "SELECT COUNT(*) FROM events WHERE status = 'published'"
+            )
+            pages_published   = await conn.fetchval(
+                "SELECT COUNT(*) FROM pages WHERE published_at IS NOT NULL"
+            )
+
+        # Live in-flight counts from the Application instance.
+        synths_in_flight = sum(
+            1 for lock in app._synth_locks.values() if lock.locked()
+        )
+        articles_pending = max(0, (articles_total or 0) - (articles_enriched or 0))
+
         return {
-            "articles_total": articles_total,
+            "articles_total":    articles_total,
             "articles_enriched": articles_enriched,
             "articles_embedded": articles_embedded,
-            "events_total": events_total,
-            "pages_published": pages_published,
-            # Live embedding tier + reconfigure status (ADR-0004) so the
-            # Backoffice can show "vectors stale — re-embed" / "blocked".
+            "articles_pending":  articles_pending,
+            "events_total":      events_total,
+            "events_published":  events_published,
+            "pages_published":   pages_published,
+            # Live pipeline activity
+            "synths_in_flight":  synths_in_flight,
+            # LLM tier (live — hot-reloaded by reconfigure)
+            "llm": {
+                "provider":        app.cfg.llm.provider,
+                "enrich_model":    app.cfg.llm.enrich_model,
+                "synthesize_model": app.cfg.llm.synthesize_model,
+                "base_url":        app.cfg.llm.base_url,
+            },
+            # Embedding tier + reconfigure status (ADR-0004)
             "embeddings": {
-                "provider": app.cfg.embeddings.provider,
-                "model": app.cfg.embeddings.model,
-                "dimensions": app.cfg.embeddings.dimensions,
-                "stale": app.embeddings_stale,
-                "blocked": app.embeddings_blocked,
+                "provider":    app.cfg.embeddings.provider,
+                "model":       app.cfg.embeddings.model,
+                "dimensions":  app.cfg.embeddings.dimensions,
+                "stale":       app.embeddings_stale,
+                "blocked":     app.embeddings_blocked,
                 "reembedding": bool(app._reembed_task and not app._reembed_task.done()),
             },
         }
@@ -76,12 +117,45 @@ def build_app(app: Application) -> FastAPI:
                 """
                 SELECT p.id, p.headline, p.freshness_at, p.published_at,
                        e.source_count, e.article_count, e.topic, e.language,
+
+                       -- Outlet avatar stack (up to 5 distinct names)
                        ARRAY(
                          SELECT DISTINCT a.outlet_name
                            FROM articles a
                           WHERE a.event_id = e.id AND a.outlet_name IS NOT NULL
                           LIMIT 5
-                       ) AS outlet_names
+                       ) AS outlet_names,
+
+                       -- Dek: first ~180 chars of synthesis; Reader trims to
+                       -- the first sentence boundary (./?/!) before rendering.
+                       LEFT(p.synthesis_md, 180) AS synthesis_excerpt,
+
+                       -- Factuality: average per-article score scaled 0–100.
+                       -- NULL when no articles have been enriched yet.
+                       (SELECT ROUND(AVG(a.factuality) * 100)::int
+                          FROM articles a
+                         WHERE a.event_id = e.id
+                           AND a.factuality IS NOT NULL
+                       ) AS avg_factuality,
+
+                       -- Coverage sparkline: 7 data-points at 6-hour intervals
+                       -- over the last 42 h.  Gives the Reader a mini area chart
+                       -- showing how article volume evolved since the story broke.
+                       ARRAY(
+                         SELECT COUNT(a2.id)::int
+                           FROM generate_series(
+                                  NOW() - INTERVAL '42 hours',
+                                  NOW() - INTERVAL '6 hours',
+                                  INTERVAL '6 hours'
+                                ) AS bucket
+                           LEFT JOIN articles a2
+                                  ON a2.event_id = e.id
+                                 AND a2.scraped_at >= bucket
+                                 AND a2.scraped_at <  bucket + INTERVAL '6 hours'
+                          GROUP BY bucket
+                          ORDER BY bucket
+                       ) AS coverage_spark
+
                   FROM pages p
                   JOIN events e ON e.id = p.event_id
                  WHERE p.published_at IS NOT NULL
@@ -102,7 +176,31 @@ def build_app(app: Application) -> FastAPI:
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             row = await conn.fetchrow(
                 """
-                SELECT p.*, e.source_count, e.article_count, e.topic
+                SELECT p.*, e.source_count, e.article_count, e.topic,
+
+                       -- Timeline: article publication order, showing how the
+                       -- story was picked up outlet by outlet over time.
+                       -- Ordered by published_at so the Reader can render a
+                       -- chronological development strip.
+                       (
+                         SELECT jsonb_agg(
+                                  jsonb_build_object(
+                                    'outlet_name', a.outlet_name,
+                                    'title',       a.title,
+                                    'published_at', a.published_at,
+                                    'scraped_at',   a.scraped_at
+                                  )
+                                  ORDER BY a.published_at ASC NULLS LAST
+                                )
+                           FROM (
+                                  SELECT outlet_name, title, published_at, scraped_at
+                                    FROM articles
+                                   WHERE event_id = e.id
+                                   ORDER BY published_at ASC NULLS LAST
+                                   LIMIT 20
+                                ) a
+                       ) AS timeline
+
                   FROM pages p JOIN events e ON e.id = p.event_id
                  WHERE p.id = $1
                    AND p.published_at IS NOT NULL
@@ -112,6 +210,247 @@ def build_app(app: Application) -> FastAPI:
             )
         if not row:
             raise HTTPException(404, f"event {event_id} not found")
-        return dict(row)
+        result = dict(row)
+        # asyncpg returns jsonb_agg as a raw JSON string; normalise to a list.
+        result["timeline"] = _decode_json_col(result.get("timeline"))
+        return result
+
+    @api.get("/graph")
+    async def get_graph(
+        min_event_count: int = 2,
+        limit_nodes: int = 80,
+        min_edge_weight: int = 2,
+        limit_edges: int = 250,
+    ) -> dict[str, Any]:
+        """Entity co-occurrence graph for the /entities page (ADR-0005 Approach A).
+
+        Nodes  — entities that appear in ≥ min_event_count published events.
+        Edges  — entity pairs that co-appear in ≥ min_edge_weight events.
+
+        Uses articles.entities (has type from ENRICH) rather than pages.entities
+        (which only stores bare names). Deduplicates to one row per
+        (event, entity_name_lower) before the self-join so edge weight counts
+        distinct events, not article repetitions.
+        """
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            row = await conn.fetchrow(
+                """
+                WITH published AS (
+                    SELECT e.id       AS event_id,
+                           p.id       AS page_id,
+                           p.headline,
+                           p.freshness_at,
+                           e.source_count
+                      FROM events e
+                      JOIN pages p ON p.event_id = e.id
+                     WHERE p.published_at IS NOT NULL
+                       AND e.status = 'published'
+                ),
+                -- One row per (event_id, entity_name_lower) — deduplicates
+                -- articles that share the same entity within one event.
+                -- Uses the normalized `entities` table (has type from ENRICH skill).
+                ev_ents AS (
+                    SELECT DISTINCT ON (a.event_id, LOWER(ent.name))
+                           a.event_id,
+                           pub.page_id,
+                           pub.headline,
+                           pub.freshness_at,
+                           pub.source_count,
+                           LOWER(ent.name)       AS name_key,
+                           ent.name              AS name_orig,
+                           UPPER(ent.type)       AS etype
+                      FROM articles a
+                      JOIN published pub ON pub.event_id = a.event_id
+                      JOIN entities  ent ON ent.article_id = a.id
+                     WHERE LENGTH(ent.name) >= 2
+                     ORDER BY a.event_id, LOWER(ent.name), ent.type
+                ),
+                -- Nodes: entities with enough event coverage
+                node_cands AS (
+                    SELECT name_key,
+                           COUNT(DISTINCT event_id) AS event_count
+                      FROM ev_ents
+                     GROUP BY name_key
+                    HAVING COUNT(DISTINCT event_id) >= $1
+                     ORDER BY event_count DESC
+                     LIMIT $2
+                ),
+                -- Most common type per entity
+                node_types AS (
+                    SELECT DISTINCT ON (name_key) name_key, etype AS type
+                      FROM (
+                               SELECT name_key, etype, COUNT(*) AS cnt
+                                 FROM ev_ents
+                                WHERE name_key IN (SELECT name_key FROM node_cands)
+                                GROUP BY name_key, etype
+                           ) t
+                     ORDER BY name_key, cnt DESC
+                ),
+                -- Full node rows with page summaries for the side panel
+                nodes_agg AS (
+                    SELECT nc.name_key                                       AS id,
+                           MIN(ee.name_orig)                                 AS label,
+                           COALESCE(nt.type, 'OTHER')                        AS type,
+                           nc.event_count,
+                           JSON_AGG(DISTINCT
+                               JSONB_BUILD_OBJECT(
+                                   'id',           ee.page_id,
+                                   'headline',     ee.headline,
+                                   'source_count', ee.source_count,
+                                   'freshness_at', ee.freshness_at
+                               )
+                           )                                                  AS pages
+                      FROM node_cands nc
+                      JOIN ev_ents    ee ON ee.name_key = nc.name_key
+                      LEFT JOIN node_types nt ON nt.name_key = nc.name_key
+                     GROUP BY nc.name_key, nc.event_count, nt.type
+                ),
+                -- Edges: entity pairs co-appearing in the same event
+                edges_agg AS (
+                    SELECT LEAST(a.name_key, b.name_key)    AS source,
+                           GREATEST(a.name_key, b.name_key) AS target,
+                           COUNT(DISTINCT a.event_id)        AS weight
+                      FROM ev_ents a
+                      JOIN ev_ents b
+                           ON  a.event_id  = b.event_id
+                           AND a.name_key  < b.name_key
+                     WHERE a.name_key IN (SELECT name_key FROM node_cands)
+                       AND b.name_key IN (SELECT name_key FROM node_cands)
+                     GROUP BY 1, 2
+                    HAVING COUNT(DISTINCT a.event_id) >= $3
+                     ORDER BY weight DESC
+                     LIMIT $4
+                )
+                SELECT
+                    COALESCE((SELECT JSON_AGG(n) FROM nodes_agg n), '[]'::json) AS nodes,
+                    COALESCE((SELECT JSON_AGG(e) FROM edges_agg e), '[]'::json) AS edges,
+                    (SELECT COUNT(*) FROM node_cands)                            AS node_count,
+                    (SELECT COUNT(*) FROM edges_agg)                             AS edge_count,
+                    (SELECT COUNT(*) FROM published)                             AS event_count
+                """,
+                min_event_count, limit_nodes, min_edge_weight, limit_edges,
+            )
+        def _decode(v: Any) -> list:
+            """asyncpg returns JSON_AGG columns as raw JSON strings; parse them."""
+            if v is None:
+                return []
+            if isinstance(v, str):
+                return _json.loads(v)
+            return v  # already decoded (e.g. jsonb)
+
+        return {
+            "nodes": _decode(row["nodes"]),
+            "edges": _decode(row["edges"]),
+            "meta": {
+                "node_count":  row["node_count"],
+                "edge_count":  row["edge_count"],
+                "event_count": row["event_count"],
+            },
+        }
+
+    @api.get("/events/{event_id}/related")
+    async def get_related_events(
+        event_id: str,
+        limit: int = 5,
+        min_score: float = 0.4,
+    ) -> list[dict[str, Any]]:
+        """Return events related to `event_id` by entity + topic overlap.
+
+        Score = entity_overlap_coefficient × topic_multiplier  (ADR-0005)
+
+          entity_overlap = |shared entity names| / max(|A|, |B|, 1)
+          topic_multiplier = 1.3 if same non-null topic, else 1.0
+
+        Returns events with score ≥ min_score, ordered by score desc.
+        Empty list when no related events exceed the threshold.
+        """
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                """
+                WITH target AS (
+                    SELECT
+                        p.id,
+                        -- Normalise to lowercase so "DONALD TRUMP" = "Donald Trump"
+                        ARRAY(
+                            SELECT LOWER(ent->>'name')
+                              FROM jsonb_array_elements(p.entities) ent
+                             WHERE ent->>'name' IS NOT NULL
+                        ) AS entity_names,
+                        ev.topic,
+                        ev.language
+                      FROM pages p
+                      JOIN events ev ON ev.id = p.event_id
+                     WHERE p.id = $1
+                       AND p.published_at IS NOT NULL
+                ),
+                candidates AS (
+                    SELECT
+                        p.id,
+                        p.headline,
+                        p.freshness_at,
+                        p.published_at,
+                        e.source_count,
+                        e.article_count,
+                        e.topic,
+                        e.language,
+                        ARRAY(
+                            SELECT LOWER(ent->>'name')
+                              FROM jsonb_array_elements(p.entities) ent
+                             WHERE ent->>'name' IS NOT NULL
+                        ) AS entity_names,
+                        ARRAY(
+                            SELECT DISTINCT a.outlet_name
+                              FROM articles a
+                             WHERE a.event_id = e.id
+                               AND a.outlet_name IS NOT NULL
+                             LIMIT 5
+                        ) AS outlet_names
+                      FROM pages p
+                      JOIN events e ON e.id = p.event_id
+                     WHERE p.id      != $1
+                       AND p.published_at IS NOT NULL
+                       AND e.status   = 'published'
+                ),
+                scored AS (
+                    SELECT
+                        c.*,
+                        -- Overlap coefficient: shared / max(|A|, |B|).
+                        -- Both sides are already lowercased — comparison is exact.
+                        CASE
+                            WHEN GREATEST(
+                                     cardinality(t.entity_names),
+                                     cardinality(c.entity_names)
+                                 ) = 0 THEN 0.0
+                            ELSE (
+                                SELECT COUNT(*)::float
+                                  FROM unnest(c.entity_names) n
+                                 WHERE n = ANY(t.entity_names)
+                            ) / GREATEST(
+                                    cardinality(t.entity_names),
+                                    cardinality(c.entity_names)
+                                )
+                        END
+                        -- Topic multiplier: same non-null topic boosts by 30 %.
+                        * CASE
+                            WHEN t.topic IS NOT NULL
+                             AND c.topic IS NOT NULL
+                             AND c.topic = t.topic THEN 1.3
+                            ELSE 1.0
+                          END AS score
+                      FROM candidates c, target t
+                )
+                SELECT
+                    id, headline, freshness_at, published_at,
+                    source_count, article_count, topic, language,
+                    outlet_names,
+                    ROUND(score::numeric, 4) AS score
+                  FROM scored
+                 WHERE score >= $2
+                 ORDER BY score DESC
+                 LIMIT $3
+                """,
+                event_id, min_score, limit,
+            )
+        return [dict(r) for r in rows]
 
     return api
