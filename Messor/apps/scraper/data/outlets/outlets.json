@@ -334,11 +334,11 @@
     "name": "foxbusiness",
     "display_name": "Fox Business",
     "url": "https://www.foxbusiness.com/",
-    "region": "global",
+    "region": "US",
     "language": "en",
     "vertical": "business",
-    "active": false,
-    "priority": 3
+    "active": true,
+    "priority": 50
   },
   {
     "id": "latimes",
