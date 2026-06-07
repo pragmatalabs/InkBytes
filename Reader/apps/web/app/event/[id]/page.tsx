@@ -87,6 +87,8 @@ export default async function EventPage(
 
   const evidence = parseJson<EvidenceItem[]>(page.evidence_rail);
   const entities = parseJson<EntityItem[]>(page.entities);
+  // Note: isDeveloping uses Date.now() — server value may differ from client.
+  // The Developing badge element has suppressHydrationWarning to prevent #418.
   const developing = isDeveloping(page.freshness_at);
 
   // Fetch related events in parallel — silent failure (empty list) if unavailable.
@@ -124,9 +126,11 @@ export default async function EventPage(
           {page.source_count} {page.source_count === 1 ? "source" : "sources"}
         </span>
         <span>·</span>
-        <span>Updated {relativeTime(page.freshness_at)}</span>
+        {/* suppressHydrationWarning: relativeTime uses Date.now() — differs
+            between server (UTC) and client (local tz), causing error #418. */}
+        <span suppressHydrationWarning>Updated {relativeTime(page.freshness_at)}</span>
         {developing && (
-          <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-[10px] text-red-600">
+          <span suppressHydrationWarning className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-[10px] text-red-600">
             <span className="developing-dot" aria-hidden="true" />
             Developing
           </span>
@@ -282,7 +286,7 @@ export default async function EventPage(
                     </span>
                     <span>{ev.source_count} {ev.source_count === 1 ? "source" : "sources"}</span>
                     <span>·</span>
-                    <span>{relativeTime(ev.freshness_at)}</span>
+                    <span suppressHydrationWarning>{relativeTime(ev.freshness_at)}</span>
                     {ev.language !== "en" && (
                       <span className="font-mono uppercase px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-[9px]">
                         {ev.language}

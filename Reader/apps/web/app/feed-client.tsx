@@ -9,12 +9,20 @@ import type { EventSummary } from "@/lib/types";
 
 type Lang = "all" | "en" | "es";
 
-// ── Importance score: source count × recency (48-hour window) ────────────────
+// ── Importance score: recency-first, source count as a small boost ───────────
+//
+// Old formula: source_count × recency — meant 2-source events from yesterday
+// permanently outscored fresh single-source events, freezing the top of the feed.
+//
+// New formula: recency is primary (24h window), each extra source adds +0.15.
+// A 24h-old 5-source event scores ~0.0 + 4×0.15 = 0.60.
+// A just-published 1-source event scores 1.0 + 0 = 1.0 → ranks above.
 
 function importance(ev: EventSummary): number {
-  const h = (Date.now() - new Date(ev.freshness_at).getTime()) / 3_600_000;
-  const recency = Math.max(0, 48 - h) / 48; // 1 = now, 0 = 48h old
-  return ev.source_count * (0.5 + 0.5 * recency);
+  const h       = (Date.now() - new Date(ev.freshness_at).getTime()) / 3_600_000;
+  const recency = Math.max(0, 1 - h / 24); // 1.0 = now → 0.0 at 24h
+  const boost   = (ev.source_count - 1) * 0.15; // extra sources add a small lift
+  return recency + boost;
 }
 
 // ── Shared atoms ─────────────────────────────────────────────────────────────
@@ -330,9 +338,14 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
 
   const showLangChip = lang === "all";
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
-  });
+  // Compute today's date on the client only — avoids server/client timezone
+  // mismatch that triggers React hydration error #418.
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString("en-US", {
+      weekday: "long", month: "long", day: "numeric", year: "numeric",
+    }));
+  }, []);
 
   // Editorial tiers — only when there's no active filter.
   const useEditorial = !hasFilter && sorted.length >= 1;
