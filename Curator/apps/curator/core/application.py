@@ -55,8 +55,14 @@ class Application:
         self.cluster = ClusterSkill(self.db, cfg.clustering)
         self.synthesize = SynthesizeSkill(self.llm, self.db, cfg.llm)
         self.illustrate = IllustrateSkill(self.db)
-        # Concurrency gate
+        # Concurrency gate — article pipeline
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
+        # IllustrateSkill concurrency gate: cap at 1 concurrent browser pair.
+        # Each run opens 2 Chromium instances (~400 MB combined); the worker has
+        # a 1.5 GB limit on DO.  Excess calls queue and run serially after the
+        # browsers close — illustration is always fire-and-forget so the delay
+        # never affects the RabbitMQ ACK or synthesis latency.
+        self._illustrate_sem = asyncio.Semaphore(1)
         # Per-event synthesis locks: if synthesis is already in-flight for an
         # event, concurrent requests skip rather than pile up.  Prevents the
         # N-articles-in-one-event → N synthesis calls explosion during batch
@@ -503,13 +509,19 @@ class Application:
     async def _illustrate_safe(self, event_id: str, headline: str) -> None:
         """Fire-and-forget wrapper: run IllustrateSkill without blocking the pipeline.
 
+        Serialised via _illustrate_sem (Semaphore(1)) so at most one pair of
+        Chromium instances is alive at any moment — keeps peak RSS under the
+        1.5 GB worker limit even during batch harvest cycles where many events
+        synthesize concurrently.
+
         Errors are caught and logged — a failed illustration never fails the
         event.  Runs as a background asyncio.Task spawned after synthesis.
         """
-        try:
-            await self.illustrate.run(event_id, headline)
-        except Exception:
-            logger.exception("ILLUSTRATE %s failed (non-fatal)", event_id)
+        async with self._illustrate_sem:
+            try:
+                await self.illustrate.run(event_id, headline)
+            except Exception:
+                logger.exception("ILLUSTRATE %s failed (non-fatal)", event_id)
 
     async def _handle_event(self, payload: dict[str, Any]) -> None:
         async with self._sem:

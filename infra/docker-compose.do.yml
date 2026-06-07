@@ -13,7 +13,7 @@ services:
     mem_limit: 2g
 
   inkbytes-curator-worker:
-    mem_limit: 768m
+    mem_limit: 1.5g  # raised from 768m — IllustrateSkill opens 2 Chromium instances (~400 MB peak)
     environment:
       # On DO, Ollama runs as infra-ollama (infra-shared network).
       # infra-ollama is connected to inkbytes-internal at deploy time (see deploy.sh).
