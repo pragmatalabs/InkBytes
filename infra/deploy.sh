@@ -12,6 +12,20 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE="$SCRIPT_DIR/docker-compose.prod.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
 
+# ── Server profile ────────────────────────────────────────────────────────────
+# DEPLOY_PROFILE in infra/.env selects the compose override for this server.
+#   (empty / unset)  → Hostinger VPS (16 GB, file-based Traefik)
+#   do               → DigitalOcean pragmata-001 (7.8 GB, label-based Traefik)
+# The override file lives in infra/docker-compose.{profile}.yml.
+PROFILE="${DEPLOY_PROFILE:-}"
+OVERRIDE_FILE=""
+if [ -n "$PROFILE" ] && [ -f "$SCRIPT_DIR/docker-compose.${PROFILE}.yml" ]; then
+    OVERRIDE_FILE="-f $SCRIPT_DIR/docker-compose.${PROFILE}.yml"
+    echo "[deploy] Server profile: $PROFILE (override: docker-compose.${PROFILE}.yml)"
+else
+    echo "[deploy] Server profile: default (hostinger)"
+fi
+
 # ── Preflight ─────────────────────────────────────────────────────────────────
 [ -f "$ENV_FILE" ] || {
     echo "ERROR: $ENV_FILE not found."
@@ -35,27 +49,25 @@ git pull origin master
 # ── 3. Images ─────────────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--build" ]]; then
     echo "[deploy] Building images locally..."
-    docker compose -f "$COMPOSE" --env-file "$ENV_FILE" build --parallel
+    docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" build --parallel
 else
     echo "[deploy] Pulling images from GitHub Container Registry..."
-    # GHCR login — uses the GHCR_TOKEN secret (PAT with read:packages scope)
-    # stored in infra/.env or exported in the environment.
     if [ -n "${GHCR_TOKEN:-}" ]; then
         echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-pragmatalabs}" --password-stdin 2>/dev/null || true
     fi
-    docker compose -f "$COMPOSE" --env-file "$ENV_FILE" pull --ignore-pull-failures || true
+    docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" pull --ignore-pull-failures || true
 fi
 
 # ── 4. (Re)start the stack ────────────────────────────────────────────────────
 echo "[deploy] Starting stack..."
-docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d --remove-orphans
+docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" up -d --remove-orphans
 
 # ── 5. Post-deploy checks ─────────────────────────────────────────────────────
 echo "[deploy] Waiting for services to become healthy..."
 sleep 8
 
 echo "[deploy] Service status:"
-docker compose -f "$COMPOSE" --env-file "$ENV_FILE" ps
+docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" ps
 
 echo "[deploy] Pruning dangling images..."
 docker image prune -f

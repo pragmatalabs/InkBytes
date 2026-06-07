@@ -3,10 +3,17 @@ SHELL := /bin/bash
 
 COMPOSE_DEV  = docker compose -f orchestrator/docker-compose.dev.yaml
 COMPOSE_PROD = docker compose -f infra/docker-compose.prod.yml --env-file infra/.env
+# ── Hostinger VPS ─────────────────────────────────────────────────────────────
 DEPLOY_USER  ?= root
-DEPLOY_HOST  ?= 82.112.250.139          # Hostinger VPS
+DEPLOY_HOST  ?= 82.112.250.139
 DEPLOY_KEY   ?= ~/.ssh/galvanic_id
 DEPLOY_PATH  ?= /docker/inkbytes
+
+# ── DigitalOcean pragmata-001 ─────────────────────────────────────────────────
+DEPLOY_HOST_DO   ?= 67.205.136.61
+DEPLOY_USER_DO   ?= root
+DEPLOY_KEY_DO    ?= ~/.ssh/galvanic_id
+DEPLOY_PATH_DO   ?= /opt/inkbytes
 
 # ── Local development ─────────────────────────────────────────────────────────
 infra: ## Start local infra only (Postgres + RabbitMQ + MinIO)
@@ -50,11 +57,25 @@ prod-down: ## Stop prod stack
 	$(COMPOSE_PROD) down
 
 # ── Deploy ────────────────────────────────────────────────────────────────────
-deploy: ## Deploy to Hostinger via SSH (git pull + up)
-	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "cd $(DEPLOY_PATH) && git pull origin master && docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d"
+deploy: deploy-hostinger ## Alias: deploy to Hostinger (default)
 
-deploy-build: ## Deploy + rebuild all images on the server
+deploy-hostinger: ## Deploy to Hostinger VPS (galvanic.cloud / /docker/inkbytes)
+	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) \
+	  "cd $(DEPLOY_PATH) && git pull origin master && bash infra/deploy.sh"
+
+deploy-do: ## Deploy to DigitalOcean pragmata-001 (inkbytes.org / /opt/inkbytes)
+	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) \
+	  "cd $(DEPLOY_PATH_DO) && git pull origin master && bash infra/deploy.sh"
+
+deploy-all: ## Deploy to BOTH servers in sequence
+	$(MAKE) deploy-hostinger
+	$(MAKE) deploy-do
+
+deploy-build: ## Deploy + rebuild images on Hostinger
 	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "cd $(DEPLOY_PATH) && git pull origin master && bash infra/deploy.sh --build"
+
+deploy-build-do: ## Deploy + rebuild images on DigitalOcean
+	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) "cd $(DEPLOY_PATH_DO) && git pull origin master && bash infra/deploy.sh --build"
 
 # ── Maintenance ───────────────────────────────────────────────────────────────
 migrate: ## Run Backoffice migrations (prod)
@@ -78,15 +99,28 @@ shell-db: ## Open psql in the Postgres container (remote)
 shell-curator: ## Open a shell in the Curator API container (remote)
 	ssh -i $(DEPLOY_KEY) -t $(DEPLOY_USER)@$(DEPLOY_HOST) "docker exec -it inkbytes-curator-api bash"
 
-health: ## Hit live endpoints
-	@echo "Reader:";    curl -sk https://inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
-	@echo "Backoffice:"; curl -sk https://admin.inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
+health: ## Hit live endpoints on both servers
+	@echo "── Hostinger (galvanic.cloud) ───────────────────"
+	@printf "Reader:    "; curl -sk https://inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
+	@printf "Backoffice:"; curl -sk https://admin.inkbytes.galvanic.cloud/ -o /dev/null -w '%{http_code}\n'
+	@echo "── DigitalOcean (inkbytes.org) ──────────────────"
+	@printf "Reader:    "; curl -sk https://inkbytes.org/ -o /dev/null -w '%{http_code}\n'
+	@printf "Backoffice:"; curl -sk https://admin.inkbytes.org/ -o /dev/null -w '%{http_code}\n'
 
-status: ## Show prod container status + memory (remote)
+status: ## Show container status + memory on Hostinger
 	ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) "\
 	  docker ps --filter 'name=inkbytes-' --format 'table {{.Names}}\t{{.Status}}\t{{.RunningFor}}' | sort; \
 	  echo ''; \
 	  docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}' \$$(docker ps --filter 'name=inkbytes-' -q) 2>/dev/null | sort"
+
+status-do: ## Show container status + memory on DigitalOcean
+	ssh -i $(DEPLOY_KEY_DO) $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) "\
+	  docker ps --filter 'name=inkbytes-' --format 'table {{.Names}}\t{{.Status}}\t{{.RunningFor}}' | sort; \
+	  echo ''; \
+	  docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}' \$$(docker ps --filter 'name=inkbytes-' -q) 2>/dev/null | sort"
+
+shell-do: ## SSH into DigitalOcean server
+	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO)
 
 watch: ## Live stats every 5 s (Ctrl-C to quit)
 	watch -n 5 "ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) \
@@ -125,4 +159,6 @@ help: ## Show this help
         prod prod-ps prod-logs prod-logs-curator prod-down \
         deploy deploy-build migrate migrate-status seed backup \
         shell-php shell-db shell-curator health network validate-prod help \
-        watch logs logs-messor logs-curator logs-backoffice shell
+        watch logs logs-messor logs-curator logs-backoffice shell \
+        deploy-hostinger deploy-do deploy-all deploy-build-do \
+        status-do shell-do

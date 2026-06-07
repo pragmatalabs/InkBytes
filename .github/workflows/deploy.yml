@@ -142,13 +142,15 @@ jobs:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-messor:latest
           cache-to:   type=inline
 
-# ── Deploy: only pull/restart changed services ───────────────────────────────
-  deploy:
-    name: Deploy to VPS
+# ── Deploy: parallel jobs — one per server ───────────────────────────────────
+# Each server uses deploy.sh which reads DEPLOY_PROFILE from its own infra/.env
+# to select the right compose override (empty=hostinger, do=digitalocean).
+
+  deploy-hostinger:
+    name: Deploy → Hostinger (galvanic.cloud)
     runs-on: ubuntu-latest
     needs: [changes, build-reader, build-backoffice, build-curator, build-messor]
     if: always() && !contains(needs.*.result, 'failure')
-
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -161,35 +163,65 @@ jobs:
             set -euo pipefail
             cd /docker/inkbytes
             git pull origin master
-
             COMPOSE="infra/docker-compose.prod.yml"
             ENV_FILE="infra/.env"
-
-            if [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-pragmatalabs}" --password-stdin 2>/dev/null || true
-            fi
-
+            source "$ENV_FILE" 2>/dev/null || true
+            OVERRIDE=""
+            [ -n "${DEPLOY_PROFILE:-}" ] && OVERRIDE="-f infra/docker-compose.${DEPLOY_PROFILE}.yml"
             CHANGED_READER="${{ needs.changes.outputs.reader }}"
             CHANGED_BACKOFFICE="${{ needs.changes.outputs.backoffice }}"
             CHANGED_CURATOR="${{ needs.changes.outputs.curator }}"
             CHANGED_MESSOR="${{ needs.changes.outputs.messor }}"
-
             SERVICES=""
             [ "$CHANGED_READER"     = "true" ] && SERVICES="$SERVICES inkbytes-reader"
             [ "$CHANGED_BACKOFFICE" = "true" ] && SERVICES="$SERVICES inkbytes-backoffice"
             [ "$CHANGED_CURATOR"    = "true" ] && SERVICES="$SERVICES inkbytes-curator-api inkbytes-curator-worker"
             [ "$CHANGED_MESSOR"     = "true" ] && SERVICES="$SERVICES inkbytes-messor"
-
             if [ -n "$SERVICES" ]; then
-              echo "[deploy] Pulling:$SERVICES"
-              for svc in $SERVICES; do
-                docker compose -f "$COMPOSE" --env-file "$ENV_FILE" pull "$svc" 2>/dev/null || true
-              done
-              echo "[deploy] Restarting:$SERVICES"
-              docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d $SERVICES
-              echo "[deploy] Done —$SERVICES restarted"
+              for svc in $SERVICES; do docker compose -f "$COMPOSE" $OVERRIDE --env-file "$ENV_FILE" pull "$svc" 2>/dev/null || true; done
+              docker compose -f "$COMPOSE" $OVERRIDE --env-file "$ENV_FILE" up -d $SERVICES
+              echo "[hostinger] Done —$SERVICES restarted"
             else
-              echo "[deploy] No service images changed — skipping container restarts."
+              echo "[hostinger] No changes — skipping restart."
             fi
+            docker image prune -f
+
+  deploy-digitalocean:
+    name: Deploy → DigitalOcean (inkbytes.org)
+    runs-on: ubuntu-latest
+    needs: [changes, build-reader, build-backoffice, build-curator, build-messor]
+    if: always() && !contains(needs.*.result, 'failure')
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.DEPLOY_HOST_DO }}
+          username: ${{ secrets.DEPLOY_USER_DO }}
+          key:      ${{ secrets.DEPLOY_KEY_DO }}
+          port:     22
+          script: |
+            set -euo pipefail
+            cd /opt/inkbytes
+            git pull origin master
+            COMPOSE="infra/docker-compose.prod.yml"
+            ENV_FILE="infra/.env"
+            OVERRIDE="-f infra/docker-compose.do.yml"
+            CHANGED_READER="${{ needs.changes.outputs.reader }}"
+            CHANGED_BACKOFFICE="${{ needs.changes.outputs.backoffice }}"
+            CHANGED_CURATOR="${{ needs.changes.outputs.curator }}"
+            CHANGED_MESSOR="${{ needs.changes.outputs.messor }}"
+            SERVICES=""
+            [ "$CHANGED_READER"     = "true" ] && SERVICES="$SERVICES inkbytes-reader"
+            [ "$CHANGED_BACKOFFICE" = "true" ] && SERVICES="$SERVICES inkbytes-backoffice"
+            [ "$CHANGED_CURATOR"    = "true" ] && SERVICES="$SERVICES inkbytes-curator-api inkbytes-curator-worker"
+            [ "$CHANGED_MESSOR"     = "true" ] && SERVICES="$SERVICES inkbytes-messor"
+            if [ -n "$SERVICES" ]; then
+              for svc in $SERVICES; do docker compose -f "$COMPOSE" $OVERRIDE --env-file "$ENV_FILE" pull "$svc" 2>/dev/null || true; done
+              docker compose -f "$COMPOSE" $OVERRIDE --env-file "$ENV_FILE" up -d $SERVICES
+              echo "[do] Done —$SERVICES restarted"
+            else
+              echo "[do] No changes — skipping restart."
+            fi
+            docker image prune -f
 
             docker image prune -f
