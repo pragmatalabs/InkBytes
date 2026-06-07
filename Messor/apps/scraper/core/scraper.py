@@ -214,17 +214,59 @@ def validate_outlet_url(outlet):
     return outlet.url and outlet.url.strip()
 
 
-MAX_ARTICLES_PER_OUTLET = 300   # cap per cycle — top-N from homepage order
+MAX_ARTICLES_PER_OUTLET = 300   # articles taken from each end of the feed
+_HEAD_TAIL_THRESHOLD = MAX_ARTICLES_PER_OUTLET * 2  # 600 — minimum to trigger head+tail
+
+
+def _slice_outlet_articles(articles: list) -> list:
+    """Return the subset of articles to process for one outlet.
+
+    newspaper3k discovers URLs from the homepage **and** every category page,
+    so large outlets (CNN, AP, …) can surface 2,000+ links per build().  We
+    used to cap at the first 300, which means we only ever saw today's top
+    headlines and missed articles that newspaper3k found deep in category pages.
+
+    Strategy
+    --------
+    - Small feeds  (≤ 600 total): take everything — no need to split.
+    - Large feeds  (> 600 total): take the first 300 **and** the last 300.
+      Head = freshest breaking headlines (homepage order).
+      Tail = category-page articles surfaced later in the crawl that never
+             appear on the front page (international, sports, technology, …).
+
+    Overlap is impossible when total > 2 × MAX, but we dedup defensively.
+    """
+    total = len(articles)
+    if total <= _HEAD_TAIL_THRESHOLD:
+        return articles  # small feed — take everything
+
+    head = articles[:MAX_ARTICLES_PER_OUTLET]
+    tail = articles[-MAX_ARTICLES_PER_OUTLET:]
+
+    seen_urls: set = set()
+    combined: list = []
+    for a in head + tail:
+        url = getattr(a, "url", None) or id(a)
+        if url not in seen_urls:
+            seen_urls.add(url)
+            combined.append(a)
+
+    tail_count = len(combined) - MAX_ARTICLES_PER_OUTLET
+    logger.info(
+        f"Head+tail slice: {total} total → {len(combined)} selected "
+        f"({MAX_ARTICLES_PER_OUTLET} head + {tail_count} tail)"
+    )
+    return combined
 
 
 def process_found_articles(executor, outlet, paper) -> list:
     """
     Process articles found in a newspaper.
 
-    Caps at MAX_ARTICLES_PER_OUTLET: newspaper3k returns articles in the
-    order they appear on the homepage/categories — top of the list = freshest
-    headlines.  Taking the first 200 keeps cycles fast, RAM bounded, and
-    focused on the stories that matter without needing RSS yet.
+    Uses head+tail slicing: for large outlets newspaper3k discovers URLs from
+    every category page (2,000+ links on CNN/AP). We take the first 300
+    (freshest headlines) and the last 300 (deep category articles) so both
+    breaking news and section coverage are represented.
 
     Args:
         executor: The executor to submit tasks to.
@@ -234,7 +276,7 @@ def process_found_articles(executor, outlet, paper) -> list:
     Returns:
         list: A list of futures for article scraping tasks.
     """
-    articles = paper.articles[:MAX_ARTICLES_PER_OUTLET]
+    articles = _slice_outlet_articles(paper.articles)
     if articles:
         total = len(paper.articles)
         capped = len(articles)
@@ -913,7 +955,8 @@ class NewsScraper:
             paper = self.newspaper.build(outlet)
 
             # Slice the article list BEFORE freeing the paper object.
-            np_articles = paper.articles[:MAX_ARTICLES_PER_OUTLET]
+            # Head+tail strategy: first 300 (breaking) + last 300 (category depth).
+            np_articles = _slice_outlet_articles(paper.articles)
             self.session.total_articles = len(np_articles)
 
             # Layer 2 / ADR-0011: free the paper's category-page HTML immediately —
