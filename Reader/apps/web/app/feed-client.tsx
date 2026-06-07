@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
 import type { EventSummary } from "@/lib/types";
+import { CategoryIcon } from "@/components/icons";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,16 +17,16 @@ type Category = "all" | "politics" | "business" | "technology" | "sports"
 const BREAKING_COUNT = 5;   // events pinned in the "Latest" strip
 const STREAM_INITIAL = 60;  // stream rows shown before "show more"
 
-const CATEGORIES: { key: Category; label: string; emoji: string }[] = [
-  { key: "all",         label: "All",      emoji: ""  },
-  { key: "politics",    label: "Politics", emoji: "🗳" },
-  { key: "business",    label: "Business", emoji: "💼" },
-  { key: "technology",  label: "Tech",     emoji: "🔬" },
-  { key: "sports",      label: "Sports",   emoji: "⚽" },
-  { key: "health",      label: "Health",   emoji: "🏥" },
-  { key: "environment", label: "Climate",  emoji: "🌿" },
-  { key: "culture",     label: "Culture",  emoji: "🎭" },
-  { key: "world",       label: "World",    emoji: "🌍" },
+const CATEGORIES: { key: Category; label: string }[] = [
+  { key: "all",         label: "All"      },
+  { key: "politics",    label: "Politics" },
+  { key: "business",    label: "Business" },
+  { key: "technology",  label: "Tech"     },
+  { key: "sports",      label: "Sports"   },
+  { key: "health",      label: "Health"   },
+  { key: "environment", label: "Climate"  },
+  { key: "culture",     label: "Culture"  },
+  { key: "world",       label: "World"    },
 ];
 
 // ── Sort: freshness_at DESC, source_count as tiebreaker ────────────────────────
@@ -113,7 +114,8 @@ function CategoryChip({ category }: { category: string }) {
   const cls   = CAT_STYLES[category] ?? "bg-gray-100 text-gray-500";
   const label = category === "environment" ? "Climate" : category;
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${cls}`}>
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${cls}`}>
+      <CategoryIcon category={category} className="w-3 h-3 shrink-0" />
       {label}
     </span>
   );
@@ -508,13 +510,16 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
                 key={c.key}
                 onClick={() => setCat(c.key)}
                 aria-pressed={activeCategory === c.key}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors ${
                   activeCategory === c.key
                     ? "bg-[var(--accent)] border-[var(--accent)] text-white"
                     : "bg-white border-[var(--border)] text-[var(--ink-muted)] hover:border-gray-400 hover:text-[var(--ink)]"
                 }`}
               >
-                {c.emoji ? `${c.emoji} ${c.label}` : c.label}
+                {c.key !== "all" && (
+                  <CategoryIcon category={c.key} className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                )}
+                {c.label}
               </button>
             ))}
           </div>

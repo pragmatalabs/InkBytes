@@ -2,96 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-
-// ── SVG icons ──────────────────────────────────────────────────────────────────
-// All drawn on a 24×24 viewBox, 2px stroke, no fill — keeps them sharp at small sizes.
-
-function IconHome({ active }: { active: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill={active ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth={active ? 0 : 2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-6 h-6"
-    >
-      {active ? (
-        <>
-          <path d="M3 12L12 4l9 8v9a1 1 0 0 1-1 1H15v-5h-6v5H4a1 1 0 0 1-1-1z" />
-        </>
-      ) : (
-        <>
-          <path d="M3 12L12 4l9 8v9a1 1 0 0 1-1 1H15v-5h-6v5H4a1 1 0 0 1-1-1z" />
-        </>
-      )}
-    </svg>
-  );
-}
-
-function IconSearch({ active }: { active: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={active ? 2.5 : 2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-6 h-6"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
-}
-
-function IconEntities({ active }: { active: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={active ? 2.5 : 2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-6 h-6"
-    >
-      <circle cx="5" cy="6" r="2.4" />
-      <circle cx="19" cy="7" r="2.4" />
-      <circle cx="12" cy="18" r="2.4" />
-      <path d="M7 7 17 7M6.5 8 11 16M17.5 9 13 16" />
-    </svg>
-  );
-}
-
-function IconAbout({ active }: { active: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={active ? 2.5 : 2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-6 h-6"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="8" strokeWidth="3" strokeLinecap="round" />
-      <path d="M12 11v5" />
-    </svg>
-  );
-}
+import { NewspaperIcon, SearchIcon, NetworkIcon, InfoIcon } from "@/components/icons";
 
 // ── Nav item ───────────────────────────────────────────────────────────────────
 
 interface NavItem {
   href: string;
   label: string;
-  icon: (a: { active: boolean }) => React.ReactNode;
-  /** If set, tap triggers this action instead of navigating (when already on the target path) */
-  onActiveTap?: () => void;
+  /** Icon component — receives a className string with sizing + color */
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 // ── Bottom Nav ─────────────────────────────────────────────────────────────────
@@ -116,10 +35,10 @@ export default function BottomNav() {
   }
 
   const items: NavItem[] = [
-    { href: "/",          label: "News",     icon: IconHome },
-    { href: "/?search=1", label: "Search",   icon: IconSearch },
-    { href: "/entities",  label: "Entities", icon: IconEntities },
-    { href: "/about",     label: "About",    icon: IconAbout },
+    { href: "/",          label: "News",     icon: NewspaperIcon },
+    { href: "/?search=1", label: "Search",   icon: SearchIcon },
+    { href: "/entities",  label: "Entities", icon: NetworkIcon },
+    { href: "/about",     label: "About",    icon: InfoIcon },
   ];
 
   // Active detection: "/" matches only the exact root; others match prefix.
@@ -152,7 +71,8 @@ export default function BottomNav() {
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
-              <Icon active={active} />
+              {/* Icon inherits color via currentColor; size fixed at 24px */}
+              <Icon className={`w-6 h-6 transition-opacity ${active ? "opacity-100" : "opacity-60"}`} />
               <span>{label}</span>
             </Link>
           );
