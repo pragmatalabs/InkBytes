@@ -205,6 +205,18 @@ def build_app(app: Application) -> FastAPI:
                              LIMIT 1)
                        ) AS topic,
 
+                       -- Theme: majority-vote across article-level LLM themes.
+                       -- Falls back to NULL when articles pre-date migration 007
+                       -- (legacy rows); api_server then calls _derive_category().
+                       (SELECT a.theme
+                          FROM articles a
+                         WHERE a.event_id = e.id
+                           AND a.theme IS NOT NULL
+                         GROUP BY a.theme
+                         ORDER BY COUNT(*) DESC
+                         LIMIT 1
+                       ) AS theme,
+
                        -- Outlet avatar stack (up to 5 distinct names)
                        ARRAY(
                          SELECT DISTINCT a.outlet_name
@@ -255,9 +267,11 @@ def build_app(app: Application) -> FastAPI:
         result = []
         for r in rows:
             d = dict(r)
-            # Derive broad category from article-level topic string so the
-            # Reader can group/filter by Politics, Sports, Tech, etc.
-            d["category"] = _derive_category(d.get("topic"))
+            # Use the LLM-derived theme rolled up from article-level enrichment
+            # (migration 007+). Fall back to keyword matching on the topic string
+            # for older articles that pre-date the theme column.
+            raw_theme = d.get("theme")
+            d["category"] = raw_theme if raw_theme else _derive_category(d.get("topic"))
             result.append(d)
         return result
 

@@ -79,6 +79,14 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'articles' "
                 "AND column_name = 'content_hash')"
             ),
+            # 007 adds theme, keywords_raw, meta_categories, article_category.
+            # TRUE when articles.theme already exists.
+            "007_article_theme_keywords.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'articles' "
+                "AND column_name = 'theme')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -250,7 +258,8 @@ class DatabaseService:
                 """
                 SELECT id, outlet_id, outlet_name, url, canonical_url,
                        title, body_text, language, published_at,
-                       scraped_at, word_count, spaces_key
+                       scraped_at, word_count, spaces_key,
+                       keywords_raw, meta_categories, article_category
                   FROM articles
                  WHERE topic IS NULL
                    AND body_text IS NOT NULL
@@ -274,7 +283,8 @@ class DatabaseService:
                 """
                 SELECT id, outlet_id, outlet_name, url, canonical_url,
                        title, body_text, language, published_at,
-                       scraped_at, word_count, spaces_key
+                       scraped_at, word_count, spaces_key,
+                       keywords_raw, meta_categories, article_category
                   FROM articles
                  WHERE 'stub' = ANY(keywords_canonical)
                    AND body_text IS NOT NULL
@@ -555,8 +565,9 @@ class DatabaseService:
                 INSERT INTO articles (id, outlet_id, outlet_name, url, canonical_url,
                                       title, body_text, language, published_at,
                                       scraped_at, word_count, spaces_key, raw_meta,
-                                      content_hash)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                                      content_hash,
+                                      keywords_raw, meta_categories, article_category)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
                 ON CONFLICT (id) DO UPDATE SET
                     -- Content fields: overwrite with the freshest scrape.
                     title            = EXCLUDED.title,
@@ -564,9 +575,14 @@ class DatabaseService:
                     content_hash     = EXCLUDED.content_hash,
                     scraped_at       = EXCLUDED.scraped_at,
                     word_count       = EXCLUDED.word_count,
+                    -- Messor-provided classification signals (refresh on re-scrape).
+                    keywords_raw     = EXCLUDED.keywords_raw,
+                    meta_categories  = EXCLUDED.meta_categories,
+                    article_category = EXCLUDED.article_category,
                     -- Reset enrichment so the pipeline re-processes fresh content.
                     enriched_at          = NULL,
                     topic                = NULL,
+                    theme                = NULL,
                     sentiment            = NULL,
                     factuality           = NULL,
                     summary_50w          = NULL,
@@ -593,12 +609,16 @@ class DatabaseService:
                 spaces_key or None,
                 json.dumps(art.get("metadata") or {}),
                 content_hash,
+                art.get("keywords") or [],
+                art.get("meta_categories") or [],
+                art.get("category"),
             )
 
     async def write_enrichment(
         self,
         article_id: str,
         *,
+        theme: str,
         topic: str,
         sentiment: str,
         factuality: float,
@@ -613,12 +633,12 @@ class DatabaseService:
                     """
                     UPDATE articles
                        SET enriched_at = NOW(),
-                           topic = $2, sentiment = $3, factuality = $4,
-                           summary_50w = $5, keywords_canonical = $6,
-                           embedding = $7
+                           theme = $2, topic = $3, sentiment = $4, factuality = $5,
+                           summary_50w = $6, keywords_canonical = $7,
+                           embedding = $8
                      WHERE id = $1
                     """,
-                    article_id, topic, sentiment, factuality,
+                    article_id, theme, topic, sentiment, factuality,
                     summary_50w, keywords_canonical, _vector_literal(embedding),
                 )
                 await conn.execute("DELETE FROM entities WHERE article_id = $1", article_id)

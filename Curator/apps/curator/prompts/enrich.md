@@ -11,16 +11,23 @@ produce a strictly structured analysis. Be neutral, terse, accurate.
 4. Up to 30 entities. Prefer high-salience over completeness.
 5. `topic` is a short noun phrase. Title case. No hashtags.
 6. `keywords_canonical`: up to 10 lowercase short phrases that name *what*
-   the article is about. Avoid stop-words.
-7. Do not invent facts. If the text is too short or non-substantive,
+   the article is about. Merge/deduplicate with any META_KEYWORDS provided.
+   Avoid stop-words.
+7. `theme`: pick the single best broad bucket from this fixed list —
+   **politics | business | technology | sports | health | environment | culture | world**.
+   Use OUTLET_SECTION and OUTLET_TAGS as hints; default to `world` when unsure.
+8. Do not invent facts. If the text is too short or non-substantive,
    return a low factuality score and empty entities.
 
 ## Input format
 
 ```
-TITLE:    {{title}}
-OUTLET:   {{outlet}}
-LANGUAGE: {{language}}
+TITLE:           {{title}}
+OUTLET:          {{outlet}}
+LANGUAGE:        {{language}}
+OUTLET_SECTION:  {{outlet_section}}   ← Messor-detected primary section (may be absent)
+OUTLET_TAGS:     {{outlet_tags}}      ← Messor-extracted category tags (may be absent)
+META_KEYWORDS:   {{meta_keywords}}    ← Raw <meta> keywords from the page (may be absent)
 TEXT:
 {{text}}
 ```

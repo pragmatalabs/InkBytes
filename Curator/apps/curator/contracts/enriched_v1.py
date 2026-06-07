@@ -10,8 +10,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+
 EntityType = Literal["PERSON", "ORG", "LOC", "EVENT", "OTHER"]
-Sentiment = Literal["positive", "neutral", "negative"]
+Sentiment  = Literal["positive", "neutral", "negative"]
+Theme      = Literal[
+    "politics", "business", "technology", "sports",
+    "health",   "environment", "culture",  "world",
+]
 
 
 class Entity(BaseModel):
@@ -23,12 +28,23 @@ class Entity(BaseModel):
 class EnrichmentResult(BaseModel):
     """What ENRICH produces per article."""
 
-    topic: str = Field(..., max_length=80, description="One short topic label")
+    theme: Theme = Field(
+        ...,
+        description=(
+            "Broad thematic bucket. Pick the single best fit from: "
+            "politics, business, technology, sports, health, environment, culture, world."
+        ),
+    )
+    topic: str = Field(..., max_length=80, description="One short topic label. Title case.")
     summary_50w: str = Field(..., description="≤ 50-word neutral summary")
     sentiment: Sentiment
     factuality: float = Field(
         ..., ge=0.0, le=1.0,
         description="0=pure opinion, 1=fully sourced factual reporting",
     )
-    keywords_canonical: list[str] = Field(default_factory=list, max_length=10)
+    keywords_canonical: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Up to 10 lowercase short phrases describing what the article is about.",
+    )
     entities: list[Entity] = Field(default_factory=list, max_length=30)

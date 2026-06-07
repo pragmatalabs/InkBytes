@@ -21,12 +21,24 @@ def _build_user_content(art: ArticleV1) -> str:
     # Soft truncate at ~6000 chars; ENRICH doesn't need the whole text.
     if len(body) > 6000:
         body = body[:6000] + "\n[...truncated...]"
-    return (
-        f"TITLE:    {art.title}\n"
-        f"OUTLET:   {art.outlet.name}\n"
-        f"LANGUAGE: {art.language}\n"
-        f"TEXT:\n{body}\n"
-    )
+
+    lines = [
+        f"TITLE:    {art.title}",
+        f"OUTLET:   {art.outlet.name}",
+        f"LANGUAGE: {art.language}",
+    ]
+
+    # Pass Messor-extracted signals as context hints so the LLM can inform
+    # theme/topic/keywords without having to re-derive them from scratch.
+    if art.category:
+        lines.append(f"OUTLET_SECTION:  {art.category}")
+    if art.meta_categories:
+        lines.append(f"OUTLET_TAGS:     {', '.join(art.meta_categories[:8])}")
+    if art.keywords:
+        lines.append(f"META_KEYWORDS:   {', '.join(art.keywords[:10])}")
+
+    lines.append(f"TEXT:\n{body}")
+    return "\n".join(lines)
 
 
 class EnrichSkill:

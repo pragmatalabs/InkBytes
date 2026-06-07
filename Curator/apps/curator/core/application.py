@@ -214,6 +214,7 @@ class Application:
         print(f"Outlet  : {article.outlet.name}")
         print(f"Language: {article.language}")
         print("-" * 60)
+        print(f"Theme        : {result.theme}")
         print(f"Topic        : {result.topic}")
         print(f"Sentiment    : {result.sentiment}")
         print(f"Factuality   : {result.factuality:.2f}")
@@ -514,6 +515,7 @@ class Application:
             )
             await self.db.write_enrichment(
                 article.id,
+                theme=enrichment.theme,
                 topic=enrichment.topic,
                 sentiment=enrichment.sentiment,
                 factuality=enrichment.factuality,
@@ -619,6 +621,11 @@ class Application:
             published_at=row.get("published_at"),
             scraped_at=row["scraped_at"],
             word_count=row["word_count"] or 0,
+            # Restore Messor-provided classification signals so the LLM has them
+            # as context hints during re-enrichment (same as the live pipeline).
+            keywords=list(row["keywords_raw"] or []),
+            meta_categories=list(row["meta_categories"] or []),
+            category=row.get("article_category"),
         )
 
         # 1. ENRICH
@@ -630,6 +637,7 @@ class Application:
         # 3. Write enrichment to DB
         await self.db.write_enrichment(
             article.id,
+            theme=enrichment.theme,
             topic=enrichment.topic,
             sentiment=enrichment.sentiment,
             factuality=enrichment.factuality,
