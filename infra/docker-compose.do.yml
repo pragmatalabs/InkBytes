@@ -1,0 +1,45 @@
+# DigitalOcean override (pragmata-001)
+# - Reduces mem limits for 7.8 GB droplet
+# - Adds Traefik label routing (DO uses Docker-socket labels, not file-based)
+# - Joins traefik-public network so Traefik can reach reader + backoffice
+
+networks:
+  traefik-public:
+    external: true
+    name: traefik-public
+
+services:
+  inkbytes-messor:
+    mem_limit: 2g
+
+  inkbytes-curator-worker:
+    mem_limit: 768m
+
+  inkbytes-curator-api:
+    mem_limit: 384m
+
+  inkbytes-reader:
+    mem_limit: 384m
+    networks:
+      - inkbytes-internal
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.inkbytes-reader.rule=Host(`${READER_DOMAIN:-inkbytes.org}`)"
+      - "traefik.http.routers.inkbytes-reader.entrypoints=websecure"
+      - "traefik.http.routers.inkbytes-reader.tls.certresolver=letsencrypt"
+      - "traefik.http.services.inkbytes-reader.loadbalancer.server.port=3000"
+
+  inkbytes-backoffice:
+    mem_limit: 384m
+    networks:
+      - inkbytes-internal
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.inkbytes-backoffice.rule=Host(`${ADMIN_DOMAIN:-admin.inkbytes.org}`)"
+      - "traefik.http.routers.inkbytes-backoffice.entrypoints=websecure"
+      - "traefik.http.routers.inkbytes-backoffice.tls.certresolver=letsencrypt"
+      - "traefik.http.services.inkbytes-backoffice.loadbalancer.server.port=80"
