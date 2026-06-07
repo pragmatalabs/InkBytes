@@ -11,9 +11,17 @@ from typing import Awaitable, Callable
 
 import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
+import openai
 
 from core.config import RmqCfg
 from services.llm_service import LlmQuotaError
+
+# Transient infrastructure errors — requeue the article so it's retried on
+# the next consumer cycle instead of being permanently dropped.
+_TRANSIENT_ERRORS = (
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +83,16 @@ class MessageService:
                 )
                 if on_quota_exhausted is not None:
                     on_quota_exhausted()
+            except _TRANSIENT_ERRORS as exc:
+                # Transient infrastructure failure (Ollama timeout, network
+                # blip) — requeue so the article is retried on the next cycle.
+                # Do NOT drop: the article is valid, the infrastructure was
+                # temporarily unavailable.
+                await msg.nack(requeue=True)
+                logger.warning(
+                    "Transient error for message %s — requeuing. %s: %s",
+                    msg.message_id, type(exc).__name__, exc,
+                )
             except Exception:
                 # Permanent per-article failure (DB error, bad payload that
                 # slipped through, etc.) — drop and continue.
