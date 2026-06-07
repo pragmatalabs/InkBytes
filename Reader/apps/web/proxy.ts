@@ -16,8 +16,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // v0: auth gate disabled — direct access, no login required.
+  // To re-enable: set INKBYTES_DEMO_PASSWORD in env and restore the block below.
+  return NextResponse.next();
+
+  /* auth gate — restore when gated access is needed
   const password = process.env.INKBYTES_DEMO_PASSWORD;
-  // If no password is configured, skip gate entirely
   if (!password) return NextResponse.next();
 
   const cookie = request.cookies.get(AUTH_COOKIE)?.value;
@@ -26,6 +30,7 @@ export function proxy(request: NextRequest) {
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("next", pathname);
   return NextResponse.redirect(loginUrl);
+  */
 }
 
 export const config = {
