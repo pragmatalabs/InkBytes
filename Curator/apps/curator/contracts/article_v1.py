@@ -37,6 +37,10 @@ class ArticleV1(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # Phase 1 media — passive extraction by Messor; Curator stores as-is (no HTTP)
+    lead_image: str | None = None   # og:image / top_image from article HTML
+    video_url: str | None = None    # first YouTube embed found in article
+
 
 class ArticleScrapedEvent(BaseModel):
     """The RabbitMQ envelope on `event.article.scraped`."""

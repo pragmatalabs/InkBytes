@@ -87,6 +87,13 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'articles' "
                 "AND column_name = 'theme')"
             ),
+            # 008 adds lead_image, video_url. TRUE when articles.lead_image exists.
+            "008_article_media.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'articles' "
+                "AND column_name = 'lead_image')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -566,8 +573,9 @@ class DatabaseService:
                                       title, body_text, language, published_at,
                                       scraped_at, word_count, spaces_key, raw_meta,
                                       content_hash,
-                                      keywords_raw, meta_categories, article_category)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                                      keywords_raw, meta_categories, article_category,
+                                      lead_image, video_url)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
                 ON CONFLICT (id) DO UPDATE SET
                     -- Content fields: overwrite with the freshest scrape.
                     title            = EXCLUDED.title,
@@ -579,6 +587,9 @@ class DatabaseService:
                     keywords_raw     = EXCLUDED.keywords_raw,
                     meta_categories  = EXCLUDED.meta_categories,
                     article_category = EXCLUDED.article_category,
+                    -- Media (refresh on re-scrape — og:image may update).
+                    lead_image       = EXCLUDED.lead_image,
+                    video_url        = EXCLUDED.video_url,
                     -- Reset enrichment so the pipeline re-processes fresh content.
                     enriched_at          = NULL,
                     topic                = NULL,
@@ -612,6 +623,8 @@ class DatabaseService:
                 art.get("keywords") or [],
                 art.get("meta_categories") or [],
                 art.get("category"),
+                art.get("lead_image"),
+                art.get("video_url"),
             )
 
     async def write_enrichment(

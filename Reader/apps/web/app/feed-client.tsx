@@ -184,33 +184,48 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
   return (
     <Link
       href={`/event/${event.id}`}
-      className={`group block bg-white border border-[var(--border)] border-l-4 ${freshnessClass(event.freshness_at)} rounded-xl p-6 sm:p-8 hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all`}
+      className={`group block bg-white border border-[var(--border)] border-l-4 ${freshnessClass(event.freshness_at)} rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all`}
     >
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {event.category && <CategoryChip category={event.category} />}
-        {developing && <DevelopingBadge />}
-        {showLang && event.language !== "en" && <LangChip lang={event.language} />}
-      </div>
-      <h2
-        className="text-[1.5rem] sm:text-[1.75rem] font-extrabold leading-tight tracking-tight group-hover:text-[var(--accent)] transition-colors mb-2"
-        style={{ textWrap: "balance" } as React.CSSProperties}
-      >
-        {event.headline}
-      </h2>
-      {event.topic && (
-        <p className="text-xs text-[var(--ink-muted)] italic mb-5 line-clamp-1">{event.topic}</p>
+      {/* Cover image — only rendered when Messor extracted an og:image */}
+      {event.lead_image && (
+        <div className="w-full h-48 sm:h-56 overflow-hidden bg-gray-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={event.lead_image}
+            alt=""
+            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        </div>
       )}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={22} />
-        <div className="flex items-center gap-2.5 text-xs text-[var(--ink-muted)]">
-          <span className="flex items-center gap-1">
-            <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-            </svg>
-            {event.article_count} {event.article_count === 1 ? "article" : "articles"}
-          </span>
-          <span aria-hidden>·</span>
-          <span>{relativeTime(event.freshness_at)}</span>
+      <div className="p-6 sm:p-8">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {event.category && <CategoryChip category={event.category} />}
+          {developing && <DevelopingBadge />}
+          {showLang && event.language !== "en" && <LangChip lang={event.language} />}
+        </div>
+        <h2
+          className="text-[1.5rem] sm:text-[1.75rem] font-extrabold leading-tight tracking-tight group-hover:text-[var(--accent)] transition-colors mb-2"
+          style={{ textWrap: "balance" } as React.CSSProperties}
+        >
+          {event.headline}
+        </h2>
+        {event.topic && (
+          <p className="text-xs text-[var(--ink-muted)] italic mb-5 line-clamp-1">{event.topic}</p>
+        )}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={22} />
+          <div className="flex items-center gap-2.5 text-xs text-[var(--ink-muted)]">
+            <span className="flex items-center gap-1">
+              <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+              </svg>
+              {event.article_count} {event.article_count === 1 ? "article" : "articles"}
+            </span>
+            <span aria-hidden>·</span>
+            <span>{relativeTime(event.freshness_at)}</span>
+          </div>
         </div>
       </div>
     </Link>
@@ -224,27 +239,42 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
   return (
     <Link
       href={`/event/${event.id}`}
-      className="group block bg-white border border-[var(--border)] rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
+      className="group block bg-white border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
     >
-      <div className="flex flex-wrap items-center gap-1.5 mb-3">
-        {event.category && <CategoryChip category={event.category} />}
-        {developing && <DevelopingBadge />}
-        {showLang && event.language !== "en" && <LangChip lang={event.language} />}
-      </div>
-      <h3
-        className="text-[15px] font-bold leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors flex-1 mb-1"
-        style={{ textWrap: "balance" } as React.CSSProperties}
-      >
-        {event.headline}
-      </h3>
-      {event.topic && (
-        <p className="text-[11px] text-[var(--ink-muted)] italic mb-3 line-clamp-1">{event.topic}</p>
+      {/* Thumbnail — 16:9 strip above text when image available */}
+      {event.lead_image && (
+        <div className="w-full h-36 overflow-hidden bg-gray-100 shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={event.lead_image}
+            alt=""
+            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        </div>
       )}
-      <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
-        <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
-        <span className="text-xs text-[var(--ink-muted)]">
-          {event.article_count} art · {relativeTime(event.freshness_at)}
-        </span>
+      <div className="p-5 flex flex-col flex-1">
+        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          {event.category && <CategoryChip category={event.category} />}
+          {developing && <DevelopingBadge />}
+          {showLang && event.language !== "en" && <LangChip lang={event.language} />}
+        </div>
+        <h3
+          className="text-[15px] font-bold leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors flex-1 mb-1"
+          style={{ textWrap: "balance" } as React.CSSProperties}
+        >
+          {event.headline}
+        </h3>
+        {event.topic && (
+          <p className="text-[11px] text-[var(--ink-muted)] italic mb-3 line-clamp-1">{event.topic}</p>
+        )}
+        <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
+          <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
+          <span className="text-xs text-[var(--ink-muted)]">
+            {event.article_count} art · {relativeTime(event.freshness_at)}
+          </span>
+        </div>
       </div>
     </Link>
   );

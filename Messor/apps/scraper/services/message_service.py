@@ -331,6 +331,9 @@ class MessageService:
                 "category": article_dict.get("category"),
                 "keywords": _safe_list(article_dict.get("keywords")),
                 "metadata": article_dict.get("metadata") or {},
+                # Phase 1 media — passive extraction by Messor; Curator stores as-is
+                "lead_image": article_dict.get("lead_image"),
+                "video_url":  article_dict.get("video_url"),
             },
         }
 

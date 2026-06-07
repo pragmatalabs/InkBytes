@@ -237,6 +237,18 @@ def build_app(app: Application) -> FastAPI:
                            AND a.factuality IS NOT NULL
                        ) AS avg_factuality,
 
+                       -- Cover image: first non-null lead_image from the event's
+                       -- articles, ordered by scraped_at DESC so the freshest
+                       -- article's image wins (og:images are usually the best).
+                       (SELECT a.lead_image
+                          FROM articles a
+                         WHERE a.event_id = e.id
+                           AND a.lead_image IS NOT NULL
+                           AND a.lead_image <> ''
+                         ORDER BY a.scraped_at DESC
+                         LIMIT 1
+                       ) AS lead_image,
+
                        -- Coverage sparkline: 7 data-points at 6-hour intervals
                        -- over the last 42 h.  Gives the Reader a mini area chart
                        -- showing how article volume evolved since the story broke.
@@ -285,6 +297,16 @@ def build_app(app: Application) -> FastAPI:
             row = await conn.fetchrow(
                 """
                 SELECT p.*, e.source_count, e.article_count, e.topic,
+
+                       -- Cover image: same rollup as the /events list endpoint.
+                       (SELECT a.lead_image
+                          FROM articles a
+                         WHERE a.event_id = e.id
+                           AND a.lead_image IS NOT NULL
+                           AND a.lead_image <> ''
+                         ORDER BY a.scraped_at DESC
+                         LIMIT 1
+                       ) AS lead_image,
 
                        -- Timeline: article publication order, showing how the
                        -- story was picked up outlet by outlet over time.

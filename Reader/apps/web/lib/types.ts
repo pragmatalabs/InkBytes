@@ -33,6 +33,9 @@ export interface EventSummary {
   avg_factuality: number | null;
   /** 7 integers: article counts in 6-hour buckets over the last 42 h. */
   coverage_spark: number[];
+  /** Cover image URL: best og:image / top_image from event articles. null when
+   *  no article has a lead_image (pre-migration rows, or outlet has no og:image). */
+  lead_image: string | null;
 }
 
 export interface EvidenceItem {

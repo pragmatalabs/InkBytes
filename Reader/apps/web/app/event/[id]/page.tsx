@@ -27,6 +27,9 @@ export async function generateMetadata(
   try {
     const page = await getEvent(id);
     const description = firstSentence(page.synthesis_md);
+    const ogImages = page.lead_image
+      ? [{ url: page.lead_image, alt: page.headline }]
+      : [];
     return {
       title: page.headline,
       description,
@@ -37,11 +40,13 @@ export async function generateMetadata(
         publishedTime: page.published_at,
         modifiedTime: page.freshness_at,
         section: page.topic ?? "News",
+        images: ogImages,
       },
       twitter: {
-        card: "summary",
+        card: page.lead_image ? "summary_large_image" : "summary",
         title: page.headline,
         description,
+        images: page.lead_image ? [page.lead_image] : [],
       },
     };
   } catch {
@@ -111,6 +116,19 @@ export default async function EventPage(
       >
         ← All events
       </Link>
+
+      {/* Hero cover image — rendered only when Messor extracted an og:image */}
+      {page.lead_image && (
+        <div className="w-full rounded-xl overflow-hidden mb-8 bg-gray-100 aspect-video">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={page.lead_image}
+            alt={page.headline}
+            className="w-full h-full object-cover"
+            loading="eager"
+          />
+        </div>
+      )}
 
       {/* Meta row */}
       <div className="flex flex-wrap items-center gap-2 mb-4 text-xs text-[var(--ink-muted)]">

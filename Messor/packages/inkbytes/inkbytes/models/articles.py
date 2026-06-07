@@ -47,6 +47,9 @@ class Article(BaseModel):
     keywords: Optional[List[str]] = []
     metadata: Optional[Dict[str, Any]] = Field(default=None, alias="metadata")
     cluster_centroid: Optional[int] = None
+    # Phase 1 media fields — passive extraction from newspaper3k (no extra HTTP requests)
+    lead_image: Optional[str] = None   # og:image / top_image from article HTML
+    video_url: Optional[str] = None    # first YouTube embed URL found in article
 
     class Config:
         arbitrary_types_allowed = True
@@ -434,6 +437,24 @@ class ArticleBuilder(BaseModel):
     ) -> Article:
         articleData = {}
         try:
+            # ── passive media extraction (Phase 1) ─────────────────────────
+            # top_image: newspaper3k's best-guess cover image (og:image / first
+            # large img). Always available after parse(); zero extra requests.
+            lead_image: Optional[str] = article.top_image or None
+            # If og:image is set in meta_data, it usually beats top_image.
+            og_image = (article.meta_data or {}).get("og", {}).get("image")
+            if og_image and isinstance(og_image, str) and og_image.startswith("http"):
+                lead_image = og_image
+
+            # video_url: first YouTube embed found in article.movies (parsed from
+            # <iframe src> tags). Filter to YouTube only; skip other iframes.
+            video_url: Optional[str] = None
+            for mv in (article.movies or []):
+                if mv and ("youtube.com" in mv or "youtu.be" in mv):
+                    # Normalise embed → watch URL so the Reader can display a thumbnail
+                    video_url = mv
+                    break
+
             articleData = {
                 "fetched_on": str(datetime.now()),
                 "id": str(uuid.uuid3(uuid.NAMESPACE_URL, article.url)),
@@ -456,7 +477,9 @@ class ArticleBuilder(BaseModel):
                 "last_updated": str(datetime.now()),
                 "metadata": article.meta_data or None,
                 "category": article.meta_data.get("category") or None,
-                "meta_categories": []
+                "meta_categories": [],
+                "lead_image": lead_image,
+                "video_url": video_url,
             }
         except ValueError as e:
             logger.error(f"Error fetching article: {e}")

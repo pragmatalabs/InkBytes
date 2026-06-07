@@ -133,8 +133,10 @@ make shell-curator    # bash in curator-api container
 
 ### P2 — Reader
 
-9. **Reader R4** — global perf/SEO pass. Lighthouse score, og:image, sitemap.xml.
+9. **Reader R4** — global perf/SEO pass. Lighthouse score, sitemap.xml.
 10. **Language filter on feed** — Spanish content stays in Spanish; Reader shows language badge.
+11. **Media Tier 1** ✅ implemented 2026-06-07 — Messor passively extracts `og:image`/`top_image` and YouTube embeds; stored in `articles.lead_image`/`video_url`; rolled up to event level in API; Reader LeadCard, SecondaryCard, and event detail hero show cover image (ADR-0010).
+12. **Media Tier 2** — `IllustrateSkill` (Curator Skill 4): active YouTube + Bing Images search via Scrapling for events with no `lead_image`; stores results in `pages.media_rail JSONB`.
 
 ### P3 — Infrastructure
 
