@@ -3,7 +3,10 @@ import Link from "next/link";
 import { getGraph } from "@/lib/api";
 import GraphClient from "./graph-client";
 
-export const revalidate = 120; // graph refreshes every 2 minutes
+// Force SSR — the graph data comes from an internal service (inkbytes-curator-api)
+// that is only resolvable at runtime inside the Docker network, not at build time.
+// ISR would bake in the "could not reach" error state during docker build.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Entity Graph",
