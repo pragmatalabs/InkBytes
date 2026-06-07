@@ -12,6 +12,17 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE="$SCRIPT_DIR/docker-compose.prod.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
 
+# ── Preflight ─────────────────────────────────────────────────────────────────
+[ -f "$ENV_FILE" ] || {
+    echo "ERROR: $ENV_FILE not found."
+    echo "       cp infra/.env.production.example infra/.env && fill secrets"
+    exit 1
+}
+
+# Source .env FIRST so DEPLOY_PROFILE (and all other vars) are available
+# before the profile selection block below.
+set -a; source "$ENV_FILE"; set +a
+
 # ── Server profile ────────────────────────────────────────────────────────────
 # DEPLOY_PROFILE in infra/.env selects the compose override for this server.
 #   (empty / unset)  → Hostinger VPS (16 GB, file-based Traefik)
@@ -25,15 +36,6 @@ if [ -n "$PROFILE" ] && [ -f "$SCRIPT_DIR/docker-compose.${PROFILE}.yml" ]; then
 else
     echo "[deploy] Server profile: default (hostinger)"
 fi
-
-# ── Preflight ─────────────────────────────────────────────────────────────────
-[ -f "$ENV_FILE" ] || {
-    echo "ERROR: $ENV_FILE not found."
-    echo "       cp infra/.env.production.example infra/.env && fill secrets"
-    exit 1
-}
-
-set -a; source "$ENV_FILE"; set +a
 
 # ── 1. Ensure shared network ──────────────────────────────────────────────────
 docker network inspect traefik-public &>/dev/null || {
