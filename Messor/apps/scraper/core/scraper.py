@@ -221,7 +221,7 @@ def validate_outlet_url(outlet):
     return outlet.url and outlet.url.strip()
 
 
-MAX_ARTICLES_PER_OUTLET = 200   # cap per cycle — top-N from homepage order
+MAX_ARTICLES_PER_OUTLET = 150   # cap per cycle — top-N from homepage order
 
 
 def process_found_articles(executor, outlet, paper) -> list:
