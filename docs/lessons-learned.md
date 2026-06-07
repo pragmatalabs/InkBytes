@@ -7,6 +7,30 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-06-07 — Ollama embedding saturation → Curator dead-loop
+
+**Symptom:** Curator worker processed the same 4 articles every 30 minutes
+forever; `run-total` cost kept growing but no new pages were produced.
+
+**Root cause cascade:**
+1. 7,545 articles queued in RabbitMQ → Curator started consuming
+2. ENRICH (LLM) succeeded in ~30 sec, then EMBED called Ollama
+3. Ollama was hammered by all queued embedding requests → CPU at 5597% on a 4-core host
+4. Each `/v1/embeddings` call timed out after ~5 min → `openai.APITimeoutError`
+5. `APITimeoutError` fell into `except Exception` → `nack(requeue=False)` → **message silently dropped**
+6. BUT the RabbitMQ 30-min consumer ACK timeout fired BEFORE the nack → broker requeued the messages anyway
+7. Result: same 4 articles looped back every 30 min; no progress
+
+**Fixes applied:**
+- `message_service.py`: add `_TRANSIENT_ERRORS = (APITimeoutError, APIConnectionError)` caught before the generic except — nacks with `requeue=True` so articles are genuinely retried, not dropped
+- `infra/rabbitmq/rabbitmq.conf`: `consumer_timeout = 3600000` (1h) so the channel isn't force-closed while Ollama recovers
+- Restart Ollama when it's CPU-saturated (the request backlog can't be cancelled via API; restart is the only escape)
+- After Docker daemon restart, always reconnect Ollama to inkbytes-internal: `docker network connect inkbytes_inkbytes-internal ollama`
+
+**Lesson:** `except Exception → nack(requeue=False)` is a dangerous default. Any transient infrastructure error (network timeout, embedding service overload) looks like a "permanent" failure and silently discards work. Always catch infrastructure errors separately and requeue.
+
+---
+
 ## 2026-06-07 — newspaper3k: `download_categories()` has no timeout
 
 `NewsPaper.generate_paper()` calls `paper.download_categories()` which spawns
