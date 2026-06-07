@@ -14,8 +14,9 @@
 #   RabbitMQ mgmt  :15683 → :15672
 #
 # Memory limits prevent OOM crashes on shared host.
-# Total reserved: ~8.5 GB — leaves ~6.5 GB for OS, Ollama (bge-m3 ~1.6 GB cap 3 GB), other projects.
+# Total reserved: ~9 GB — leaves ~6 GB for OS, Ollama (bge-m3 ~1.6 GB cap 3 GB), other projects.
 # Ollama mem_limit set to 3g in /docker/galvanic/docker-compose.yml (was 10g; bge-m3 peaks at 1.6 GB).
+# RabbitMQ: 512m cap added 2026-06-07 — was uncapped (MemLimit=0), consumed 3834% CPU under backlog.
 
 name: inkbytes
 
@@ -132,9 +133,10 @@ services:
     depends_on:
       inkbytes-rabbitmq: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8050/api/outlets || exit 1"]
+      # python:3.11-slim has no curl; use Python's stdlib urllib instead.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8050/api/outlets', timeout=3)\" || exit 1"]
       interval: 30s
-      timeout: 5s
+      timeout: 8s
       retries: 5
 
   # ── INTERNAL: Curator API (:8060, --api-only) ────────────────────────────────
@@ -233,6 +235,9 @@ services:
     networks: [inkbytes-internal]
     volumes:
       - inkbytes-rabbitmq-data:/var/lib/rabbitmq
+
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}

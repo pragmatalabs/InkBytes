@@ -122,6 +122,16 @@ status-do: ## Show container status + memory on DigitalOcean
 shell-do: ## SSH into DigitalOcean server
 	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO)
 
+logs-messor-do: ## Follow Messor logs from DigitalOcean server
+	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) "docker logs -f --tail 50 inkbytes-messor"
+
+logs-curator-do: ## Follow Curator worker logs from DigitalOcean server
+	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) "docker logs -f --tail 50 inkbytes-curator-worker"
+
+logs-do: ## Follow ALL service logs from DigitalOcean server (Ctrl-C to quit)
+	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) \
+	  "docker compose -f /opt/inkbytes/infra/docker-compose.prod.yml --env-file /opt/inkbytes/infra/.env logs -f --tail 50"
+
 watch: ## Live stats every 5 s (Ctrl-C to quit)
 	watch -n 5 "ssh -i $(DEPLOY_KEY) $(DEPLOY_USER)@$(DEPLOY_HOST) \
 	  \"docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}' \$$(docker ps --filter 'name=inkbytes-' -q) 2>/dev/null | sort\""
@@ -161,4 +171,4 @@ help: ## Show this help
         shell-php shell-db shell-curator health network validate-prod help \
         watch logs logs-messor logs-curator logs-backoffice shell \
         deploy-hostinger deploy-do deploy-all deploy-build-do \
-        status-do shell-do
+        status-do shell-do logs-messor-do logs-curator-do logs-do
