@@ -1,7 +1,7 @@
 # InkBytes — Repo Briefing (Claude Code handoff)
 
 > *If you're a fresh Claude Code session, read this top-to-bottom before doing anything. ~3 min.*
-> *Last updated: 2026-06-02 (evening — pipeline proven end-to-end)*
+> *Last updated: 2026-06-07*
 
 ## Single source of truth (read this first)
 
@@ -23,7 +23,7 @@ InkBytes is a paid, ad-free news reader: one elegant page per *event*, synthesiz
 
 Long-term pipeline: **Messor (harvester) → Entopics (NER+topics) → Synochi (synthesis) → Unitas (clustering+QA) → Reader**.
 
-**v0 collapses Entopics+Synochi+Unitas into a single LLM-powered service called `Curator`.** As of 2026-06-02 the full v0 loop (Messor → RabbitMQ → Curator → Reader) is **proven end-to-end on real infra**: a 3-outlet harvest produced 29 multi-source event pages rendering in the Reader. Remaining for v0: DigitalOcean deploy (D6) + 24h soak / first paying user (D7).
+**v0 collapses Entopics+Synochi+Unitas into a single LLM-powered service called `Curator`.** As of 2026-06-07 the full v0 loop is **live in production on DigitalOcean** (`inkbytes.org`): 413 published pages, 22 active outlets, continuous 4×/day harvest cycle. Remaining: 24h green soak + first paying user (D7).
 
 ## Monorepo map
 
@@ -79,11 +79,11 @@ InkBytes/                              ← repo root
 
 ✅ **Curator**: consumes from RabbitMQ; ENRICH → CLUSTER → SYNTHESIZE all live on real Haiku 4.5 + OpenAI embeddings + Postgres/pgvector. DB shows 309 enriched articles, 220 events, **29 published pages** (7 three-source, 22 two-source).
 
-✅ **Reader (D4)**: Next.js `apps/web` scaffolded and running at `localhost:3000`, rendering the published pages.
+✅ **Reader (D4/D5)**: Next.js `apps/web` running in production at `inkbytes.org`. PWA manifest, bottom nav (4 tabs), share button on event pages. Lead images on cards and event hero.
 
-🔴 **Deploy (D6)**: nothing on DigitalOcean yet — needs `.do/app.yaml` / prod compose.
+✅ **Deploy (D6)**: DigitalOcean Droplet `67.205.136.61` running `docker-compose.prod.yml` at `inkbytes.org`. **Hostinger is retired — DO is the sole deploy target.**
 
-🟡 **Soak (D7)**: pages so far came from manual runs + one recluster; wire `--schedule` for continuous cycles, then invite first paying user.
+🟡 **Soak (D7)**: 4×/day cycle is live; needs 24h of green cycles + first paying user invited.
 
 ## Where to point pwd depending on what you're doing
 
@@ -133,11 +133,11 @@ bash orchestrator/scripts/down.sh --nuke  # delete volumes too
 
 (see [`docs/STATUS.md`](./docs/STATUS.md) §"Open items" for the live list)
 
-1. **Deploy (D6):** author `.do/app.yaml` / prod compose; stand up the DO Droplet at `inkbytes.app`.
-2. **Continuous cycle (D7):** run Messor `--schedule` so pages come from real 60-min cycles, not manual runs + recluster.
-3. **Outlet coverage:** harvest the LATAM/ES outlets in `outlets.json` (only CNN/NPR/AP exercised so far).
-4. **Reader polish (D5):** typography, mobile, freshness ribbon, evidence rail; minimal `/admin`.
-5. **Cleanup debt:** retire the legacy Messor GitLab remote (diverged from GitHub monorepo); review `Trashx/` repos with unpushed work before deleting.
+1. **Soak (D7):** let 4 scheduled cycles complete; verify outlets at >80% parse success; invite first paying user.
+2. **`inkbytes.news` domain:** add A records → `67.205.136.61`; update `READER_DOMAIN`/`ADMIN_DOMAIN` on DO server.
+3. **PNG app icons:** generate `/public/icon-192.png` and `/public/icon-512.png` from `icon.svg` for Android PWA install banner.
+4. **Outlet coverage:** harvest the remaining LATAM/ES outlets; RSS/Atom-first harvesting in roadmap.
+5. **Cleanup debt:** retire the legacy Messor GitLab remote; review `Trashx/` repos before deleting.
 
 ## Conventions to keep using
 
@@ -164,6 +164,6 @@ Six boxes from [`docs/mvp-plan.md`](./docs/mvp-plan.md) §7 (mirror of `docs/STA
 - [x] Curator runs end-to-end on real LLM (proved 2026-06-02)
 - [x] At least one outlet returned ≥ 5 articles via Messor (3 outlets, ~319 articles)
 - [x] First event pages in `pages` table (29 multi-source pages, hand-checkable)
-- [x] Reader renders events at `localhost:3000`
-- [ ] DO Droplet running docker-compose.prod.yaml at `inkbytes.app` (or alt domain)
+- [x] Reader renders events at `inkbytes.org` (production)
+- [x] DO Droplet running docker-compose.prod.yaml at `inkbytes.org`
 - [ ] 24h of green scheduled cycles + first paying user invited

@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on Hostinger VPS · Owner: Julian · Last updated: 2026-06-07*
+> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-07*
 > *Pipeline proven end-to-end. 413 published pages. 22 active outlets. Continuous 4×/day cycle.*
 
 ---
@@ -10,9 +10,9 @@
 The full v0 pipeline runs end-to-end on real infrastructure:
 **Messor (harvest) → RabbitMQ → Curator (enrich + cluster + synthesize) → Reader (pages)**.
 
-- **Reader:** https://inkbytes.galvanic.cloud
-- **Backoffice:** https://admin.inkbytes.galvanic.cloud
-- **Server:** Hostinger VPS `82.112.250.139` · 15 GB RAM · Docker + Traefik
+- **Reader:** https://inkbytes.org
+- **Backoffice:** https://admin.inkbytes.org
+- **Server:** DigitalOcean Droplet `67.205.136.61` · Docker + Traefik
 
 ---
 
@@ -33,12 +33,12 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 
 ---
 
-## Service state (production — Hostinger VPS)
+## Service state (production — DigitalOcean `67.205.136.61`)
 
 | Service | Container | URL / Port | State |
 |---|---|---|---|
-| Reader (Next.js) | `inkbytes-reader` | `:18050` → `inkbytes.galvanic.cloud` | ✅ healthy |
-| Backoffice (nginx+php-fpm) | `inkbytes-backoffice` | `:18051` → `admin.inkbytes.galvanic.cloud` | ✅ up |
+| Reader (Next.js) | `inkbytes-reader` | `:18050` → `inkbytes.org` | ✅ healthy |
+| Backoffice (nginx+php-fpm) | `inkbytes-backoffice` | `:18051` → `admin.inkbytes.org` | ✅ up |
 | Curator API | `inkbytes-curator-api` | `:8060` (internal) | ✅ healthy |
 | Curator Worker | `inkbytes-curator-worker` | internal | ✅ healthy |
 | Messor harvester | `inkbytes-messor` | `:8050` (internal) | ✅ running |
@@ -119,7 +119,7 @@ make shell-curator    # bash in curator-api container
 
 ### P0 — Blocking on first paying user
 
-1. **`inkbytes.news` domain** — add A records → `82.112.250.139`; update `READER_DOMAIN`/`ADMIN_DOMAIN` in `infra/.env`; update Traefik config (`/docker/traefik/config/inkbytes.yml`).
+1. **`inkbytes.news` domain** — add A records → `67.205.136.61`; update `READER_DOMAIN`/`ADMIN_DOMAIN` in `infra/.env` on DO Droplet; update Traefik config.
 2. **Ollama reconnect on reboot** — `docker network connect inkbytes_inkbytes-internal ollama` is currently manual after server reboot. Add a systemd unit or cron.
 3. **Phase 3 / Stripe** — subscriber gating blocked on pricing decisions. See `docs/product.md`.
 4. **24h green soak** — let 4 scheduled cycles complete; verify Scrape Results shows outlets at >80% parse success.
