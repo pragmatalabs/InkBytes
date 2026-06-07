@@ -1,9 +1,176 @@
 # InkBytes — Lessons Learned
 
-> *Status: living doc · Owner: Julián · Last updated: 2026-06-03*
+> *Status: living doc · Owner: Julián · Last updated: 2026-06-07*
 
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
+
+---
+
+## 2026-06-07 — newspaper3k: `download_categories()` has no timeout
+
+`NewsPaper.generate_paper()` calls `paper.download_categories()` which spawns
+newspaper3k's own internal thread pool to fetch category/section pages. If a site is
+slow or blocked, this call hangs indefinitely — **no timeout is configurable**. Setting
+`request_timeout=30` only applies to individual article downloads, not the homepage
+category crawl.
+
+**Effect observed:** Messor cycle started at 20:04, was still running at 00:19 (4+ hours),
+consuming 2338% CPU and 4 GB RAM. RabbitMQ acked out from the message backlog, making
+the broker "unhealthy".
+
+**Fix:** Wrap each outlet's `create_outlet_scraping_session()` call in
+`future.result(timeout=300)` — abandon the WAIT after 5 min while the thread continues
+to wind down naturally. Also catch `Exception` (not just `ValueError`) in
+`generate_paper()` so homepage-crawl failures are logged and counted.
+
+**Lesson:** newspaper3k's internal threading is not observable or cancellable from
+outside. Any timeout must be imposed at the Future layer, not inside the library.
+
+---
+
+## 2026-06-07 — `docker mem_limit` vs `deploy.resources.limits`
+
+**Wrong (Swarm-only):**
+```yaml
+services:
+  messor:
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+```
+This syntax is silently ignored in standalone `docker compose` (only works in Docker Swarm
+mode). Messor appeared to have a 3 GB limit but was actually uncapped.
+
+**Correct (standalone compose):**
+```yaml
+services:
+  messor:
+    mem_limit: 3g
+    cpus: 2.0
+```
+
+Verified via `docker inspect` — `HostConfig.Memory` must be non-zero.
+
+---
+
+## 2026-06-07 — Scrape success rate: `failed` includes `duplicates`
+
+Messor's `ScrapingSession` increments `failed_articles` for BOTH:
+1. Articles that fail to parse/download (true failures)
+2. Articles already seen in the current batch or previous scrapes (duplicates)
+
+So `success_rate = successful / total` shows e.g. 11% when the real parse success on
+genuinely new articles was 47%.
+
+**Real formula:** `successful / (total - duplicates)` = parse success on new articles.
+
+**Fix:** `ScrapeResultsController.presentRow()` now computes `trueNew = total - duplicates`
+and `realRate = successful / trueNew`. Column renamed "Success" → "Parse %" with tooltip.
+
+**Lesson:** Always understand what "failed" means in each system — it may not mean
+"error". In Messor, deduplication counts as failure in the stats.
+
+---
+
+## 2026-06-07 — Docker zombie PID 1 requires daemon restart to clear
+
+When Messor's `download_categories()` froze all threads for 4+ hours, killing the
+container via `docker compose down` produced:
+
+```
+Error: container PID 1696 is zombie and can not be killed.
+Use the --init option when creating containers to run an init inside the container.
+```
+
+A zombie process with PID 1 cannot be reaped by any parent since it IS the container
+root. The only clean resolution is `systemctl restart docker` (daemon restart).
+
+**Prevention:** Add `init: true` to containers in docker-compose to run a minimal init
+(tini) that properly reaps child processes.
+
+---
+
+## 2026-06-07 — `docker update -m` works live (no restart needed)
+
+To change a running container's memory limit:
+```bash
+docker update -m 6g --memory-swap 6g inkbytes-messor
+```
+
+This takes effect immediately without restarting the container. Verified via
+`docker inspect inkbytes-messor --format '{{.HostConfig.Memory}}'`.
+
+Note: `--memory-swap` must be set to at least `--memory`; setting only `-m` without
+`--memory-swap` keeps the old swap limit which may be inconsistent.
+
+---
+
+## 2026-06-07 — Ollama not on Docker network after Docker daemon restart
+
+Ollama runs in a separate compose project (`galvanic`) and is connected to
+`inkbytes_inkbytes-internal` via `docker network connect`. This connection is
+**not persistent** — after `systemctl restart docker`, Ollama starts on its own
+`galvanic_ollama-net` only.
+
+**Fix (manual):** `docker network connect inkbytes_inkbytes-internal ollama`
+
+**Permanent fix (pending):** Add a systemd unit override or an `ExecStartPost` hook.
+Until then, verify Curator can reach Ollama after any Docker daemon restart:
+`docker exec inkbytes-curator-api curl -s http://ollama:11434/api/tags | python3 -c "import sys,json; print(json.load(sys.stdin))"`
+
+---
+
+## 2026-06-07 — newspaper3k article order = editorial prominence
+
+`paper.articles` returned by `newspaper.build(outlet.url)` is ordered by how links appear
+on the homepage — top stories first, archive/category-nav last. Slicing `[:200]` gives
+the top-200 most-prominently-placed articles, which is a reasonable editorial-priority
+proxy without RSS.
+
+This is NOT publication-date order. Two articles published at the same time appear in
+the order their links appear in the HTML. Deep-archive content at the bottom of category
+pages is naturally excluded.
+
+**Future:** RSS/Atom feeds provide explicit `<pubDate>` → sorting by recency becomes
+trivial and the homepage-order heuristic is no longer needed.
+
+---
+
+## 2026-06-07 — DeepSeek thinking mode rejects `tool_choice`
+
+DeepSeek R1 (deepseek-reasoner) uses "thinking mode" which does not support
+`tool_choice` in the API. `instructor` defaults to `tool_choice="auto"` which fails with:
+
+```
+Thinking mode does not support this tool_choice
+```
+
+**Fix:** Use `instructor.Mode.JSON` instead of the default mode when wrapping DeepSeek:
+```python
+instructor.from_openai(
+    AsyncOpenAI(api_key=..., base_url="https://api.deepseek.com/v1"),
+    mode=instructor.Mode.JSON   # ← required for DeepSeek reasoner
+)
+```
+
+---
+
+## 2026-06-07 — Synthesis cost loop ($6.32 in one session)
+
+Curator's `_synthesize_once()` was being called on every article enrichment for events
+that already had a page. Root cause: `_last_synth_source_count` (in-memory gate) reset
+on restart, so on the next enrichment of any article in an existing event, synthesis
+re-ran even though `source_count` hadn't grown.
+
+**Fix:** `_last_synth_source_count` gate checks `source_count > last`. On restart it's
+empty, so the FIRST article enrichment for each existing event triggers synthesis — but
+only once (subsequent articles find `source_count == last` and skip).
+
+**Residual issue:** A restart still causes one synthesis per existing event. With 400+
+events this is $2–4 per restart. Long-term fix: persist `_last_synth_source_count` to
+DB so it survives restarts.
 
 ## 2026-06-04 — Local embeddings (Ollama bge-m3): the threshold is NOT vendor-portable
 
@@ -468,3 +635,64 @@ other transient flash payloads.
 blowing out the page — no cards-vs-scroll rewrite needed for a "don't break it"
 mobile pass. Verified by reasoning from the MUI default + absence of a theme
 override rather than standing up the full stack.
+
+---
+
+## 2026-06-07 — Production stability sprint
+
+**Docker exit code 0 ≠ clean exit.** When Messor crashed due to OOM, the container
+exited with code 0 (not the typical OOM 137). The `OOMKilled` field in `docker inspect`
+and memory watermark events are the reliable signals. `RestartCount` also resets on
+`--force-recreate`, masking the true restart history.
+
+**newspaper3k has no default timeout and will hang forever.** `paper.download_categories()`
+spawns threads internally and can block indefinitely on slow/blocked outlets. Always set
+`request_timeout` in the build config AND wrap the outer `scrape_outlet()` call in a
+`concurrent.futures` timeout. Without both, a single outlet can freeze the entire scraper
+process for hours.
+
+**`restart: unless-stopped` + immediate cycle start = crash amplification.** A service
+that crashes and restarts immediately fires its startup work again. 4 crashes in 10 min
+= 4 concurrent full-outlet scrapes. Always add a configurable startup delay
+(`MESSOR_STARTUP_DELAY_MINUTES`). FastAPI/healthcheck can still start immediately; only
+the business cycle should delay.
+
+**GitHub Actions matrix jobs cannot reference `matrix.*` in their `if:` condition.**
+The `if:` at job level is evaluated before matrix expansion. Use separate named jobs
+per service with `if: needs.changes.outputs.X == 'true'` instead of a matrix with
+a complex `if`. The `dorny/paths-filter` action is the standard solution.
+
+**React hydration error #418 = `Date.now()` mismatch between server and client.**
+Any call to `Date.now()` or `new Date()` in a Next.js server component (or during
+the initial render of a `"use client"` component) produces different output on server
+vs client because they run at different times and may have different timezone context.
+Use `suppressHydrationWarning` on the specific `<span>`, or move the computation to
+`useEffect + useState` so it only runs client-side.
+
+**Messor "success rate" was counting duplicates as failures.** `failed_articles` in
+Messor's session data = duplicates + true parse failures. The stored `success_rate`
+was `successful / total`, so a session with 90% duplicates and perfect parsing showed
+10% success. Real parse success = `successful / (total - duplicates)`. Fix display
+in the controller, not in Messor's accounting (which is correct for its dedup purpose).
+
+**Docker Compose `container_name` gets UUID-prefixed after daemon restart.** When
+`systemctl restart docker` is needed (zombie container), named containers may be
+re-registered with a `{containerID}_` prefix. Other containers resolving the service
+by name fail. Fix: `docker stop + rm` the prefixed container, then `up -d --force-recreate`.
+
+**Al Jazeera throttles sequential scrapes from the same IP.** Two scrape cycles 15 min
+apart dropped parse success from 60% → 1.4%. newspaper3k makes one HTTP request per
+article URL; 350+ requests to the same CDN in rapid succession triggers throttling.
+RSS/Atom-first approach (1 feed request → N article fetches spread over time) will
+mitigate this. Short-term: disable the outlet.
+
+**Alphabetical outlet ordering creates hot batches.** With 4 concurrent threads and
+outlets sorted A→Z, the same 4 outlets (acento, aljazeera, apnews, clarin) always
+run together in the first batch. Adds `random.shuffle(outlets)` before the thread pool
+starts — cost zero, removes structural bias.
+
+**Feed sort formula can freeze the top of the news feed.** A scoring formula that
+weights `source_count` heavily will permanently rank old multi-source events above
+fresh single-source events. For a news reader, recency should be primary. Use
+`freshness_at` (timestamp) as the primary sort key with `source_count` only as a
+tiebreaker within the same scrape window.
