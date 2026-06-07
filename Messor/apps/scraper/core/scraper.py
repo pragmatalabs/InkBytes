@@ -13,6 +13,7 @@ Date: 2025-04-14 (updated)
 Copyright: © 2025 InkBytes Technologies
 """
 import concurrent.futures
+import gc
 import json
 import logging
 import os
@@ -35,7 +36,7 @@ from inkbytes.models.newspaperbase import NewsPaper
 from inkbytes.models.outlets import OutletsSource
 
 # v1: TinyDB was retired (INK-5). Per-cycle staging now uses a plain JSON store.
-from core.staging_store import StagingStore, article_id_exists_in_file, get_staged_content_hash
+from core.staging_store import StagingStore, article_id_exists_in_file, get_staged_content_hash, load_known_article_urls
 
 # Module setup
 MODULE_NAME = get_module_name(2)
@@ -171,22 +172,15 @@ class ScraperResults(BaseModel):
 # ===== Functions from newsscraper.py =====
 
 def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> ScrapingSession:
-    """
-    Scrape articles from a given outlet.
+    """Scrape articles from a given outlet — sequential article processing (ADR-0011).
 
-    Args:
-        outlet: The news outlet to scrape.
-        agent: The user agent to use.
-        headers: The headers to use for the request.
-        num_workers: Number of concurrent article-download workers per outlet.
-                     Intentionally separate from the outlet-level parallelism
-                     in ScraperService — caller should pass a small fixed value
-                     (e.g. 2) so total threads = outlet_threads × num_workers
-                     stays predictable regardless of max_threads setting.
-        languages: List of languages to filter articles by.
+    The ``num_workers`` parameter is kept for API compatibility but is no longer used.
+    Articles are now processed one-at-a-time within this (outlet-level) thread so that
+    at most ONE article's HTML is in memory at any moment, eliminating the OOM that the
+    nested ThreadPoolExecutor caused (6.27 GB RSS → killed by cgroup).
 
-    Returns:
-        ScrapingSession: The scraping session containing stats.
+    Outlet-level parallelism is still provided by ScraperService's outer pool
+    (max_threads outlets run concurrently).
     """
     if languages is None:
         languages = ['en']
@@ -199,9 +193,8 @@ def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> Scra
         return session
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            newsScraper = NewsScraper(outlet, newsPaper, executor, session=session, languages=languages)
-            newsScraper.scrape_news_outlet(executor, outlet)
+        newsScraper = NewsScraper(outlet, newsPaper, session=session, languages=languages)
+        newsScraper.scrape_news_outlet(outlet)
         return newsScraper.session
     except Exception as e:
         logger.error(f"Scraping articles from: {outlet.name} failed with error: {e}")
@@ -389,26 +382,37 @@ def pre_process_article(article: newspaper.Article) -> newspaper.Article:
 
 
 def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str) -> Article:
-    """
-    Scrape a single article from an outlet.
+    """Scrape a single article — download, parse, extract, then free HTML (ADR-0011 L2).
 
-    Args:
-        article: The newspaper article to scrape.
-        newsPaperBrand: The name of the newspaper brand.
-
-    Returns:
-        Article: The scraped article object.
+    Called sequentially (no executor) so only one article's HTML is in memory at a
+    time per outlet thread.  After ``create_article_record()`` extracts what we need,
+    the newspaper.Article's HTML + lxml parse tree are explicitly nullified so the
+    garbage collector can reclaim them without waiting for a cyclic-GC pass.
     """
     try:
         newspaperArticle = build_newspaper_article(article)
         if newspaperArticle and len(newspaperArticle.text) > 150:
-            return create_article_record(newspaperArticle, newsPaperBrand)
+            record = create_article_record(newspaperArticle, newsPaperBrand)
+            # Layer 2: free the HTML + lxml tree immediately after extraction.
+            # newspaper.Article holds article.html (1–3 MB) and clean_doc (lxml
+            # etree with ~50 k circular-ref nodes).  Nullifying them here lets
+            # CPython's refcount GC reclaim them before the next article starts.
+            newspaperArticle.html = None
+            newspaperArticle.clean_doc = None
+            newspaperArticle.clean_top_node = None
+            return record
     except Exception as e:
-        # Catch all exceptions (not just ValueError) so a single bad article
-        # never brings down the thread or silently drops without a log entry.
         logging.getLogger().warning(
             f"scrape_outlet_article failed for {getattr(article, 'url', '?')}: {type(e).__name__}: {e}"
         )
+    finally:
+        # Belt-and-suspenders: clear regardless of success/failure path.
+        try:
+            article.html = None
+            article.clean_doc = None
+            article.clean_top_node = None
+        except Exception:
+            pass
 
 
 def extract_metadata_category(data: dict) -> List[str]:
@@ -870,68 +874,92 @@ class NewsScraper:
     Class responsible for scraping news articles from a given news outlet.
     """
 
-    def __init__(self, outlet: OutletsSource, paper: NewsPaper, executor: object, session: ScrapingSession = None,
-                 languages=None):
-        """
-        Initialize a NewsScraper instance.
+    def __init__(self, outlet: OutletsSource, paper: NewsPaper, executor: object = None,
+                 session: ScrapingSession = None, languages=None):
+        """Initialise a NewsScraper.
 
-        Args:
-            outlet: The outlet to scrape.
-            paper: The newspaper object.
-            executor: The thread executor.
-            session: Optional scraping session for stats tracking.
-            languages: List of languages to filter by.
+        ``executor`` is kept for API compatibility but is no longer used — article
+        processing is sequential (ADR-0011).  Pass ``None`` or omit it.
         """
         if languages is None:
             languages = ['en']
         self.newspaper = paper
         self.processed_articles = ArticleCollection()
         self.outlet = outlet
-        self.executor = executor
+        self.executor = executor          # retained for compat; unused internally
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stats = ScrapingStats()
         self.session = session or ScrapingSession()
         self.languages = languages
 
-    def scrape_news_outlet(self, executor, outlet) -> ScrapingSession:
-        """
-        Scrape articles from a news outlet.
+    def scrape_news_outlet(self, executor_or_outlet=None, outlet=None) -> ScrapingSession:
+        """Scrape articles from a news outlet — sequential, no inner thread pool (ADR-0011).
 
-        Args:
-            executor: The executor for concurrent processing.
-            outlet: The outlet to scrape.
-
-        Returns:
-            ScrapingSession: The scraping session with stats.
+        Signature accepts the old two-arg form ``(executor, outlet)`` and the new
+        single-arg form ``(outlet)`` so callers don't need to be updated atomically.
         """
+        # Accept both (executor, outlet) and (outlet,) call signatures.
+        if outlet is None:
+            outlet = executor_or_outlet   # new single-arg call
+        # else: two-arg old call — executor_or_outlet is the unused executor
+
         try:
             self.session.outlet_name = outlet.name
-            if validate_outlet_url(outlet):
-                paper = self.newspaper.build(outlet)
-                results = process_found_articles(executor, outlet, paper)
-                self.session.total_articles = len(results)
-
-                if len(results) > 0:
-                    self.logger.info(f"Saving {len(results)} articles for {outlet.name}")
-                    self.process_outlet_articles(outlet.name, results)
-                else:
-                    self.logger.info(f"No articles could be retrieved from {outlet.name}")
-            else:
+            if not validate_outlet_url(outlet):
                 self.logger.info(f"Invalid outlet URL {outlet.url}")
-        except ValueError as e:
-            self.logger.error(f"Error {e} scraping article from: {outlet}")
+                return self.session
+
+            # Build the newspaper (fetches homepage + categories).
+            paper = self.newspaper.build(outlet)
+
+            # Slice the article list BEFORE freeing the paper object.
+            np_articles = paper.articles[:MAX_ARTICLES_PER_OUTLET]
+            self.session.total_articles = len(np_articles)
+
+            # Layer 2 / ADR-0011: free the paper's category-page HTML immediately —
+            # we only need the article URL list from here on.
+            try:
+                paper.categories = []
+                paper.category_urls = []
+            except Exception:
+                pass
+            del paper
+
+            if not np_articles:
+                self.logger.info(f"No articles found from {outlet.name}")
+                return self.session
+
+            # Layer 3 / ADR-0011: load known article URLs once before the loop.
+            scrapes_dir = config.storage.staging.local.scraping()
+            known_urls: set = load_known_article_urls(scrapes_dir, outlet.name)
+            self.logger.info(
+                f"Saving {len(np_articles)} articles for {outlet.name} "
+                f"({len(known_urls)} previously seen URLs)"
+            )
+
+            self.process_outlet_articles(outlet.name, np_articles, known_urls)
+
+        except Exception as e:
+            self.logger.error(f"Error scraping {outlet}: {e}")
         finally:
             self.session.complete_session()
-            return self.session
+        return self.session
 
-    def process_outlet_articles(self, outletBrand: str, results):
-        """
-        Process articles from an outlet and save them to the database.
-        Checks for duplicates not only in the current database but also in previously scraped files.
+    def process_outlet_articles(self, outletBrand: str, np_articles: list,
+                               known_urls: set) -> None:
+        """Sequential article processing — ADR-0011 Layers 1, 2, 3.
+
+        Replaces the futures-based loop with a plain for-loop so only ONE article's
+        HTML is in memory at a time.  URL pre-dedup (Layer 3) skips known articles
+        without any HTTP request.  Explicit HTML cleanup + periodic gc.collect()
+        (Layer 2) prevent lxml garbage accumulation.
 
         Args:
-            outletBrand: The brand name of the outlet.
-            results: List of article futures to process.
+            outletBrand:  Outlet name used for staging file naming and logging.
+            np_articles:  List of ``newspaper.Article`` objects (URL populated,
+                          not yet downloaded).
+            known_urls:   Set of article URLs already seen in prior staging files
+                          (loaded once before this call — ADR-0011 Layer 3).
         """
         time_stamp = generate_today_timestamp()
         self.session.set_results_staging_file_name(f"{time_stamp}.{outletBrand}.db.json")
@@ -940,90 +968,81 @@ class NewsScraper:
         self.logger.info(f"Saving articles to: {file_path}")
         data_handler = StagingStore(file_path)
 
-        total_articles = len(results)
-        processed_count = 0
-        duplicates_in_current_batch = 0
-        duplicates_in_previous_scrapes = 0
-        failed_to_process = 0
-        
-        self.logger.info(f"Processing {total_articles} articles from {outletBrand}")
-        
-        # Create progress update function to avoid duplicating log code
-        def log_progress():
-            progress_pct = (processed_count / total_articles) * 100 if total_articles > 0 else 0
-            self.logger.info(
-                f"Progress: {processed_count}/{total_articles} ({progress_pct:.1f}%) articles processed | "
-                f"New: {len(self.processed_articles)} | "
-                f"Duplicates: {duplicates_in_current_batch} (current batch), {duplicates_in_previous_scrapes} (previous scrapes) | "
-                f"Failed: {failed_to_process}"
-            )
-        
-        # Log progress every 10% or at least every 20 articles
-        progress_interval = max(1, min(total_articles // 10, 20))
-        
-        for future in concurrent.futures.as_completed(results):
-            try:
-                record = future.result()
-                processed_count += 1
-                
-                if not record:
-                    failed_to_process += 1
-                    self.session.increment_failed_articles()
-                    continue
-                    
-                # Check if article exists in the current batch
-                if article_exists(record, data_handler):
-                    self.logger.debug(
-                        f"{record.id} : Article '{record.title[0:30]}' already exists in current batch: {record.id} @ {outletBrand}")
-                    duplicates_in_current_batch += 1
-                    self.session.increment_duplicates_current_batch()
-                    self.session.increment_failed_articles()
-                    continue
-                
-                # Check if article is in supported language before doing any more work
-                if record.language not in self.languages:
-                    self.logger.debug(f"Skipping article in unsupported language: {record.language}")
-                    self.session.increment_failed_articles()
-                    continue
-                    
-                # Then check if article exists in any previous scrape file
-                if check_article_exists_in_all_scrapes(record, outletBrand):
-                    self.logger.debug(
-                        f"{record.id} : Article '{record.title[0:30]}' already exists in previous scrapes: {record.id} @ {outletBrand}")
-                    duplicates_in_previous_scrapes += 1
-                    self.session.increment_duplicates_previous_scrapes()
-                    self.session.increment_failed_articles()
-                    continue
-                    
-                # Article is new and in supported language, add it to processed articles
-                self.processed_articles.append(record)
-                self.session.increment_successful_articles()
-                self.logger.debug(f"{record.id} : Article '{record.title[0:30]}'.. inserted in : {outletBrand}")
-            except Exception as e:
-                processed_count += 1
-                failed_to_process += 1
-                self.session.increment_failed_articles()
-                self.logger.error(f"Error {e} scraping article from: {outletBrand}")
-            
-            # Log progress at regular intervals
-            if processed_count % progress_interval == 0 or processed_count == total_articles:
-                log_progress()
+        total           = len(np_articles)
+        url_skipped     = 0   # Layer 3 pre-dedup hits (no download)
+        batch_dupes     = 0   # within this cycle's staging file
+        lang_skipped    = 0
+        parse_failed    = 0
+        progress_every  = max(1, min(total // 10, 20))
 
-        # Final summary
+        self.logger.info(f"Processing {total} articles from {outletBrand}")
+
+        for i, np_article in enumerate(np_articles):
+
+            # ── Layer 3: URL pre-dedup — skip without downloading ────────────
+            article_url = getattr(np_article, 'url', None)
+            if article_url and article_url in known_urls:
+                url_skipped += 1
+                self.session.increment_duplicates_previous_scrapes()
+                self.session.increment_failed_articles()
+                continue
+
+            # ── Layer 1: sequential download + scrape ────────────────────────
+            try:
+                record = scrape_outlet_article(np_article, outletBrand)
+                # scrape_outlet_article() nullifies html/clean_doc (Layer 2)
+            except Exception as e:
+                parse_failed += 1
+                self.session.increment_failed_articles()
+                self.logger.warning(
+                    f"Article {article_url} failed: {type(e).__name__}: {e}"
+                )
+                continue
+
+            if not record:
+                parse_failed += 1
+                self.session.increment_failed_articles()
+                continue
+
+            # Current-batch dedup (same cycle, same outlet)
+            if article_exists(record, data_handler):
+                batch_dupes += 1
+                self.session.increment_duplicates_current_batch()
+                self.session.increment_failed_articles()
+                continue
+
+            # Language filter
+            if record.language not in self.languages:
+                lang_skipped += 1
+                self.session.increment_failed_articles()
+                continue
+
+            # New article — accept
+            self.processed_articles.append(record)
+            self.session.increment_successful_articles()
+            if article_url:
+                known_urls.add(article_url)   # prevent re-processing if URL repeats
+
+            # ── Layer 2: periodic forced GC to collect lxml circular refs ────
+            if i > 0 and i % 20 == 0:
+                gc.collect()
+
+            if (i + 1) % progress_every == 0 or (i + 1) == total:
+                self.logger.info(
+                    f"Progress: {i+1}/{total} ({(i+1)/total*100:.1f}%) | "
+                    f"New: {len(self.processed_articles)} | "
+                    f"URL-skip: {url_skipped} | batch-dupe: {batch_dupes} | "
+                    f"parse-fail: {parse_failed} | lang-skip: {lang_skipped}"
+                )
+
+        # ── Final summary + flush ─────────────────────────────────────────────
+        total_dupes = url_skipped + batch_dupes
         self.logger.info(
-            f"Completed processing {total_articles} articles from {outletBrand}: "
-            f"New: {len(self.processed_articles)} | "
-            f"Duplicates: {duplicates_in_current_batch + duplicates_in_previous_scrapes} | "
-            f"Failed: {failed_to_process}"
+            f"Completed {outletBrand}: new={len(self.processed_articles)} "
+            f"url-skip={url_skipped} batch-dupe={batch_dupes} "
+            f"parse-fail={parse_failed} lang-skip={lang_skipped}"
         )
 
         if self.processed_articles:
-            self.logger.info(f"Saving {len(self.processed_articles)} new articles from {outletBrand} to database")
             data_handler.insert_multiple(self.processed_articles)
-            
-            # Update session info with completed time and status
-            self.session.complete_session()
-            
-            # Return the file path and session info for further processing
-            # (upload to S3 and send message to RabbitMQ will be handled by the calling service)
             return file_path

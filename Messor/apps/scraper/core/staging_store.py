@@ -120,6 +120,52 @@ def article_id_exists_in_file(file_path: str, article_id: str) -> bool:
     return False
 
 
+def load_known_article_urls(scrapes_dir: str, outlet_name: str) -> set:
+    """Return a set of all article URLs stored in prior staging files for this outlet.
+
+    Called ONCE at the start of each outlet's scrape (ADR-0011 Layer 3).
+    Replaces the per-article ``check_article_exists_in_all_scrapes`` file reads
+    with a single O(N_files) pass; subsequent dedup is O(1) set lookup.
+
+    Staging records store the URL in the ``article_url`` field (set by
+    ArticleBuilder.buildFromNewspaper3K).  ``url``/``canonical_url`` are checked
+    as fallbacks for older file formats.
+    """
+    known: set = set()
+    if not os.path.exists(scrapes_dir):
+        return known
+    try:
+        files = [
+            os.path.join(scrapes_dir, f)
+            for f in os.listdir(scrapes_dir)
+            if outlet_name in f and f.endswith(".db.json")
+        ]
+    except OSError as e:
+        logger.warning("Could not list scrapes dir %s: %s", scrapes_dir, e)
+        return known
+
+    for file_path in files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            records = (
+                data.get("_default", {}).values()
+                if isinstance(data, dict)
+                else data
+            )
+            for rec in records:
+                url = (
+                    rec.get("article_url")
+                    or rec.get("canonical_url")
+                    or rec.get("url")
+                )
+                if url:
+                    known.add(url)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Could not read staging file %s: %s", file_path, e)
+    return known
+
+
 def get_staged_content_hash(file_path: str, article_id: str):
     """Return the MD5(title + text) hash of a stored article, or None if not found.
 
