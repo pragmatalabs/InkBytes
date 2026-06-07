@@ -39,7 +39,11 @@ class MessageService:
     async def connect(self) -> None:
         self.connection = await aio_pika.connect_robust(self.cfg.url)
         self.channel = await self.connection.channel()
-        await self.channel.set_qos(prefetch_count=4)
+        # prefetch_count=1: process one article at a time so we never send
+        # concurrent embedding requests to Ollama (CPU-only bge-m3 saturates
+        # under concurrent load → timeouts). Throughput is slower but reliable.
+        # Raise if/when Ollama moves to GPU or a dedicated embedding server.
+        await self.channel.set_qos(prefetch_count=1)
         logger.info("RabbitMQ connected: %s", _scrub(self.cfg.url))
 
     async def close(self) -> None:

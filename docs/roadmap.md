@@ -136,24 +136,80 @@ Backoffice: expandable "Advanced" section per outlet for these fields.
 
 ---
 
-## Language strategy (P1, Sprint 2)
+## Language & real-time translation (P1, Sprint 2) — ADR-0009
 
-**Current:** All articles go through the same pipeline regardless of language. Synthesis
-prompt is in English; Spanish articles produce English synthesis. Reader shows all content
-in one feed.
+> Architecture decision: [`Curator/docs/adr/0009-realtime-translation-skill4.md`](../Curator/docs/adr/0009-realtime-translation-skill4.md)
 
-**Target:** Spanish content stays in Spanish through the full pipeline.
+**Current:** All articles pass through the pipeline regardless of language. Synthesis
+prompt has no language instruction so Haiku defaults to English even for Spanish-majority
+events. The Reader language toggle exists in `feed-client.tsx` but has no data to switch.
 
-**Phase A (now):** Language filter on the Reader feed (toggle: EN / ES / All).
+**Target:** Every published page is available in both EN and ES immediately after
+synthesis, at essentially zero marginal cost, using the same Haiku key.
 
-**Phase B (Sprint 2):**
-- Separate synthesis prompts for `language='es'` and `language='en'`
-- Curator: `prompts/synthesize_es.md` alongside `prompts/synthesize.md`
-- Events gain a `language` column (derived from majority language of sources)
-- Reader: language badge on feed cards; filter persists in localStorage
+---
 
-**Phase C (future):** Cross-language clustering (an AP English article and an Infobae
-Spanish article about the same event → same event, bilingual synthesis).
+### Phase A — Language-aware synthesis (Sprint 2, step 1)
+
+Detect the dominant language of each event's articles (majority vote on `articles.language`)
+and pass it to the SYNTHESIZE prompt so output is written in that language natively.
+
+- `SYNTHESIZE` prompt gains `DOMINANT_LANGUAGE` field
+- `synthesize.py` adds `Counter` on `rows[*].language` → `dominant`
+- Spanish-majority events get a Spanish page; English-majority events get English
+- Mixed events (tie) default to `en`
+
+---
+
+### Phase B — Skill 4: TRANSLATE (Sprint 2, step 2)
+
+After `SYNTHESIZE` produces a page in its dominant language, immediately run one
+Haiku call to translate the `headline` + `synthesis_md` into the secondary language.
+Result stored in a new `page_translations(page_id, lang, headline, synthesis_md)` table.
+
+**New components:**
+- Migration 008: `page_translations` table (PK = `(page_id, lang)`)
+- `prompts/translate.md` — preserve markdown, proper nouns, source citations
+- `contracts/translation_v1.py` — `TranslationResult(headline, synthesis_md)`
+- `skills/translate.py` — `TranslateSkill.run(…, source_lang, target_lang)`
+- Fire-and-forget after synthesize: failure logged, never blocks pipeline
+
+**Pipeline after Phase B:**
+```
+ENRICH → CLUSTER → SYNTHESIZE (native lang) → TRANSLATE (counterpart lang)
+                                  ↓                        ↓
+                            pages row               page_translations row
+```
+
+**Cost:** ~$0.0006/page → $0.60 per 1,000 pages translated.
+
+---
+
+### Phase C — API + Reader integration (Sprint 2, step 3)
+
+`/events` response includes inline translations so the Reader needs no second fetch:
+
+```json
+{
+  "headline": "Messi lidera a Argentina en la final",
+  "translations": {
+    "en": { "headline": "Messi leads Argentina…", "synthesis_md": "…" }
+  }
+}
+```
+
+Reader language toggle (`feed-client.tsx`) reads `event.translations[lang]` or
+falls back to the source `headline`/`synthesis_md` for legacy pages.
+
+---
+
+### Phase D — Backfill + extensibility (Sprint 2, step 4)
+
+- `--translate-missing` one-shot CLI mode translates all existing pages (~$0.02
+  for the current 29 pages)
+- Portuguese (`pt`) support: add one more `translate.run()` call per synthesis cycle
+- Cross-language clustering — an AP English article and an Infobae Spanish article
+  about the same event → same event, bilingual synthesis (longer-term, Sprint 3)
 
 ---
 
