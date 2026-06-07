@@ -96,6 +96,10 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_synthesize_pending()
         elif args.api_only:
             assert api_task is not None
+            # Start the config-refresh loop so admin changes in Backoffice
+            # propagate to /status without restarting the API container
+            # (same loop the --worker runs; harmless to also run in api-only mode).
+            app._config_task = asyncio.create_task(app._config_refresh_loop())
             await api_task
         else:
             print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, --reenrich-missing, or --reenrich-stubs.")
