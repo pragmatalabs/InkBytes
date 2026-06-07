@@ -9,20 +9,12 @@ import type { EventSummary } from "@/lib/types";
 
 type Lang = "all" | "en" | "es";
 
-// ── Importance score: recency-first, source count as a small boost ───────────
-//
-// Old formula: source_count × recency — meant 2-source events from yesterday
-// permanently outscored fresh single-source events, freezing the top of the feed.
-//
-// New formula: recency is primary (24h window), each extra source adds +0.15.
-// A 24h-old 5-source event scores ~0.0 + 4×0.15 = 0.60.
-// A just-published 1-source event scores 1.0 + 0 = 1.0 → ranks above.
+// ── Feed sort: freshness_at DESC, source_count as tiebreaker ────────────────
+// Newest events always lead. When two events have the same freshness timestamp
+// (e.g. published in the same scrape cycle), the one with more sources wins.
 
 function importance(ev: EventSummary): number {
-  const h       = (Date.now() - new Date(ev.freshness_at).getTime()) / 3_600_000;
-  const recency = Math.max(0, 1 - h / 24); // 1.0 = now → 0.0 at 24h
-  const boost   = (ev.source_count - 1) * 0.15; // extra sources add a small lift
-  return recency + boost;
+  return new Date(ev.freshness_at).getTime() + ev.source_count * 1000;
 }
 
 // ── Shared atoms ─────────────────────────────────────────────────────────────
