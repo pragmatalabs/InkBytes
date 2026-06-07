@@ -201,21 +201,34 @@ class ScraperService:
         except Exception as e:
             self.logger.error(f"Failed to emit scrape.session.completed: {e}")
 
+    # Hard ceiling per outlet — newspaper3k can hang on homepage crawls and
+    # download_categories(), pinning threads for hours.  5 min is generous
+    # (typical outlets finish in 30-90 s); this kills the wait, not the thread,
+    # but limits damage and lets the rest of the pool continue.
+    OUTLET_TIMEOUT_SECONDS = 300
+
     def generate_outlets_scraping_sessions(self, outlets: List[OutletsSource]) -> Generator:
         """Scrape multiple outlets concurrently using a thread pool."""
         self.logger.info("Starting perform_concurrent_scraping")
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_threads) as executor:
                 futures = {executor.submit(self.create_outlet_scraping_session, outlet): outlet for outlet in outlets}
-                for future in concurrent.futures.as_completed(futures):
+                for future in concurrent.futures.as_completed(futures, timeout=self.OUTLET_TIMEOUT_SECONDS * len(outlets)):
                     outlet = futures[future]
                     try:
-                        result = future.result()
+                        result = future.result(timeout=self.OUTLET_TIMEOUT_SECONDS)
                         if result:
                             yield result
+                    except concurrent.futures.TimeoutError:
+                        self.logger.error(
+                            f"Outlet {getattr(outlet, 'name', outlet)} timed out after "
+                            f"{self.OUTLET_TIMEOUT_SECONDS}s — skipping"
+                        )
                     except Exception as e:
                         self.logger.error(f"Error processing outlet {outlet}: {e}")
             self.logger.info("Completed perform_concurrent_scraping")
+        except concurrent.futures.TimeoutError:
+            self.logger.error("Overall scraping pool timed out — some outlets skipped")
         except Exception as e:
             self.logger.error(f"Error in perform_concurrent_scraping: {e}")
     

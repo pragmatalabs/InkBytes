@@ -45,13 +45,13 @@ class NewsPaper:
             paper.download()
             paper.parse()
             paper.set_categories()
-            paper.download_categories()  # mthread
+            paper.download_categories()  # mthread — can hang on slow/blocked sites
             paper.parse_categories()
             paper.generate_articles()
             self.paper = paper
             return self.paper
-        except ValueError as e:
-            logger.error(f"Could not build Paper , reason: Error: {e}")
+        except Exception as e:
+            logger.error(f"Could not build Paper: {type(e).__name__}: {e}")
 
     def build(self, outlet: OutletsSource) -> object:
         """
