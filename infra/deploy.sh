@@ -62,8 +62,17 @@ git pull origin master
 
 # ── 3. Images ─────────────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--build" ]]; then
-    echo "[deploy] Building images locally..."
-    docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" build --parallel
+    echo "[deploy] Building images locally from source..."
+    # compose files use pre-built registry images (no build: context defined).
+    # Build directly with the correct context paths instead.
+    docker build \
+        -t "${CURATOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-curator:latest}" \
+        -f "$REPO_ROOT/Curator/apps/curator/Dockerfile" \
+        "$REPO_ROOT/Curator/"
+    docker build \
+        -t "${READER_IMAGE:-ghcr.io/pragmatalabs/inkbytes-reader:latest}" \
+        -f "$REPO_ROOT/Reader/apps/web/Dockerfile" \
+        "$REPO_ROOT/Reader/apps/web/"
 else
     echo "[deploy] Pulling images from GitHub Container Registry..."
     if [ -n "${GHCR_TOKEN:-}" ]; then
