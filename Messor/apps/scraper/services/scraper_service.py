@@ -325,28 +325,48 @@ class ScraperService:
                     outlets = outlets[:limit]
                 
             self.logger.info(f"Starting scraping process for {len(outlets)} outlets/sources")
-            # Run boundary: one harvest run across all outlets. Key by a stable
-            # unix-ts run id (matches /api/scrapesessions' `session-<ts>`) so a
-            # re-emit upserts the same Curator row (B12.1 / ADR-0006).
             run_started = datetime.now(timezone.utc)
-            run_id = f"session-{int(run_started.timestamp())}"
             t0 = time.time()
 
-            result = list(self.generate_outlets_scraping_sessions(outlets))
+            result = []
 
-            run_ended = datetime.now(timezone.utc)
-            duration = time.time() - t0
-
-            # Accumulate the per-outlet stats Messor already computed, then emit
-            # a single run-level summary for Curator to persist.
-            per_outlet = [
-                s for s in (self._outlet_stats_from_session(sess) for sess in result)
-                if s is not None
-            ]
-            if per_outlet:
-                self._emit_session_completed(
-                    run_id, run_started, run_ended, duration, per_outlet
-                )
+            # Emit one session per outlet as soon as it completes so Curator
+            # and the Backoffice update in real-time instead of waiting for the
+            # entire 23-outlet sweep to finish.
+            for scraping_session in self.generate_outlets_scraping_sessions(outlets):
+                result.append(scraping_session)
+                outlet_stats = self._outlet_stats_from_session(scraping_session)
+                if not outlet_stats:
+                    continue
+                try:
+                    info = (scraping_session.to_json() or {}).get("data") or {}
+                    # Parse outlet-level start / end times from the session.
+                    start_str = info.get("start_time")
+                    end_str   = info.get("end_time")
+                    outlet_start = (
+                        datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+                        if start_str else run_started
+                    )
+                    outlet_end = (
+                        datetime.fromisoformat(end_str).replace(tzinfo=timezone.utc)
+                        if end_str else datetime.now(timezone.utc)
+                    )
+                    outlet_duration = float(
+                        info.get("duration")
+                        or (outlet_end - outlet_start).total_seconds()
+                    )
+                    # Unique session id per outlet: session-<ts>-<slug>
+                    slug = outlet_stats.get("slug", "unknown")
+                    outlet_session_id = f"session-{int(outlet_start.timestamp())}-{slug}"
+                    self._emit_session_completed(
+                        outlet_session_id, outlet_start, outlet_end,
+                        outlet_duration, [outlet_stats],
+                    )
+                    self.logger.info(
+                        f"Session emitted for {slug}: {outlet_stats.get('successful', 0)} new articles"
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to emit per-outlet session: {e}")
 
             self.logger.info("Completed execute_scraping_process")
             return result
