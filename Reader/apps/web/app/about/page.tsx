@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -41,6 +42,21 @@ export default function AboutPage() {
         <p className="text-sm text-[var(--ink-muted)]">
           Built in the Dominican Republic. LATAM + global English coverage.
         </p>
+
+        {/* Founder signature */}
+        <div className="border-t border-[var(--border)] pt-8">
+          <Image
+            src="/signature.webp"
+            alt="Julian De La Rosa"
+            width={260}
+            height={87}
+            className="select-none"
+            priority
+          />
+          <p className="text-xs text-[var(--ink-muted)] -mt-1">
+            Julian De La Rosa &mdash; Founder
+          </p>
+        </div>
       </div>
     </div>
   );
