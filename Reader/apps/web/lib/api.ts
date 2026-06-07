@@ -33,7 +33,7 @@ export function getRelatedEvents(
   );
 }
 
-export function getEvents(limit = 100): Promise<EventSummary[]> {
+export function getEvents(limit = 500): Promise<EventSummary[]> {
   return apiFetch<EventSummary[]>(`/events?limit=${limit}`, 60);
 }
 

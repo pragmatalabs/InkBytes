@@ -21,6 +21,9 @@ export interface EventSummary {
   source_count: number;
   article_count: number;
   topic: string | null;
+  /** Broad category derived server-side from topic: politics | business | technology |
+   *  sports | health | environment | culture | world */
+  category: string | null;
   language: string;
   outlet_names: string[];
   // Phase 1 additions — derived server-side from articles + pages

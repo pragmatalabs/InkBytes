@@ -22,6 +22,62 @@ _MAX_EVENTS_LIMIT = 500
 _MAX_GRAPH_NODES  = 200
 _MAX_GRAPH_EDGES  = 500
 
+# ── Broad news categories derived from article-level topic strings ────────────
+# Each entry is (category_key, [keywords...]).  First match wins; "world" is
+# the catch-all when nothing matches.  Keywords are matched case-insensitively
+# as substrings of the topic string.
+_CATEGORY_RULES: list[tuple[str, list[str]]] = [
+    ("sports",    ["world cup", "mundial", "fifa", "soccer", "football", "tennis",
+                   "basketball", "baseball", "nba", "nfl", "formula 1", "champion",
+                   "olympic", "tournament", "stanley cup", "french open", "wimbledon",
+                   "league", "grand slam", "atletico", "premier", "serie a",
+                   "la liga", "bundesliga", "mls", "copa", "ligue"]),
+    ("politics",  ["election", "president", "government", "minister", "congress",
+                   "senate", "parliament", "vote", "diplomatic", "diplomacy",
+                   "foreign", "sanctions", "military", "war", "conflict", "attack",
+                   "iran", "israel", "ukraine", "russia", "nato", "trump", "biden",
+                   "zelensky", "ceasefire", "hamas", "hezbollah", "west bank",
+                   "coup", "protest", "unrest", "white house", "kremlin",
+                   "secretary of state", "pentagon"]),
+    ("technology",["ai ", "artificial intelligence", "tech", "software", "spacex",
+                   "nasa", "iss ", "satellite", "cyber", "hack", "openai", "robot",
+                   "space", "rocket", "launch", "digital", "algorithm", "chip",
+                   "semiconductor", "quantum", "llm", "generative"]),
+    ("business",  ["stock", "market", "economy", "gdp", "inflation", "trade",
+                   "oil price", "oil ", "company", "earnings", "dollar", "peso",
+                   "crypto", "bitcoin", "ethereum", "fed ", "interest rate", "bank",
+                   "financial", "investment", "revenue", "profit", "startup",
+                   "merger", "acquisition", "ipo", "warren buffett", "berkshire",
+                   "nasdaq", "s&p", "dow jones", "bond"]),
+    ("health",    ["covid", "vaccine", "hospital", "disease", "cancer", "drug",
+                   "health", "pandemic", "virus", "outbreak", "patient",
+                   "treatment", "fda", "who ", "epidemic", "clinical trial",
+                   "pharmaceutical", "mental health"]),
+    ("environment",["climate", "weather", "storm", "flood", "earthquake", "wildfire",
+                   "hurricane", "drought", "el niño", "la niña", "environment",
+                   "carbon", "emissions", "forest", "ocean", "wave", "wind",
+                   "temperature", "glacier", "biodiversity", "deforestation"]),
+    ("culture",   ["film", "music", "art", "celebrity", "award", "entertainment",
+                   "book", "culture", "festival", "pope", "church", "religion",
+                   "faith", "social media", "indio solari", "concert", "album",
+                   "movie", "television", "streaming"]),
+]
+_CATCH_ALL = "world"
+
+
+def _derive_category(topic: str | None) -> str:
+    """Map a story-level topic string to one of the broad category keys.
+
+    Returns the first matching category or "world" as a catch-all.
+    """
+    if not topic:
+        return _CATCH_ALL
+    t = topic.lower()
+    for cat, keywords in _CATEGORY_RULES:
+        if any(kw in t for kw in keywords):
+            return cat
+    return _CATCH_ALL
+
 
 def _decode_json_col(v: Any) -> list:
     """Parse a JSON_AGG column returned by asyncpg (ADR-0006).
@@ -123,14 +179,31 @@ def build_app(app: Application) -> FastAPI:
         }
 
     @api.get("/events")
-    async def list_events(response: Response, limit: int = 100) -> list[dict[str, Any]]:
+    async def list_events(response: Response, limit: int = 500) -> list[dict[str, Any]]:
         limit = min(limit, _MAX_EVENTS_LIMIT)  # ADR-0006 §D1
         response.headers["Cache-Control"] = "public, max-age=30"
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
                 """
                 SELECT p.id, p.headline, p.freshness_at, p.published_at,
-                       e.source_count, e.article_count, e.topic, e.language,
+                       e.source_count, e.article_count, e.language,
+
+                       -- Topic: prefer the event-level topic (set by synthesize);
+                       -- fall back to the most common article-level topic derived
+                       -- during ENRICH.  events.topic is often NULL before the
+                       -- synthesize skill explicitly sets it, so the fallback
+                       -- ensures every page surfaces a meaningful topic label.
+                       COALESCE(
+                           NULLIF(TRIM(e.topic), ''),
+                           (SELECT a.topic
+                              FROM articles a
+                             WHERE a.event_id = e.id
+                               AND a.topic IS NOT NULL
+                               AND TRIM(a.topic) <> ''
+                             GROUP BY a.topic
+                             ORDER BY COUNT(*) DESC
+                             LIMIT 1)
+                       ) AS topic,
 
                        -- Outlet avatar stack (up to 5 distinct names)
                        ARRAY(
@@ -179,7 +252,14 @@ def build_app(app: Application) -> FastAPI:
                 """,
                 limit,
             )
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            # Derive broad category from article-level topic string so the
+            # Reader can group/filter by Politics, Sports, Tech, etc.
+            d["category"] = _derive_category(d.get("topic"))
+            result.append(d)
+        return result
 
     @api.get("/outlets")
     async def list_outlets() -> list[dict[str, Any]]:
