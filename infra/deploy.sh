@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # InkBytes — idempotent on-host deploy script.
-# Run on the VPS inside /opt/inkbytes.
+# Run on the VPS inside /docker/inkbytes.
 #
 # Usage:
 #   ./infra/deploy.sh          # pull registry images + restart
