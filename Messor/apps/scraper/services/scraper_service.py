@@ -12,6 +12,7 @@ Copyright: © 2025 InkBytes Technologies
 import concurrent.futures
 import json
 import os
+import random
 import time
 from typing import List, Generator, Dict, Any, Optional
 from datetime import datetime, timezone
@@ -324,6 +325,10 @@ class ScraperService:
                     self.logger.info(f"Limiting to {limit} outlets")
                     outlets = outlets[:limit]
                 
+            # Shuffle so the same outlets don't always land in the first
+            # concurrent batch (alphabetical = acento+aljazeera+apnews+clarin
+            # every time → rate-limited together every cycle).
+            random.shuffle(outlets)
             self.logger.info(f"Starting scraping process for {len(outlets)} outlets/sources")
             run_started = datetime.now(timezone.utc)
             t0 = time.time()

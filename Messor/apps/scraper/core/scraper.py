@@ -221,9 +221,17 @@ def validate_outlet_url(outlet):
     return outlet.url and outlet.url.strip()
 
 
+MAX_ARTICLES_PER_OUTLET = 200   # cap per cycle — top-N from homepage order
+
+
 def process_found_articles(executor, outlet, paper) -> list:
     """
     Process articles found in a newspaper.
+
+    Caps at MAX_ARTICLES_PER_OUTLET: newspaper3k returns articles in the
+    order they appear on the homepage/categories — top of the list = freshest
+    headlines.  Taking the first 200 keeps cycles fast, RAM bounded, and
+    focused on the stories that matter without needing RSS yet.
 
     Args:
         executor: The executor to submit tasks to.
@@ -233,10 +241,14 @@ def process_found_articles(executor, outlet, paper) -> list:
     Returns:
         list: A list of futures for article scraping tasks.
     """
-    if len(paper.articles) > 0:
-        return [executor.submit(scrape_outlet_article, article, outlet.name) for article in paper.articles]
-    else:
-        return []
+    articles = paper.articles[:MAX_ARTICLES_PER_OUTLET]
+    if articles:
+        total = len(paper.articles)
+        capped = len(articles)
+        if total > capped:
+            logger.info(f"{outlet.name}: capped at {capped}/{total} articles")
+        return [executor.submit(scrape_outlet_article, article, outlet.name) for article in articles]
+    return []
 
 
 def article_exists(article: Article, store: StagingStore) -> bool:
