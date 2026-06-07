@@ -46,7 +46,7 @@ export default function AboutPage() {
         {/* Founder signature */}
         <div className="border-t border-[var(--border)] pt-8">
           <Image
-            src="/signature.webp"
+            src="/signature.png"
             alt="Julian De La Rosa"
             width={260}
             height={87}
