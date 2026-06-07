@@ -235,6 +235,7 @@ services:
     networks: [inkbytes-internal]
     volumes:
       - inkbytes-rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
 
     mem_limit: 1g
     cpus: 1.5
