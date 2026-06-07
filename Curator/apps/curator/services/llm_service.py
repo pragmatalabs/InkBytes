@@ -197,7 +197,36 @@ class LlmService:
         new_sig = _signature(cfg)
         if new_sig == self._signature:
             # Signature unchanged — update cfg in place (refreshes api keys).
+            # Re-evaluate stub mode: the API key may have been set or cleared
+            # without changing the provider/model (the signature fields).
+            old_stub = self._stub_mode
             self.cfg = cfg
+            new_stub = _is_stub_mode(cfg)
+            if new_stub != old_stub:
+                self._stub_mode = new_stub
+                if not new_stub:
+                    # Key arrived — build a real client now.
+                    try:
+                        self._client = _build_client(cfg)
+                        logger.info(
+                            "LlmService exited STUB mode: key set for provider=%s"
+                            " (enrich=%s synth=%s stub=False)",
+                            cfg.provider, cfg.enrich_model, cfg.synthesize_model,
+                        )
+                    except Exception as exc:
+                        # Keep stub running rather than crashing.
+                        self._stub_mode = True
+                        logger.error(
+                            "LlmService failed to exit stub mode (provider=%s): %s",
+                            cfg.provider, exc,
+                        )
+                else:
+                    # Key was cleared — drop back to stub.
+                    self._client = None
+                    logger.warning(
+                        "LlmService entered STUB mode: key cleared for provider=%s",
+                        cfg.provider,
+                    )
             return {"changed": False}
 
         # Signature changed — attempt to rebuild the client.

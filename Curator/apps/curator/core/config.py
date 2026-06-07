@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER = "__SET_VIA_ENV__"
 
 # The columns Curator reads from backoffice.curator_settings, mapped to the
-# (section, field) they overlay onto. Keys stay out of this table by design.
+# (section, field) they overlay onto.
 _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "enrich_model":           ("llm", "enrich_model"),
     "synthesize_model":       ("llm", "synthesize_model"),
@@ -40,7 +40,9 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     # LLM provider + custom base URL (OpenAI-compatible endpoint override).
     "llm_provider":           ("llm", "provider"),
     "llm_base_url":           ("llm", "base_url"),
-    # API keys from Backoffice — override env vars when set (non-null, non-empty).
+    # API keys from Backoffice — override env vars only when non-null AND non-empty.
+    # An empty string means "not set in Backoffice" → fall back to env var.
+    # (Guarded by _API_KEY_COLUMNS below in apply_db_settings.)
     "anthropic_api_key":      ("llm", "api_key"),
     "openai_api_key":         ("llm", "openai_api_key"),
     "deepseek_api_key":       ("llm", "deepseek_api_key"),
@@ -61,6 +63,17 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
 # Schema-qualified: Curator's asyncpg connection defaults to the `public`
 # search_path, so the Backoffice-owned table MUST be qualified.
 _DB_SETTINGS_TABLE = "backoffice.curator_settings"
+
+# Columns that carry API keys.  An empty string in the DB means "not configured
+# in Backoffice — use the env var instead."  We must NOT let "" overwrite a valid
+# key that was already injected by _overlay_env (which would silently put the
+# LlmService into stub mode).
+_API_KEY_COLUMNS: frozenset[str] = frozenset({
+    "anthropic_api_key",
+    "openai_api_key",
+    "deepseek_api_key",
+    "embeddings_api_key",
+})
 
 
 class AppCfg(BaseModel):
@@ -211,7 +224,9 @@ class CuratorConfig(BaseModel):
         Returns:
             True if any field changed, False otherwise (incl. row is None).
 
-        Note: API keys are NOT in this row and are never overlaid here.
+        Note: API key columns ARE in _DB_SETTINGS_MAP but empty-string values
+        are skipped (see _API_KEY_COLUMNS) so an unset Backoffice field never
+        overwrites a valid key that arrived via _overlay_env / env var.
         """
         if not row:
             return False
@@ -219,6 +234,11 @@ class CuratorConfig(BaseModel):
         changed = False
         for column, (section, field) in _DB_SETTINGS_MAP.items():
             if column not in row or row[column] is None:
+                continue
+            # For API key columns an empty string means "not configured in
+            # Backoffice" — skip so the env-var value (set by _overlay_env)
+            # is not silently clobbered, which would put LlmService in stub mode.
+            if column in _API_KEY_COLUMNS and row[column] == "":
                 continue
             target = getattr(self, section)
             current = getattr(target, field)
