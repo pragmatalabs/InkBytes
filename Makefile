@@ -12,7 +12,7 @@ DEPLOY_PATH  ?= /docker/inkbytes
 # ── DigitalOcean pragmata-001 ─────────────────────────────────────────────────
 DEPLOY_HOST_DO   ?= 67.205.136.61
 DEPLOY_USER_DO   ?= root
-DEPLOY_KEY_DO    ?= ~/.ssh/galvanic_id
+DEPLOY_KEY_DO    ?= ~/.ssh/id_rsa
 DEPLOY_PATH_DO   ?= /opt/inkbytes
 
 # ── Local development ─────────────────────────────────────────────────────────
