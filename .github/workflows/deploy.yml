@@ -1,7 +1,5 @@
 name: Build & Deploy InkBytes
 
-# Only trigger when relevant service files actually change.
-# infra/ changes always trigger a deploy (compose/env updates).
 on:
   push:
     branches: [master, main]
@@ -17,15 +15,15 @@ on:
   workflow_dispatch:
     inputs:
       skip_build:
-        description: "Skip image build (deploy existing :latest — config-only changes)"
+        description: "Skip image build (deploy existing :latest)"
         type: boolean
         default: false
 
 env:
   REGISTRY: ghcr.io/${{ github.repository_owner }}
 
+# ── Detect which services changed ────────────────────────────────────────────
 jobs:
-  # ── Detect which services changed ───────────────────────────────────────────
   changes:
     name: Detect changed services
     runs-on: ubuntu-latest
@@ -51,72 +49,105 @@ jobs:
             reader:
               - 'Reader/**'
 
-  # ── Build: only the services whose files changed ─────────────────────────────
-  build:
-    name: Build & push ${{ matrix.service }}
+# ── Per-service builds (only when files changed) ─────────────────────────────
+  build-reader:
+    name: Build reader
     needs: changes
+    if: ${{ needs.changes.outputs.reader == 'true' && !inputs.skip_build }}
     runs-on: ubuntu-latest
-    if: |
-      !inputs.skip_build && (
-        (matrix.service == 'messor'     && needs.changes.outputs.messor     == 'true') ||
-        (matrix.service == 'backoffice' && needs.changes.outputs.backoffice == 'true') ||
-        (matrix.service == 'curator'    && needs.changes.outputs.curator    == 'true') ||
-        (matrix.service == 'reader'     && needs.changes.outputs.reader     == 'true')
-      )
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service:    reader
-            context:    Reader/apps/web
-            dockerfile: Reader/apps/web/Dockerfile
-
-          - service:    backoffice
-            context:    Messor/apps/platform
-            dockerfile: Messor/apps/platform/Dockerfile
-
-          - service:    curator
-            context:    Curator
-            dockerfile: Curator/apps/curator/Dockerfile
-
-          - service:    messor
-            context:    Messor
-            dockerfile: Messor/docker/Dockerfile   # fixed: was Messor/infra/docker/scraper.Dockerfile
-
+    permissions: { contents: read, packages: write }
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
       - uses: docker/setup-buildx-action@v3
-
-      - name: Build & push ${{ matrix.service }}
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
-          context:    ${{ matrix.context }}
-          file:       ${{ matrix.dockerfile }}
+          context:    Reader/apps/web
+          file:       Reader/apps/web/Dockerfile
           push:       true
           platforms:  linux/amd64
           tags: |
-            ${{ env.REGISTRY }}/inkbytes-${{ matrix.service }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/inkbytes-${{ matrix.service }}:latest
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-${{ matrix.service }}:latest
+            ${{ env.REGISTRY }}/inkbytes-reader:${{ github.sha }}
+            ${{ env.REGISTRY }}/inkbytes-reader:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-reader:latest
           cache-to:   type=inline
 
-  # ── Deploy: only pull and restart changed services ───────────────────────────
+  build-backoffice:
+    name: Build backoffice
+    needs: changes
+    if: ${{ needs.changes.outputs.backoffice == 'true' && !inputs.skip_build }}
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context:    Messor/apps/platform
+          file:       Messor/apps/platform/Dockerfile
+          push:       true
+          platforms:  linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/inkbytes-backoffice:${{ github.sha }}
+            ${{ env.REGISTRY }}/inkbytes-backoffice:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-backoffice:latest
+          cache-to:   type=inline
+
+  build-curator:
+    name: Build curator
+    needs: changes
+    if: ${{ needs.changes.outputs.curator == 'true' && !inputs.skip_build }}
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context:    Curator
+          file:       Curator/apps/curator/Dockerfile
+          push:       true
+          platforms:  linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/inkbytes-curator:${{ github.sha }}
+            ${{ env.REGISTRY }}/inkbytes-curator:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-curator:latest
+          cache-to:   type=inline
+
+  build-messor:
+    name: Build messor
+    needs: changes
+    if: ${{ needs.changes.outputs.messor == 'true' && !inputs.skip_build }}
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context:    Messor
+          file:       Messor/docker/Dockerfile
+          push:       true
+          platforms:  linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/inkbytes-messor:${{ github.sha }}
+            ${{ env.REGISTRY }}/inkbytes-messor:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/inkbytes-messor:latest
+          cache-to:   type=inline
+
+# ── Deploy: only pull/restart changed services ───────────────────────────────
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    needs: [changes, build]
-    # Run if build passed OR was fully skipped (no services changed / skip_build)
-    if: always() && needs.build.result != 'failure'
+    needs: [changes, build-reader, build-backoffice, build-curator, build-messor]
+    if: always() && !contains(needs.*.result, 'failure')
 
     steps:
       - name: Deploy via SSH
@@ -125,46 +156,40 @@ jobs:
           host:     ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key:      ${{ secrets.DEPLOY_KEY }}
-          port:     ${{ secrets.DEPLOY_PORT || 22 }}
-          envs:     CHANGED_MESSOR,CHANGED_BACKOFFICE,CHANGED_CURATOR,CHANGED_READER
+          port:     22
           script: |
             set -euo pipefail
-            cd /docker/inkbytes          # fixed: was /opt/inkbytes
+            cd /docker/inkbytes
             git pull origin master
 
-            DEPLOY_ROOT=/docker/inkbytes
-            COMPOSE="$DEPLOY_ROOT/infra/docker-compose.prod.yml"
-            ENV_FILE="$DEPLOY_ROOT/infra/.env"
+            COMPOSE="infra/docker-compose.prod.yml"
+            ENV_FILE="infra/.env"
 
-            # Login to GHCR if token is available
             if [ -n "${GHCR_TOKEN:-}" ]; then
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-pragmatalabs}" --password-stdin 2>/dev/null || true
             fi
 
-            # Pull and restart ONLY the services whose images were rebuilt.
-            # docker compose up -d (without --force-recreate) only recreates a
-            # container when its image digest changed — safe to always run.
+            CHANGED_READER="${{ needs.changes.outputs.reader }}"
+            CHANGED_BACKOFFICE="${{ needs.changes.outputs.backoffice }}"
+            CHANGED_CURATOR="${{ needs.changes.outputs.curator }}"
+            CHANGED_MESSOR="${{ needs.changes.outputs.messor }}"
+
             SERVICES=""
-            [ "$CHANGED_MESSOR"     = "true" ] && SERVICES="$SERVICES inkbytes-messor"
+            [ "$CHANGED_READER"     = "true" ] && SERVICES="$SERVICES inkbytes-reader"
             [ "$CHANGED_BACKOFFICE" = "true" ] && SERVICES="$SERVICES inkbytes-backoffice"
             [ "$CHANGED_CURATOR"    = "true" ] && SERVICES="$SERVICES inkbytes-curator-api inkbytes-curator-worker"
-            [ "$CHANGED_READER"     = "true" ] && SERVICES="$SERVICES inkbytes-reader"
+            [ "$CHANGED_MESSOR"     = "true" ] && SERVICES="$SERVICES inkbytes-messor"
 
             if [ -n "$SERVICES" ]; then
-              echo "[deploy] Pulling updated images for:$SERVICES"
+              echo "[deploy] Pulling:$SERVICES"
               for svc in $SERVICES; do
-                docker compose -f "$COMPOSE" --env-file "$ENV_FILE" pull "$svc" || true
+                docker compose -f "$COMPOSE" --env-file "$ENV_FILE" pull "$svc" 2>/dev/null || true
               done
               echo "[deploy] Restarting:$SERVICES"
               docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d $SERVICES
+              echo "[deploy] Done —$SERVICES restarted"
             else
-              echo "[deploy] No service images changed — skipping restart."
+              echo "[deploy] No service images changed — skipping container restarts."
             fi
 
             docker image prune -f
-            echo "✓ Deploy complete"
-        env:
-          CHANGED_MESSOR:     ${{ needs.changes.outputs.messor }}
-          CHANGED_BACKOFFICE: ${{ needs.changes.outputs.backoffice }}
-          CHANGED_CURATOR:    ${{ needs.changes.outputs.curator }}
-          CHANGED_READER:     ${{ needs.changes.outputs.reader }}
