@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
 import type { EvidenceItem, EntityItem, RelatedEvent } from "@/lib/types";
+import ShareButton from "./share-button";
 
 export const revalidate = 300;
 
@@ -109,13 +110,16 @@ export default async function EventPage(
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-      {/* Back */}
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] mb-8 transition-colors"
-      >
-        ← All events
-      </Link>
+      {/* Back + Share action bar */}
+      <div className="flex items-center justify-between mb-8">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+        >
+          ← All events
+        </Link>
+        <ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />
+      </div>
 
       {/* Hero cover image — rendered only when Messor extracted an og:image */}
       {page.lead_image && (

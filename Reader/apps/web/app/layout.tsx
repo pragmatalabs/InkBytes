@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
+import BottomNav from "./bottom-nav";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,6 +11,15 @@ const inter = Inter({
 });
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://inkbytes.app";
+
+// viewport-fit=cover lets the content reach the edges of the screen on iPhones
+// with notch/home indicator — critical for the bottom nav safe-area treatment.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1a1a2e",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -27,6 +37,13 @@ export const metadata: Metadata = {
     site: "@inkbytes",
   },
   robots: { index: true, follow: true },
+  // iOS PWA — makes "Add to Home Screen" work as a proper full-screen app
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "InkBytes",
+  },
+  applicationName: "InkBytes",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -60,9 +77,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
 
-        <main className="flex-1">{children}</main>
+        {/*
+          On mobile the bottom nav (58px) + iOS safe-area-inset-bottom sits at
+          the base of the viewport. We push the main content up by that same
+          amount so the last line of text is never hidden under the nav bar.
+          The bottom-nav-spacer class (defined in globals.css) is md:hidden so
+          on desktop nothing extra is added.
+        */}
+        <main className="flex-1">
+          {children}
+          {/* Mobile-only spacer — height matches the bottom nav + safe area */}
+          <div className="bottom-nav-spacer md:hidden" aria-hidden="true" />
+        </main>
 
-        <footer className="border-t border-[var(--border)] py-6 text-center text-xs text-[var(--ink-muted)]">
+        {/* Bottom nav — only visible on mobile (md:hidden inside component) */}
+        <BottomNav />
+
+        <footer className="hidden md:block border-t border-[var(--border)] py-6 text-center text-xs text-[var(--ink-muted)]">
           InkBytes · paid, ad-free · one page per event
         </footer>
       </body>

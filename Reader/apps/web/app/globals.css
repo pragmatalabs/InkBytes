@@ -57,3 +57,11 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .developing-dot::after { animation: none; }
 }
+
+/* ── PWA bottom nav spacer ───────────────────────────────────────────────────
+   Placed at the end of <main> so the last piece of content is never hidden
+   under the fixed bottom nav (58px) + iOS home indicator safe area.
+   The md:hidden class removes it on desktop. */
+.bottom-nav-spacer {
+  height: calc(58px + env(safe-area-inset-bottom, 0px));
+}
