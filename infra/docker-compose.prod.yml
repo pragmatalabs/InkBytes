@@ -14,9 +14,9 @@
 #   RabbitMQ mgmt  :15683 → :15672
 #
 # Memory limits prevent OOM crashes on shared host.
-# Total reserved: ~9 GB — leaves ~6 GB for OS, Ollama (bge-m3 ~1.6 GB cap 3 GB), other projects.
+# Total reserved: ~9.5 GB — leaves ~5.5 GB for OS, Ollama (bge-m3 ~1.6 GB cap 3 GB), other projects.
 # Ollama mem_limit set to 3g in /docker/galvanic/docker-compose.yml (was 10g; bge-m3 peaks at 1.6 GB).
-# RabbitMQ: 512m cap added 2026-06-07 — was uncapped (MemLimit=0), consumed 3834% CPU under backlog.
+# RabbitMQ: 1g/1.5CPU cap added 2026-06-07 — was uncapped (MemLimit=0); 512m OOM'd during queue recovery.
 
 name: inkbytes
 
@@ -158,7 +158,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
-      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://host.docker.internal:11434/v1}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
       S3_ENDPOINT: http://inkbytes-minio:9000
       S3_KEY: ${MINIO_KEY}
@@ -198,7 +198,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
-      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://host.docker.internal:11434/v1}
+      EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
       S3_ENDPOINT: http://inkbytes-minio:9000
       S3_KEY: ${MINIO_KEY}
@@ -236,8 +236,8 @@ services:
     volumes:
       - inkbytes-rabbitmq-data:/var/lib/rabbitmq
 
-    mem_limit: 512m
-    cpus: 1.0
+    mem_limit: 1g
+    cpus: 1.5
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
@@ -290,5 +290,5 @@ services:
       "
 
   # Ollama: uses host's existing Ollama instance (bge-m3 pulled separately).
-  # Curator containers reach it at http://host.docker.internal:11434/v1
+  # Curator containers reach it at http://ollama:11434/v1
   # To pull bge-m3:  docker exec ollama ollama pull bge-m3
