@@ -16,6 +16,7 @@ from services.llm_service import LlmService, LlmQuotaError
 from services.message_service import MessageService
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
+from skills.illustrate import IllustrateSkill
 from skills.synthesize import SynthesizeSkill
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class Application:
         self.enrich = EnrichSkill(self.llm, cfg.llm)
         self.cluster = ClusterSkill(self.db, cfg.clustering)
         self.synthesize = SynthesizeSkill(self.llm, self.db, cfg.llm)
+        self.illustrate = IllustrateSkill(self.db)
         # Concurrency gate
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
         # Per-event synthesis locks: if synthesis is already in-flight for an
@@ -452,7 +454,7 @@ class Application:
         return [dict(r) for r in rows]
 
     # ─────────────────────────────────────────── pipeline ───────────
-    async def _synthesize_once(self, event_id: str, source_count: int) -> None:
+    async def _synthesize_once(self, event_id: str, source_count: int) -> "PageV1 | None":
         """Run synthesis for `event_id`, gated on two conditions:
 
         1. **New source gate** — synthesis only runs when `source_count` exceeds
@@ -466,23 +468,29 @@ class Application:
 
         `source_count` is the live distinct-outlet count from the cluster result.
         Pass 0 to bypass the source-count gate (used by Moderation re-synthesize).
+
+        Returns the PageV1 that was written (or None if skipped / already running).
+        IllustrateSkill uses the headline to build a targeted search query.
         """
+        from contracts.page_v1 import PageV1
+
         last = self._last_synth_source_count.get(event_id, 0)
         if source_count > 0 and source_count <= last:
             logger.debug(
                 "SYNTHESIZE %s skipped — source_count=%d unchanged since last synth (last=%d)",
                 event_id, source_count, last,
             )
-            return
+            return None
 
         if event_id not in self._synth_locks:
             self._synth_locks[event_id] = asyncio.Lock()
         lock = self._synth_locks[event_id]
         if lock.locked():
             logger.debug("SYNTHESIZE %s skipped — already in-flight", event_id)
-            return
+            return None
+        page: PageV1 | None = None
         async with lock:
-            await self.synthesize.run(event_id)
+            page = await self.synthesize.run(event_id)
             self._last_synth_source_count[event_id] = source_count
         # Prune the lock entry — synthesis just completed and no one else can
         # be waiting (callers skip when lock.locked(), and asyncio is
@@ -490,6 +498,18 @@ class Application:
         # waiter can sneak in).  Keeps _synth_locks bounded (ADR-0006 §D6).
         if not lock.locked():
             self._synth_locks.pop(event_id, None)
+        return page
+
+    async def _illustrate_safe(self, event_id: str, headline: str) -> None:
+        """Fire-and-forget wrapper: run IllustrateSkill without blocking the pipeline.
+
+        Errors are caught and logged — a failed illustration never fails the
+        event.  Runs as a background asyncio.Task spawned after synthesis.
+        """
+        try:
+            await self.illustrate.run(event_id, headline)
+        except Exception:
+            logger.exception("ILLUSTRATE %s failed (non-fatal)", event_id)
 
     async def _handle_event(self, payload: dict[str, Any]) -> None:
         async with self._sem:
@@ -538,7 +558,16 @@ class Application:
             # 3. SYNTHESIZE — only when the event has enough distinct sources
             # and only when source_count has grown since the last synthesis.
             if cluster_result.source_count >= self.cfg.clustering.min_sources_to_publish:
-                await self._synthesize_once(cluster_result.event_id, cluster_result.source_count)
+                page = await self._synthesize_once(
+                    cluster_result.event_id, cluster_result.source_count
+                )
+                # 4. ILLUSTRATE — fire-and-forget background task; never blocks
+                # the pipeline or the RabbitMQ ACK.  Skipped when synthesis
+                # was a no-op (page is None → skipped / already in-flight).
+                if page is not None:
+                    asyncio.create_task(
+                        self._illustrate_safe(cluster_result.event_id, page.headline)
+                    )
             else:
                 logger.info(
                     "Hold synthesize: event %s has %d/%d sources",
@@ -659,7 +688,13 @@ class Application:
 
         # 5. SYNTHESIZE if cluster has enough sources and a new source joined.
         if cluster_result.source_count >= self.cfg.clustering.min_sources_to_publish:
-            await self._synthesize_once(cluster_result.event_id, cluster_result.source_count)
+            page = await self._synthesize_once(
+                cluster_result.event_id, cluster_result.source_count
+            )
+            if page is not None:
+                asyncio.create_task(
+                    self._illustrate_safe(cluster_result.event_id, page.headline)
+                )
 
         logger.info("reenriched %s (%s)", article.id, article.outlet.name)
 

@@ -94,6 +94,13 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'articles' "
                 "AND column_name = 'lead_image')"
             ),
+            # 009 adds pages.media_rail JSONB (IllustrateSkill Phase 2).
+            "009_pages_media_rail.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'pages' "
+                "AND column_name = 'media_rail')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -456,6 +463,20 @@ class DatabaseService:
                         event_id,
                     )
         return event_id is not None
+
+    async def write_media_rail(self, event_id: str, items: list[dict[str, Any]]) -> None:
+        """Persist IllustrateSkill results to pages.media_rail (migration 009).
+
+        Overwrites any existing rail for the event.  Writing an empty list []
+        is valid — it clears a stale rail after a re-synthesis.
+        No-op if the page row doesn't exist yet (synthesis not yet complete).
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE pages SET media_rail = $2::jsonb WHERE id = $1",
+                event_id,
+                json.dumps(items),
+            )
 
     async def get_outlets_with_stats(self) -> list[dict[str, Any]]:
         """Return all outlets joined with live article/event stats from the DB."""
