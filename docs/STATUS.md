@@ -135,8 +135,10 @@ make shell-curator    # bash in curator-api container
 
 9. **Reader R4** — global perf/SEO pass. Lighthouse score, sitemap.xml.
 10. **Language filter on feed** — Spanish content stays in Spanish; Reader shows language badge.
-11. **Media Tier 1** ✅ implemented 2026-06-07 — Messor passively extracts `og:image`/`top_image` and YouTube embeds; stored in `articles.lead_image`/`video_url`; rolled up to event level in API; Reader LeadCard, SecondaryCard, and event detail hero show cover image (ADR-0010).
+11. **Media Tier 1** ✅ 2026-06-07 — Messor passively extracts `og:image`/`top_image` and YouTube embeds; stored in `articles.lead_image`/`video_url`; rolled up to event level in API; Reader LeadCard, SecondaryCard, and event detail hero show cover image (ADR-0010).
 12. **Media Tier 2** — `IllustrateSkill` (Curator Skill 4): active YouTube + Bing Images search via Scrapling for events with no `lead_image`; stores results in `pages.media_rail JSONB`.
+13. **PWA + bottom nav + share** ✅ 2026-06-07 — Web App Manifest, bottom nav (News/Search/Entities/About), Web Share API share button on event pages (ADR-R-0001). TODO: generate 192/512px PNG icons for Android install banner.
+14. **PNG app icons** — generate `/public/icon-192.png` and `/public/icon-512.png` from `icon.svg` for full Android PWA install prompt (`inkscape --export-type=png --export-width=192`).
 
 ### P3 — Infrastructure
 

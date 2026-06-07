@@ -7,6 +7,67 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-06-07 — Next.js 16: `viewport` is a separate export from `metadata`
+
+`themeColor`, `viewportFit`, `colorScheme` etc. were moved out of `Metadata`
+into a `Viewport` export in Next.js 15+. If you put them in `metadata` they
+are silently ignored. The correct pattern:
+
+```typescript
+import type { Metadata, Viewport } from "next";
+export const viewport: Viewport = { themeColor: "#1a1a2e", viewportFit: "cover" };
+export const metadata: Metadata = { /* no themeColor here */ };
+```
+
+Lesson: always check for `Viewport` type import when setting anything
+viewport-related in layout.tsx. The TypeScript type for `Metadata` no longer
+accepts `themeColor`, so it's caught at build time — don't silence those errors.
+
+---
+
+## 2026-06-07 — `env(safe-area-inset-bottom)` silently returns 0 without `viewport-fit=cover`
+
+The CSS `env(safe-area-inset-bottom)` inset for the iPhone home indicator is
+only non-zero when the viewport is configured with `viewport-fit=cover`. Without
+it the value is always 0 and the bottom nav sits on top of the home indicator.
+
+Must pair two things:
+1. `viewport: { viewportFit: "cover" }` in Next.js layout
+2. `style={{ paddingBottom: "env(safe-area-inset-bottom)" }}` on the nav element
+
+---
+
+## 2026-06-07 — Pydantic v2 `model_dump()` returns `datetime` objects, not strings
+
+asyncpg encodes query parameters against the Postgres column type *before* any
+SQL cast runs. A bare ISO string like `"2026-06-07T12:00:00"` raises
+`asyncpg.exceptions.DataError: invalid input for query argument $N: ... (expected datetime, got str)`
+for `TIMESTAMPTZ` columns.
+
+When calling `upsert_article_raw(article.model_dump(), ...)` from a pydantic v2
+model, `model_dump()` returns `datetime.datetime` objects for `datetime` fields
+— which asyncpg handles correctly. The problem only arises if you manually
+construct the dict from raw strings (e.g. in tests). Always use
+`ArticleV1(...).model_dump()`, never hand-build the dict.
+
+---
+
+## 2026-06-07 — newspaper3k: prefer `og:image` over `top_image` for quality
+
+`article.top_image` uses newspaper3k's heuristic (largest `<img>` near the
+article body). `article.meta_data.get("og", {}).get("image")` is the explicit
+`og:image` tag set by the publisher — almost always better quality (correct
+aspect ratio, CDN-hosted, editor-chosen). Always prefer `og:image` when present:
+
+```python
+lead_image = article.top_image or None
+og = (article.meta_data or {}).get("og", {}).get("image")
+if og and isinstance(og, str) and og.startswith("http"):
+    lead_image = og  # override with the explicit publisher image
+```
+
+---
+
 ## 2026-06-07 — Ollama embedding saturation → Curator dead-loop
 
 **Symptom:** Curator worker processed the same 4 articles every 30 minutes
