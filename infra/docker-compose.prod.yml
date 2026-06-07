@@ -122,6 +122,7 @@ services:
       # Wait this many minutes before the first scrape cycle after (re)start.
       # Prevents back-to-back sweeps during crash-restart loops.
       MESSOR_STARTUP_DELAY_MINUTES: "5"
+      MESSOR_SCHEDULE_INTERVAL_MINUTES: "360"   # 4×/day; manual trigger via Backoffice anytime
       # DigitalOcean Spaces for article archival (S3-compatible)
       DO_SPACES_KEY: ${DO_SPACES_KEY}
       DO_SPACES_SECRET: ${DO_SPACES_SECRET}

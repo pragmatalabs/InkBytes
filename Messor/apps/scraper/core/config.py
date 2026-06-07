@@ -33,15 +33,24 @@ class Config:
         return self._config.scraping
     
     def get_schedule_interval_minutes(self):
-        """Get the schedule interval in minutes, default to 60 if not configured."""
+        """Get the schedule interval in minutes.
+
+        Priority: MESSOR_SCHEDULE_INTERVAL_MINUTES env var → env.yaml → 360 (4×/day).
+        """
+        import os
+        env_val = os.environ.get("MESSOR_SCHEDULE_INTERVAL_MINUTES")
+        if env_val is not None:
+            try:
+                return max(1, int(env_val))
+            except (ValueError, TypeError):
+                pass
         try:
             interval = getattr(self._config.scraping, 'schedule_interval_minutes', 360)
-            # Convert to int if it's a ConfigNode or string
             if hasattr(interval, 'value'):
                 return int(interval.value)
             return int(interval)
         except (AttributeError, ValueError, TypeError):
-            return 60
+            return 360
 
     def get_startup_delay_minutes(self) -> int:
         """Minutes to wait before the FIRST scraping cycle on startup.
