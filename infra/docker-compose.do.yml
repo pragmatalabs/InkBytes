@@ -14,9 +14,19 @@ services:
 
   inkbytes-curator-worker:
     mem_limit: 768m
+    environment:
+      # On DO, Ollama runs as infra-ollama (infra-shared network).
+      # infra-ollama is connected to inkbytes-internal at deploy time (see deploy.sh).
+      EMBEDDINGS_PROVIDER: ollama
+      EMBEDDINGS_BASE_URL: "http://infra-ollama:11434/v1"
+      EMBEDDINGS_MODEL: bge-m3
 
   inkbytes-curator-api:
     mem_limit: 384m
+    environment:
+      EMBEDDINGS_PROVIDER: ollama
+      EMBEDDINGS_BASE_URL: "http://infra-ollama:11434/v1"
+      EMBEDDINGS_MODEL: bge-m3
 
   inkbytes-reader:
     mem_limit: 384m

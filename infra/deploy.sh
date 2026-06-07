@@ -41,6 +41,20 @@ docker network inspect traefik-public &>/dev/null || {
     docker network create traefik-public
 }
 
+# ── 1b. On DigitalOcean: connect infra-ollama to inkbytes-internal ─────────────
+# infra-ollama lives in the infra-shared network; Curator needs to reach it
+# for embeddings (bge-m3). This is idempotent — already-connected is not an error.
+if [ "$PROFILE" = "do" ]; then
+    NETWORK="inkbytes_inkbytes-internal"
+    if docker inspect infra-ollama &>/dev/null; then
+        docker network connect "$NETWORK" infra-ollama 2>/dev/null && \
+            echo "[deploy][do] infra-ollama connected to $NETWORK" || \
+            echo "[deploy][do] infra-ollama already in $NETWORK (ok)"
+    else
+        echo "[deploy][do] WARNING: infra-ollama not found — embeddings will fail"
+    fi
+fi
+
 # ── 2. Pull latest code ───────────────────────────────────────────────────────
 echo "[deploy] Pulling latest code..."
 cd "$REPO_ROOT"
