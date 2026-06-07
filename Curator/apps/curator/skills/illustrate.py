@@ -146,14 +146,14 @@ async def _fetch_bing_images(query: str) -> list[MediaItem]:
         + urllib.parse.urlencode({"q": query, "form": "HDRSC2", "first": "1"})
     )
     try:
-        page = await StealthyFetcher(headless=True).async_fetch(url)
+        page = await StealthyFetcher.async_fetch(url, headless=True)
     except Exception as exc:
         logger.warning("ILLUSTRATE: Bing fetch failed — %s", exc)
         return []
 
     items: list[MediaItem] = []
     try:
-        anchors = page.css("a.iusc") or []
+        anchors = list(page.css("a.iusc"))
         for a in anchors[:20]:
             raw = (a.attrib or {}).get("m", "")
             if not raw:
@@ -165,9 +165,13 @@ async def _fetch_bing_images(query: str) -> list[MediaItem]:
 
             img_url   = m.get("murl", "")
             thumb_url = m.get("turl", img_url)
-            title     = m.get("t",    "")
-            width     = int(m.get("imgw") or 0)
-            height    = int(m.get("imgh") or 0)
+            # Clean Bing title: strip trailing " - YouTube" / " | Reuters" suffixes
+            title = re.sub(r"\s*[-|]\s*(YouTube|Getty.*|Reuters.*|AP.*|BBC.*)$", "",
+                           m.get("t", ""), flags=re.IGNORECASE)
+            # Bing m-attr omits dimensions; we do get them from the img inside the anchor
+            img_el = a.find("img")
+            width  = int((img_el.attrib or {}).get("width",  0) if img_el else 0)
+            height = int((img_el.attrib or {}).get("height", 0) if img_el else 0)
             page_url  = m.get("purl", img_url)
 
             if not img_url:
@@ -216,7 +220,7 @@ async def _fetch_youtube_videos(query: str) -> list[MediaItem]:
         + urllib.parse.urlencode({"search_query": query})
     )
     try:
-        page = await DynamicFetcher(headless=True).async_fetch(url)
+        page = await DynamicFetcher.async_fetch(url, headless=True)
     except Exception as exc:
         logger.warning("ILLUSTRATE: YouTube fetch failed — %s", exc)
         return []
@@ -225,9 +229,18 @@ async def _fetch_youtube_videos(query: str) -> list[MediaItem]:
     seen_ids: set[str] = set()
 
     try:
-        # Watch links contain video IDs in their href.
-        links = page.css("a[href*='/watch?v=']") or []
-        for a in links[:30]:
+        # YouTube title links have id="video-title" or class containing
+        # "ytd-video-renderer"; the thumbnail anchor (id="thumbnail") has
+        # empty text.  Prefer id="video-title", fall back to any watch link
+        # with non-empty text content.
+        title_links = list(page.css("a#video-title"))
+        if not title_links:
+            title_links = [
+                a for a in page.css("a[href*='/watch?v=']")
+                if (a.text or "").strip()
+            ]
+
+        for a in title_links[:15]:
             href = (a.attrib or {}).get("href", "")
             m = re.search(r"/watch\?v=([A-Za-z0-9_-]{11})", href)
             if not m:
@@ -237,11 +250,10 @@ async def _fetch_youtube_videos(query: str) -> list[MediaItem]:
                 continue
             seen_ids.add(vid_id)
 
-            # Try to get the title from aria-label, title attr, or link text
             title = (
-                (a.attrib or {}).get("aria-label", "")
+                (a.text or "").strip()
                 or (a.attrib or {}).get("title", "")
-                or (a.text or "").strip()
+                or (a.attrib or {}).get("aria-label", "").removeprefix("Watch ")
             )[:200]
 
             item: MediaItem = {

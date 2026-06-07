@@ -93,6 +93,19 @@ export interface RelatedEvent {
   score: number;
 }
 
+/** One media item in the IllustrateSkill rail — image or video ranked by score. */
+export interface MediaRailItem {
+  url: string;
+  thumb_url: string | null;
+  type: "image" | "video";
+  title: string | null;
+  source_domain: string | null;
+  published_at: string | null;
+  width: number | null;
+  height: number | null;
+  score: number;
+}
+
 /** One article's contribution to the event timeline. */
 export interface TimelineEntry {
   outlet_name: string;
@@ -110,4 +123,6 @@ export interface EventPage extends EventSummary {
   schema_version: string;
   /** Story development timeline: articles ordered by published_at. */
   timeline: TimelineEntry[] | null;
+  /** IllustrateSkill media — images + videos ranked by score. Empty for pre-Phase-2 pages. */
+  media_rail?: MediaRailItem[];
 }

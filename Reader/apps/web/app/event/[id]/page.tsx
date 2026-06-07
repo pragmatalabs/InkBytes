@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
-import type { EvidenceItem, EntityItem, RelatedEvent } from "@/lib/types";
+import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem } from "@/lib/types";
 import ShareButton from "./share-button";
 
 export const revalidate = 300;
@@ -133,6 +133,72 @@ export default async function EventPage(
           />
         </div>
       )}
+
+      {/* Media rail — images strip + video chips from IllustrateSkill */}
+      {(() => {
+        const rail: MediaRailItem[] = page.media_rail ?? [];
+        const images = rail.filter((m) => m.type === "image");
+        const videos = rail.filter((m) => m.type === "video");
+        if (!images.length && !videos.length) return null;
+        return (
+          <div className="mb-8">
+            {images.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory scrollbar-hide">
+                {images.map((img, i) => (
+                  <a
+                    key={i}
+                    href={img.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-none snap-start rounded-lg overflow-hidden bg-gray-100 ring-1 ring-inset ring-black/5 hover:opacity-90 transition-opacity"
+                    style={{ width: 192, height: 128 }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.thumb_url ?? img.url}
+                      alt={img.title ?? ""}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
+            {videos.length > 0 && (
+              <div className={`flex flex-wrap gap-2 ${images.length ? "mt-3" : ""}`}>
+                {videos.map((vid, i) => (
+                  <a
+                    key={i}
+                    href={vid.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 hover:border-red-300 hover:shadow-sm transition-all group"
+                  >
+                    {vid.thumb_url && (
+                      <div className="relative flex-none w-12 h-8 rounded overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={vid.thumb_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/20 transition-colors">
+                          <svg className="w-3 h-3 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </div>
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-mono uppercase tracking-wide text-red-600 mb-0.5">Watch</div>
+                      {vid.title && (
+                        <div className="text-[12px] font-medium text-[var(--ink)] line-clamp-1 max-w-[160px]">{vid.title}</div>
+                      )}
+                      {vid.source_domain && (
+                        <div className="text-[10px] text-[var(--ink-muted)]">{vid.source_domain}</div>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Meta row */}
       <div className="flex flex-wrap items-center gap-2 mb-4 text-xs text-[var(--ink-muted)]">

@@ -22,7 +22,7 @@ Searches two sources concurrently after synthesis completes:
 | Source | Fetcher | Rationale |
 |--------|---------|-----------|
 | YouTube | `DynamicFetcher` (Playwright) | Search results are JS-rendered; `httpx` gets an empty SPA shell |
-| Bing Images | `StealthyFetcher` (Camoufox) | Bot-detection blocks plain requests; Camoufox spoofs a real browser fingerprint |
+| Bing Images | `StealthyFetcher` (Patchright) | Bot-detection blocks plain requests; Patchright (stealth Chromium fork) spoofs a real browser fingerprint |
 
 ### Scoring function (0–1)
 
@@ -87,12 +87,12 @@ multi-agent framework for a single-step scrape + score operation.
 
 ## Consequences
 
-- Docker image grows by ~300–400 MB (Chromium + Camoufox binaries).
+- Docker image grows by ~300–400 MB (Chromium + Patchright binaries).
 - Each IllustrateSkill call adds 5–30 s of background work (never on
   the critical path — fire-and-forget).
 - Events synthesized before this migration deploy will have `media_rail = []`
   until re-synthesized (or a future backfill script runs).
-- `scrapling[fetchers]>=0.2.9` added to `requirements.txt`.
+- `scrapling[fetchers]>=0.2.9` added to `requirements.txt` (`[fetchers]` pulls Playwright + Patchright; browser binaries installed via `playwright install chromium` + `patchright install chromium` in the Dockerfile).
 - Migration 009 runs on next Curator startup.
 
 ## Open items

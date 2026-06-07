@@ -18,8 +18,8 @@ pydantic>=2.7.0,<3
 pydantic-settings>=2.5.0
 
 # --- Phase 2: Scrapling media fetcher (IllustrateSkill) ---
-# [fetchers] extra pulls in Playwright (DynamicFetcher) + Camoufox (StealthyFetcher).
-# Browser binaries are downloaded in the Dockerfile after pip install.
+# [fetchers] extra pulls in Playwright (DynamicFetcher) + Patchright (StealthyFetcher).
+# Browser binaries: `playwright install chromium && patchright install chromium` in Dockerfile.
 scrapling[fetchers]>=0.2.9
 
 # --- Utilities ---
