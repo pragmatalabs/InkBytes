@@ -239,9 +239,79 @@ Changed to `mem_limit` + `cpus` (standalone Docker Compose syntax). Applies corr
 See `docs/STATUS.md` for the full list. Key ones:
 
 1. **`inkbytes.news` DNS** — add `A inkbytes.news → 82.112.250.139` and `A admin.inkbytes.news → 82.112.250.139` when ready, update `/docker/inkbytes/infra/.env` and Traefik config
-2. **GitHub Secrets for CI/CD** — set `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`, `GITHUB_TOKEN` for auto-deploy on push to master
+2. ~~**GitHub Secrets for CI/CD**~~ — ✅ DONE 2026-06-07: secrets set, path-filtered pipeline working
 3. **Ollama post-reboot reconnect** — automate `docker network connect inkbytes_inkbytes-internal ollama` on reboot
 4. **GHCR packages visibility** — set `ghcr.io/pragmatalabs/inkbytes-*` packages to public (or add `GHCR_TOKEN` to server `.env` for private pull)
 5. **Phase 3 / Stripe** — subscriber gating blocked on pricing decisions
-6. **`public.scrape_sessions`** — Messor threading bug prevents session events reaching Curator; Run History (B4) works via Messor API fallback
+6. **`public.scrape_sessions`** — per-outlet sessions now emitted immediately (ADR-0009); full threading fix deferred
 7. **Approach B entity embeddings** — event-level pgvector embeddings for better related-events similarity (corpus >1000 events)
+
+---
+
+## 2026-06-07 — Stability sprint: Messor, CI/CD, Reader
+
+### Messor fixes shipped
+
+| Fix | Before | After |
+|---|---|---|
+| `mem_limit` | 1.5g → 3g → **6g** | Survives BBC + large outlet concurrent scraping |
+| `max_threads` | 10 | **4** (outlet-level); article-level fixed at 2 |
+| Startup delay | None | **5 min** (MESSOR_STARTUP_DELAY_MINUTES=5) |
+| Per-outlet timeout | None | **5 min** (future.result(timeout=300)) |
+| Article cap | Unlimited | **200 per outlet** (top-N from homepage order) |
+| Outlet shuffle | Alphabetical | **random.shuffle()** each cycle |
+| Schedule | Every 60 min | **Every 360 min (4×/day)** |
+| Exception handling | ValueError only | **All exceptions** caught + logged |
+| request_timeout | None | **30s** per HTTP request |
+| MAX_REDIRECTS | 30 (default) | **10** |
+| Per-outlet session | One combined at end | **Immediate per outlet** (ADR-0009) |
+
+### Outlets disabled (active=false in DB)
+
+BBC (geo-blocked), Al Jazeera (rate-limited), Bloomberg/WSJ/Reuters/TheEconomist
+(hard paywall), FT/Wired (soft paywall), FoxBusiness/Polifact/AnimaliPolitico/ElDinerodr
+(broken parsers). **22 of 34 outlets remain active.**
+
+### Scrape results display fixed
+
+`ScrapeResultsController.php` now shows **parse success %** = `saved / (total - duplicates)`
+instead of `saved / total` which was misleading (counted duplicates as failures).
+
+### CI/CD pipeline fixed and working
+
+- Wrong Dockerfile path (`Messor/infra/docker/scraper.Dockerfile` → `Messor/docker/Dockerfile`)
+- Wrong deploy path (`/opt/inkbytes` → `/docker/inkbytes`)
+- `dorny/paths-filter` detects changed services; only changed services rebuild
+- Separate jobs per service (`build-reader`, `build-curator`, etc.)
+- Secrets set: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`
+- **Reader change no longer restarts Messor or Curator**
+
+### Reader fixes
+
+- **Hydration error #418**: `suppressHydrationWarning` on time-display spans; `today`
+  moved to `useEffect` in feed-client.tsx
+- **Feed sort**: now purely `freshness_at DESC` with source_count as 1-second tiebreaker.
+  Newest articles always lead; old multi-source events no longer pin the top.
+
+### Curator additions
+
+- `--synthesize-pending` CLI mode: backfills events with ≥2 sources but no page (ADR-0007)
+
+### Runbook: hung Messor
+
+```bash
+# Symptoms: CPU > 200% for > 10 min, cycle not completing
+docker kill inkbytes-messor
+cd /docker/inkbytes
+docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d inkbytes-messor
+# Wait 5 min for startup delay, then check logs
+make logs-messor
+
+# If RabbitMQ unhealthy (ack timeout):
+docker restart inkbytes-rabbitmq inkbytes-curator-worker
+
+# If zombie containers after Docker daemon restart:
+docker stop f043c93c9061_inkbytes-postgres 2>/dev/null || true
+docker rm   f043c93c9061_inkbytes-postgres 2>/dev/null || true
+docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d --force-recreate
+```
