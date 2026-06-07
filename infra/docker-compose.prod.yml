@@ -246,10 +246,13 @@ services:
       # Management UI — 127.0.0.1 ONLY; access via SSH tunnel: ssh -L 15683:localhost:15683 root@pragmata-001
       - "127.0.0.1:15683:15672"
     healthcheck:
+      # rabbitmq-diagnostics ping can be slow on resource-constrained VPS;
+      # increase timeout + start_period to avoid false unhealthy on restart.
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 30s
       retries: 10
+      start_period: 60s
 
   # ── STATEFUL: MinIO (S3-compatible object store) ─────────────────────────────
   inkbytes-minio:
