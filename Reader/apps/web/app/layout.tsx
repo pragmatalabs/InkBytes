@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
 import BottomNav from "./bottom-nav";
+import { LogoMark } from "@/components/logo";
 import "./globals.css";
 
 const inter = Inter({
@@ -54,9 +55,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="max-w-4xl mx-auto px-4 h-13 flex items-center justify-between gap-4">
             <Link
               href="/"
-              className="text-white font-bold tracking-tight text-lg shrink-0 flex items-center gap-0.5"
+              className="flex items-center gap-2.5 shrink-0 hover:opacity-90 transition-opacity"
+              aria-label="InkBytes — home"
             >
-              InkBytes<span className="text-[var(--accent-dot)]">.</span>
+              <LogoMark className="h-6 w-auto text-white" />
+              <span className="text-white font-bold tracking-tight text-lg leading-none">
+                InkBytes<span className="text-[var(--accent-dot)]">.</span>
+              </span>
             </Link>
 
             <Link
