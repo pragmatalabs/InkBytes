@@ -29,46 +29,6 @@ function nodeRadius(n: GraphNode, deg: number): number {
   return 6 + Math.sqrt(n.event_count) * 4 + Math.min(deg, 8) * 0.45;
 }
 
-// ── Mobile entity list ───────────────────────────────────────────────────────
-
-function MobileList({ nodes, onSelect }: {
-  nodes: GraphNode[];
-  onSelect: (n: GraphNode) => void;
-}) {
-  return (
-    <div className="px-4 pb-10">
-      {TYPE_ORDER.map((type) => {
-        const group = nodes.filter((n) => n.type === type).sort((a, b) => b.event_count - a.event_count);
-        if (group.length === 0) return null;
-        const { label, color } = TYPE_META[type];
-        return (
-          <div key={type} className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-                {label}
-              </span>
-              <span className="text-[11px] text-[var(--ink-muted)]">({group.length})</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {group.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => onSelect(n)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-white text-sm font-medium hover:border-gray-300 hover:shadow-sm transition-all"
-                >
-                  <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-                  {n.label}
-                  <span className="text-[11px] font-mono text-[var(--ink-muted)]">{n.event_count}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Entity side panel ────────────────────────────────────────────────────────
 
@@ -445,22 +405,20 @@ export default function GraphClient({ data }: { data: GraphData }) {
         })}
       </div>
 
-      {/* Desktop: force graph + side panel */}
-      <div className="hidden md:grid gap-4" style={{ gridTemplateColumns: "1fr 320px" }}>
+      {/* Force graph + side panel — stacked on mobile, side-by-side on md+ */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_320px]">
         {/* SVG stage */}
         <div
-          className="relative rounded-xl border border-[var(--border)] overflow-hidden"
+          className="relative rounded-xl border border-[var(--border)] overflow-hidden h-[min(55vh,440px)] md:h-[min(72vh,700px)]"
           style={{
             background: "radial-gradient(circle at 1px 1px, rgba(20,22,28,.05) 1px, transparent 0) 0 0 / 26px 26px, var(--bg)",
-            height: "min(72vh, 700px)",
-            minHeight: 440,
           }}
         >
           <svg
             ref={stageRef}
             viewBox={`0 0 ${dims.w} ${dims.h}`}
             className="block w-full h-full"
-            style={{ cursor: dragRef.current ? "grabbing" : "grab" }}
+            style={{ cursor: dragRef.current ? "grabbing" : "grab", touchAction: "none" }}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerLeave={onPointerUp}
@@ -528,12 +486,12 @@ export default function GraphClient({ data }: { data: GraphData }) {
             </g>
           </svg>
           <p className="absolute left-3 bottom-2.5 text-[10px] font-mono text-[var(--ink-muted)] pointer-events-none">
-            drag to rearrange · click a node to focus
+            drag to rearrange · tap a node to focus
           </p>
         </div>
 
-        {/* Side panel */}
-        <div className="rounded-xl border border-[var(--border)] bg-white overflow-y-auto" style={{ maxHeight: "min(72vh, 700px)" }}>
+        {/* Side / bottom panel — scrolls independently on desktop, flows naturally on mobile */}
+        <div className="rounded-xl border border-[var(--border)] bg-white overflow-y-auto md:max-h-[min(72vh,700px)]">
           <EntityPanel
             node={selNode}
             deg={selDeg}
@@ -543,24 +501,6 @@ export default function GraphClient({ data }: { data: GraphData }) {
             onClose={() => setSelected(null)}
           />
         </div>
-      </div>
-
-      {/* Mobile: entity list */}
-      <div className="md:hidden">
-        {selNode ? (
-          <div className="rounded-xl border border-[var(--border)] bg-white">
-            <EntityPanel
-              node={selNode}
-              deg={selDeg}
-              neighbors={selNeighbors}
-              nodeMap={nodeMap}
-              onSelect={(id) => setSelected(id)}
-              onClose={() => setSelected(null)}
-            />
-          </div>
-        ) : (
-          <MobileList nodes={nodes.filter((n) => !hidden.has(n.type))} onSelect={(n) => setSelected(n.id)} />
-        )}
       </div>
     </div>
   );
