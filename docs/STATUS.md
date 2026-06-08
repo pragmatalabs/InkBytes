@@ -1,7 +1,7 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-07*
-> *Pipeline proven end-to-end. 413 published pages. 22 active outlets. Continuous 4×/day cycle.*
+> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-08*
+> *Pipeline proven end-to-end. 413 published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
 
 ---
 
@@ -29,7 +29,7 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 | LLM — synthesize | DeepSeek `deepseek-reasoner` |
 | Embeddings | Ollama `bge-m3` (1024-dim) |
 | Cost projection | ~$5–10 / 1000 articles |
-| Scraping schedule | 4×/day (~360 min interval) |
+| Scraping schedule | 12×/day (~120 min interval) |
 
 ---
 
@@ -53,7 +53,7 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 | Container | Limit | Typical usage |
 |---|---|---|
 | `inkbytes-messor` | 6 GB | 2–3 GB mid-scrape, ~150 MB idle |
-| `inkbytes-curator-worker` | **1.5 GB** | ~200 MB idle / ~600 MB peak (IllustrateSkill — 2× Chromium, serialised via Semaphore(1)); `shm_size:'256m'` + `seccomp:unconfined` required to prevent Chromium SIGTRAP on Docker |
+| `inkbytes-curator-worker` | **1.5 GB** | ~200 MB idle / ~400 MB peak (IllustrateSkill — 1× Chromium for YouTube only, serialised via Semaphore(1); Bing image fetcher parked ADR-0014); `shm_size:'256m'` + `seccomp:unconfined` required to prevent Chromium SIGTRAP on Docker |
 | `inkbytes-reader` | 512 MB | ~65 MB |
 | `inkbytes-backoffice` | 512 MB | ~115 MB |
 | `inkbytes-curator-api` | 512 MB | ~110 MB |
@@ -136,7 +136,8 @@ make shell-curator    # bash in curator-api container
 9. **Reader R4** — global perf/SEO pass. Lighthouse score, sitemap.xml.
 10. **Language filter on feed** — Spanish content stays in Spanish; Reader shows language badge.
 11. **Media Tier 1** ✅ 2026-06-07 — Messor passively extracts `og:image`/`top_image` and YouTube embeds; stored in `articles.lead_image`/`video_url`; rolled up to event level in API; Reader LeadCard, SecondaryCard, and event detail hero show cover image (ADR-0010).
-12. **Media Tier 2** ✅ 2026-06-07 — `IllustrateSkill` output (`pages.media_rail`) surfaced end-to-end. Curator API exposes `media_rail`; `MediaRailItem` typed in Reader. Event page: collapsed drawer in the action bar (streaming icon + pulse rings alongside Share button) — expands to image strip + video chips on click. `MediaRailDrawer` client component owns toggle state (ADR-R-0003, ADR-R-0004).
+12. **Media Tier 2** ✅ 2026-06-07 — `IllustrateSkill` output (`pages.media_rail`) surfaced end-to-end. Curator API exposes `media_rail`; `MediaRailItem` typed in Reader. Event page: collapsed drawer in the action bar (streaming icon + pulse rings alongside Share button) — expands to **video chips only** on click. `MediaRailDrawer` client component owns toggle state (ADR-R-0003, ADR-R-0004).
+    - ✅ 2026-06-08 — **Media rail video-only** (ADR-0014 / ADR-R-0006): Bing image fetcher parked; `media_rail` stores YouTube videos only. Eliminates off-topic editorial/product photos. Existing image items silently skipped at render time — no migration needed.
 15. **Entities graph on mobile** ✅ 2026-06-07 — Force-directed SVG graph now renders on all screen sizes (was replaced by a pill list on mobile). Single responsive grid (`grid-cols-1 md:grid-cols-[1fr_320px]`); `touchAction:none` on SVG so finger-drag moves nodes without triggering page scroll (ADR-R-0004).
 13. **PWA + bottom nav + share** ✅ 2026-06-07 — Web App Manifest, bottom nav (News/Search/Entities/About), Web Share API share button on event pages (ADR-R-0001). TODO: generate 192/512px PNG icons for Android install banner.
 14. **Brand logo mark** ✅ 2026-06-07 — Real brand SVG (`InkBytes-Logo-White-cropped.svg`) wired into header (`<LogoMark>` component, `currentColor`) and favicon (`icon.svg` dark bg) replacing placeholder (ADR-R-0003).
