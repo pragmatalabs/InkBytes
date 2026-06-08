@@ -51,6 +51,7 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "entity_overlap_min":     ("clustering", "entity_overlap_min"),
     "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
     "recent_window_hours":    ("clustering", "recent_window_hours"),
+    "conclude_after_days":    ("clustering", "conclude_after_days"),
     # Embeddings (ADR-0004). provider/model/base_url are live-overlaid; the
     # EmbeddingService rebuilds its client on change (with a dim-probe guard).
     # `dimensions` is deliberately NOT here — it's a pgvector column width, a
@@ -129,6 +130,10 @@ class ClusterCfg(BaseModel):
     min_sources_to_publish: int = 2
     entity_overlap_min: int = 1
     recent_window_hours: int = 48
+    # Story arc archive (ADR-0013): events with no new article for this many days
+    # are marked 'concluded' and archived to story_arcs.  0 = disabled (default
+    # until first paying user validates the feature).
+    conclude_after_days: int = 0
 
 
 class DbCfg(BaseModel):

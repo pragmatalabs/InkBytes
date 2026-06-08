@@ -125,4 +125,10 @@ export interface EventPage extends EventSummary {
   timeline: TimelineEntry[] | null;
   /** IllustrateSkill media — images + videos ranked by score. Empty for pre-Phase-2 pages. */
   media_rail?: MediaRailItem[];
+  /**
+   * Event lifecycle status (ADR-0013).
+   * 'published' — active story, receiving new articles.
+   * 'concluded' — story has gone quiet; page remains visible with a badge.
+   */
+  status?: "published" | "concluded";
 }

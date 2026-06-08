@@ -53,6 +53,9 @@ class DatabaseService:
             "001_initial_schema.sql":   "articles",
             "002_outlets_table.sql":    "outlets",
             "004_scrape_sessions.sql":  "scrape_sessions",
+            # 010 creates story_arcs and extends the events status constraint.
+            # Both the ALTER and CREATE are idempotent, but skip on warm boots.
+            "010_story_arcs.sql":       "story_arcs",
         }
         # boolean SQL guard for each ALTER-style migration: TRUE → already applied
         ALTER_GUARDS: dict[str, str] = {
@@ -684,6 +687,85 @@ class DatabaseService:
                         """,
                         [(article_id, e["name"], e["type"], e.get("salience", 0.5)) for e in entities],
                     )
+
+
+    # ──────────────────────────────────────────────── story arcs (ADR-0013) ──
+
+    async def fetch_events_ready_to_conclude(
+        self, cutoff: "datetime",
+    ) -> list[dict[str, Any]]:
+        """Return published events whose last_updated_at is older than *cutoff*.
+
+        Only events that do not yet have a story_arcs row are returned so the
+        job is safely re-runnable (idempotent).
+        """
+        rows = await self.pool.fetch(  # type: ignore[union-attr]
+            """
+            SELECT e.id, e.topic, e.language, e.first_seen_at,
+                   e.last_updated_at, e.article_count, e.source_count
+              FROM events e
+             WHERE e.status = 'published'
+               AND e.last_updated_at < $1
+               AND NOT EXISTS (
+                   SELECT 1 FROM story_arcs sa WHERE sa.event_id = e.id
+               )
+             ORDER BY e.last_updated_at ASC
+            """,
+            cutoff,
+        )
+        return [dict(r) for r in rows]
+
+    async def get_event_articles_ordered(
+        self, event_id: str,
+    ) -> list[dict[str, Any]]:
+        """Return article IDs for *event_id* ordered by scraped_at ASC.
+
+        Used to build arc_article_ids — the ordered pointer list into
+        articles.embedding that forms the story's vector trajectory.
+        """
+        rows = await self.pool.fetch(  # type: ignore[union-attr]
+            """
+            SELECT id
+              FROM articles
+             WHERE event_id = $1
+             ORDER BY scraped_at ASC
+            """,
+            event_id,
+        )
+        return [dict(r) for r in rows]
+
+    async def create_story_arc(self, arc: dict[str, Any]) -> None:
+        """Insert a story_arcs row (ON CONFLICT DO NOTHING — idempotent)."""
+        await self.pool.execute(  # type: ignore[union-attr]
+            """
+            INSERT INTO story_arcs
+                (event_id, topic, language, first_seen_at, concluded_at,
+                 article_count, source_count, arc_article_ids)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (event_id) DO NOTHING
+            """,
+            arc["event_id"],
+            arc.get("topic"),
+            arc["language"],
+            arc["first_seen_at"],
+            arc["concluded_at"],
+            arc["article_count"],
+            arc["source_count"],
+            arc["arc_article_ids"],
+        )
+
+    async def conclude_event(self, event_id: str) -> None:
+        """Mark an event as 'concluded' (terminal state — no further transitions)."""
+        await self.pool.execute(  # type: ignore[union-attr]
+            """
+            UPDATE events
+               SET status = 'concluded',
+                   last_updated_at = NOW()
+             WHERE id = $1
+               AND status = 'published'
+            """,
+            event_id,
+        )
 
 
 def _vector_literal(v: list[float]) -> str:

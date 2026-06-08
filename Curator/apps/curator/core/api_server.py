@@ -334,7 +334,7 @@ def build_app(app: Application) -> FastAPI:
                   FROM pages p JOIN events e ON e.id = p.event_id
                  WHERE p.id = $1
                    AND p.published_at IS NOT NULL
-                   AND e.status = 'published'
+                   AND e.status IN ('published', 'concluded')
                 """,
                 event_id,
             )

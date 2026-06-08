@@ -7,6 +7,7 @@ Modes:
   --api-only                   only run the FastAPI surface on :8060 (no consumer)
   --fixture <path>             process one event from a JSON fixture (offline-safe)
   --reenrich-missing           re-enrich articles in the DB that are missing enrichment (topic IS NULL)
+  --conclude-stories           archive events silent for ≥ conclude_after_days days (ADR-0013)
 
 Container topology (root ADR-0007): run one `--api-only` (the :8060 read surface)
 plus N `--worker` replicas (the LLM pipeline). `--consume` (API+worker combined)
@@ -54,7 +55,7 @@ async def _run(args: argparse.Namespace) -> None:
     # --dry-run skips Postgres entirely (LLM-only path for prompt iteration).
     # --reenrich-missing always needs DB (fetches + writes enrichment rows).
     needs_db = not args.dry_run
-    if args.reenrich_missing or args.synthesize_pending:
+    if args.reenrich_missing or args.synthesize_pending or args.conclude_stories:
         needs_db = True
     await app.startup(with_db=needs_db)
 
@@ -94,6 +95,8 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_reenrich_stubs()
         elif args.synthesize_pending:
             await app.run_synthesize_pending()
+        elif args.conclude_stories:
+            await app.run_conclude_stories()
         elif args.api_only:
             assert api_task is not None
             # Start the config-refresh loop so admin changes in Backoffice
@@ -102,7 +105,7 @@ async def _run(args: argparse.Namespace) -> None:
             app._config_task = asyncio.create_task(app._config_refresh_loop())
             await api_task
         else:
-            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, --reenrich-missing, or --reenrich-stubs.")
+            print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, --reenrich-missing, --reenrich-stubs, or --conclude-stories.")
     finally:
         # Stop uvicorn cleanly (sets the should_exit flag and awaits its loop).
         if server is not None and api_task is not None:
@@ -150,6 +153,16 @@ def main() -> int:
             "Synthesize events that have ≥2 distinct sources but no published "
             "page yet. Runs once and exits. Use after restarts or bulk re-ingests "
             "when the in-memory synthesis gate was reset."
+        ),
+    )
+    grp.add_argument(
+        "--conclude-stories",
+        action="store_true",
+        help=(
+            "Archive published events that have been quiet for ≥ conclude_after_days "
+            "days: write a story_arcs row and mark the event 'concluded'. "
+            "Disabled when clustering.conclude_after_days == 0 (the default). "
+            "Safe to re-run (idempotent). (ADR-0013)"
         ),
     )
     args = parser.parse_args()

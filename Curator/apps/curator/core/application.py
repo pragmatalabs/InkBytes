@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -768,3 +769,74 @@ class Application:
         """
         rows = await self.db.fetch_stub_enriched_articles()
         await self._run_reenrich(rows, "reenrich-stubs")
+
+    # ──────────────────────────────────────── conclude-stories (ADR-0013) ──
+
+    async def run_conclude_stories(self) -> None:
+        """Archive events that have gone quiet for conclude_after_days days.
+
+        For each qualifying published event:
+          1. Build arc_article_ids — all article IDs ordered by scraped_at
+             (ordered pointers into articles.embedding, the story's vector
+             trajectory through semantic space).
+          2. INSERT into story_arcs (idempotent ON CONFLICT DO NOTHING).
+          3. UPDATE events SET status = 'concluded'.
+
+        Disabled when clustering.conclude_after_days == 0 (the default until the
+        feature is validated with a paying user).  Safe to re-run: events that
+        already have a story_arcs row are excluded by the DB query.
+        """
+        conclude_after = self.cfg.clustering.conclude_after_days
+        if conclude_after <= 0:
+            logger.info("conclude-stories: disabled (conclude_after_days=0)")
+            return
+
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(days=conclude_after)
+        candidates = await self.db.fetch_events_ready_to_conclude(cutoff)
+        total = len(candidates)
+        if not total:
+            logger.info(
+                "conclude-stories: no events older than %d days", conclude_after
+            )
+            return
+
+        logger.info(
+            "conclude-stories: %d event(s) to conclude (cutoff=%s)",
+            total,
+            cutoff.strftime("%Y-%m-%d"),
+        )
+        done = errors = 0
+        for event in candidates:
+            event_id = event["id"]
+            try:
+                articles = await self.db.get_event_articles_ordered(event_id)
+                arc_ids = [a["id"] for a in articles]
+                await self.db.create_story_arc(
+                    {
+                        "event_id":        event_id,
+                        "topic":           event.get("topic"),
+                        "language":        event["language"],
+                        "first_seen_at":   event["first_seen_at"],
+                        "concluded_at":    event["last_updated_at"],
+                        "article_count":   len(articles),
+                        "source_count":    event["source_count"],
+                        "arc_article_ids": arc_ids,
+                    }
+                )
+                await self.db.conclude_event(event_id)
+                done += 1
+                logger.info(
+                    "conclude-stories [%d/%d] event=%s topic=%r articles=%d sources=%d arc_len=%d",
+                    done, total, event_id,
+                    event.get("topic"), len(articles),
+                    event["source_count"], len(arc_ids),
+                )
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                logger.error(
+                    "conclude-stories event=%s error: %s", event_id, exc
+                )
+
+        logger.info(
+            "conclude-stories complete: %d concluded, %d errors", done, errors
+        )
