@@ -28,6 +28,7 @@ volumes:
   inkbytes-postgres-data:
   inkbytes-rabbitmq-data:
   inkbytes-minio-data:
+  inkbytes-messor-scrapes:   # staging files — persists URL dedup across container restarts (ADR-0012)
 
 services:
 
@@ -130,6 +131,11 @@ services:
       DO_SPACES_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       DO_SPACES_BUCKET: ${DO_SPACES_BUCKET:-inkbytes}
       # MESSOR_API_BASE_URL removed — legacy endpoint (B12.3 decommissioned)
+    volumes:
+      # Persist staging files across container restarts/deploys so URL dedup
+      # (load_known_article_urls) survives.  Without this, every restart wiped
+      # data/scrapes/ → all articles published as "new" → queue flood (ADR-0012).
+      - inkbytes-messor-scrapes:/app/apps/scraper/data/scrapes
     depends_on:
       inkbytes-rabbitmq: { condition: service_healthy }
     healthcheck:

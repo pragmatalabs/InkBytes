@@ -17,6 +17,7 @@ import time
 from typing import List, Generator, Dict, Any, Optional
 from datetime import datetime, timezone
 from core.scraper import scrape_outlet
+from core.staging_store import prune_old_staging_files
 from inkbytes.models.outlets import OutletsDataSource, OutletsSource
 
 class ScraperService:
@@ -294,6 +295,12 @@ class ScraperService:
         """
         self.logger.info("Starting execute_scraping_process")
         try:
+            # Prune staging files older than 30 days before each cycle so disk
+            # usage stays bounded.  Safe to call even if scrapes_dir doesn't
+            # exist yet (ADR-0012).
+            scrapes_dir = self.config.storage.staging.local.scraping()
+            prune_old_staging_files(scrapes_dir)
+
             # Handle custom outlet case
             if custom_outlet:
                 self.logger.info(f"Using custom outlet: {custom_outlet}")

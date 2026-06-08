@@ -7,6 +7,32 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-06-08 — Messor re-publishes all articles after every container restart (queue flood)
+
+**What happened**: The RabbitMQ queue kept growing even after ADR-0015 fast-path
+was live. A container restart (e.g., routine deploy) caused Messor to publish
+all ~1 540 articles (22 outlets × ~70 each) as "new" on the very next cycle.
+Repeated restarts multiplied the effect.
+
+**Root cause**: `data/scrapes/` (where Messor stores staging files used for
+URL dedup) was **not mounted as a volume** in `docker-compose.prod.yml`. The
+Dockerfile literally says "data/ and logs/ are expected to be bind-mounted from
+the host" — but the compose file had no such mount. Every container restart
+wiped the staging directory, making `load_known_article_urls()` return an empty
+set, so all articles appeared new.
+
+**Fix**: See Messor ADR-0012. Added named volume
+`inkbytes-messor-scrapes:/app/apps/scraper/data/scrapes`. Also added a 7-day
+rolling window to `load_known_article_urls` and a 30-day prune of old files to
+prevent unbounded disk growth.
+
+**Lesson**: Stateful directories that drive application behaviour MUST be
+volumes. A comment in the Dockerfile is not a substitute for a volume entry in
+the compose file. Check every service: if it writes files that must survive
+restart, there must be a named volume.
+
+---
+
 ## 2026-06-08 — Curator re-enriches every article on every Messor re-scrape (21-day queue drain)
 
 **What happened**: The RabbitMQ `curator.articles-scraped` queue grew to
