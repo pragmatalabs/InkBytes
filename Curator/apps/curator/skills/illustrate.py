@@ -1,26 +1,26 @@
 """Skill 4 — ILLUSTRATE.
 
-Searches YouTube (Playwright headless) and Bing Images (Patchright headless)
-for media that illustrates an event's headline.
+Searches YouTube (Playwright headless) for videos that illustrate an event's
+headline.  Images are intentionally excluded — the media rail shows only
+videos (YouTube links and, in future, direct outlet embeds).
 
 Each candidate is scored on three axes:
 
     source credibility  (0–0.40)  — domain trust tier
-    image resolution    (0–0.35)  — pixel area relative to 1920×1080
+    video resolution    (0–0.35)  — proxy via pixel area (YouTube defaults)
     recency             (0–0.25)  — exponential decay, half-life = 48 h
 
 The top MAX_RESULTS items are written to pages.media_rail as JSONB.
 
-Failure modes are isolated: if one fetcher hangs or raises, the other
-still contributes results.  An empty rail (both fail / nothing found) is
-written as [] and is not an error — the Reader simply shows no rail.
+An empty rail (fetch fails / nothing found) is written as [] and is not an
+error — the Reader simply shows no rail.
 
 Implementation note — browser launch:
   Scrapling's StealthyFetcher/DynamicFetcher always set channel='chromium'
   when building _browser_options.  On Docker (DO droplet) that channel lookup
   crashes with SIGTRAP even with seccomp:unconfined.  We bypass Scrapling's
-  wrapper entirely and use the Patchright/Playwright async API directly,
-  which omits `channel` and launches the bundled Chromium without issues.
+  wrapper entirely and use the Playwright async API directly, which omits
+  `channel` and launches the bundled Chromium without issues (ADR-0011).
 """
 from __future__ import annotations
 
@@ -201,6 +201,9 @@ _CHROMIUM_ARGS: list[str] = [
 async def _fetch_bing_images(query: str) -> list[MediaItem]:
     """Scrape Bing Images using Patchright (direct API, no Scrapling wrapper).
 
+    PARKED (ADR-0014) — the media rail is video-only; this fetcher is no
+    longer called from IllustrateSkill.run().  Kept for reference.
+
     Bing Images embeds per-result JSON in the `m` attribute of each
     `a.iusc` link:  {"murl": full_url, "turl": thumb_url, "t": title,
                       "imgw": width, "imgh": height, "purl": page_url}
@@ -379,10 +382,10 @@ class IllustrateSkill:
         self.db = db
 
     async def run(self, event_id: str, headline: str) -> list[MediaItem]:
-        """Fetch images and videos, rank by score, write to pages.media_rail.
+        """Fetch YouTube videos, rank by score, write to pages.media_rail.
 
-        Both fetchers run concurrently.  Either can fail without affecting
-        the other.  An empty result is valid and is persisted as [].
+        Images are excluded — the media rail is video-only (ADR-0014).
+        An empty result is valid and is persisted as [].
         """
         query = _search_query(headline)
         logger.info("ILLUSTRATE %s | query=%r", event_id, query)
@@ -393,21 +396,16 @@ class IllustrateSkill:
             if w.lower() not in _STOP and len(w) > 2
         )
 
-        bing_task = asyncio.create_task(
-            asyncio.wait_for(_fetch_bing_images(query), self.FETCH_TIMEOUT)
-        )
-        yt_task = asyncio.create_task(
-            asyncio.wait_for(_fetch_youtube_videos(query), self.FETCH_TIMEOUT)
-        )
+        # Only YouTube for now; direct outlet video fetchers can be added here.
+        try:
+            yt_results = await asyncio.wait_for(
+                _fetch_youtube_videos(query), self.FETCH_TIMEOUT
+            )
+        except Exception as exc:
+            logger.warning("ILLUSTRATE: YouTube fetch error — %s", exc)
+            yt_results = []
 
-        raw_results = await asyncio.gather(bing_task, yt_task, return_exceptions=True)
-
-        candidates: list[MediaItem] = []
-        for result in raw_results:
-            if isinstance(result, list):
-                candidates.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("ILLUSTRATE fetcher error: %s", result)
+        candidates: list[MediaItem] = yt_results
 
         # ── Filter: blocked domains + relevance gate ───────────────────────
         before = len(candidates)
@@ -436,9 +434,7 @@ class IllustrateSkill:
 
         await self.db.write_media_rail(event_id, rail)  # type: ignore[arg-type]
         logger.info(
-            "ILLUSTRATE %s → %d items (bing=%s, yt=%s)",
-            event_id, len(rail),
-            len(raw_results[0]) if isinstance(raw_results[0], list) else "err",
-            len(raw_results[1]) if isinstance(raw_results[1], list) else "err",
+            "ILLUSTRATE %s → %d video items (yt_raw=%d)",
+            event_id, len(rail), len(yt_results),
         )
         return rail
