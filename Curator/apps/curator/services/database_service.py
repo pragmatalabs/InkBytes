@@ -566,7 +566,7 @@ class DatabaseService:
             )
 
     # ─────────────────────────────────────────── article CRUD ──────
-    async def upsert_article_raw(self, art: dict[str, Any], spaces_key: str | None) -> None:
+    async def upsert_article_raw(self, art: dict[str, Any], spaces_key: str | None) -> bool:
         """Insert the article shell (Messor's v1 fields). Enrichment fills the rest later.
 
         Content-change detection (migration 006):
@@ -580,6 +580,11 @@ class DatabaseService:
 
         spaces_key is NULL when the article arrived inline via RabbitMQ before
         the S3 archive step completed. That is the normal v0 path.
+
+        Returns:
+            True  — article is new or content changed; full ENRICH→CLUSTER pipeline needed.
+            False — content unchanged and enriched_at already set; caller can skip
+                    the LLM pipeline entirely (ADR-0015 duplicate fast-path).
         """
         # PERF-REVIEW (checkpoint/content-aware-dedup, 2026-06-06): hash computed
         # on every upsert — negligible CPU, but the ON CONFLICT DO UPDATE WHERE
@@ -650,6 +655,18 @@ class DatabaseService:
                 art.get("lead_image"),
                 art.get("video_url"),
             )
+            # Separate SELECT so we always read the current state regardless of
+            # whether the upsert above actually wrote anything.  (PostgreSQL's
+            # ON CONFLICT DO UPDATE … WHERE returns nothing via RETURNING when
+            # the WHERE clause is false — i.e. content unchanged — making a
+            # single-query approach unreliable for the fast-path check.)
+            row = await conn.fetchrow(
+                "SELECT enriched_at FROM articles WHERE id = $1", art["id"]
+            )
+        # enriched_at IS NOT NULL  → content unchanged, enrichment still valid → fast-path.
+        # enriched_at IS NULL      → new article or content changed → needs full pipeline.
+        needs_enrichment = row is None or row["enriched_at"] is None
+        return needs_enrichment
 
     async def write_enrichment(
         self,

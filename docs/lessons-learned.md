@@ -1,9 +1,53 @@
 # InkBytes — Lessons Learned
 
-> *Status: living doc · Owner: Julián · Last updated: 2026-06-07*
+> *Status: living doc · Owner: Julián · Last updated: 2026-06-08*
 
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
+
+---
+
+## 2026-06-08 — Curator re-enriches every article on every Messor re-scrape (21-day queue drain)
+
+**What happened**: The RabbitMQ `curator.articles-scraped` queue grew to
+75 890 messages. With ~24s per article the estimated drain time was **21 days**.
+
+**Root cause**: `_handle_event` calls `enrich.run()` unconditionally after
+`upsert_article_raw()`. The DB upsert has a content-hash guard (enrichment is
+reset only when content changes), but the application never checks whether
+`enriched_at` is already set — so it re-enriches every article on every
+Messor re-publish cycle (4×/day × all outlets = thousands of wasted LLM calls).
+
+**Fix**: See ADR-0015. `upsert_article_raw()` should return `content_changed`
+(True/False). In `_handle_event`, if `content_changed is False` and an
+embedding exists in the DB, skip ENRICH + EMBED and run only CLUSTER with the
+stored embedding.
+
+**Lesson**: A DB-level guard (content hash in SQL) does **not** propagate to
+application logic unless you explicitly check the return value. Any time you
+have an idempotency guard in the DB, the caller must read the outcome.
+
+---
+
+## 2026-06-08 — Synthesis token explosion: `_format_articles` sends every article, unbounded
+
+**What happened**: The "SpaceX and Anthropic IPOs" event accumulated 131
+articles. Each synthesis call sent 131 × 3 500 chars ≈ 114k input tokens.
+8 re-syntheses as new outlets joined = 791k total input tokens → **$0.85
+for one event**.
+
+**Root cause**: `SynthesizeSkill._format_articles` iterates `rows` without
+any cap. There is no per-outlet limit and no total article limit.
+
+**Fix**: See ADR-0015. Cap at 15 articles total, 2 per outlet, sorted by
+recency. Brings the final synthesis from ~114k → ~13k input tokens (9× cheaper)
+with negligible quality loss — the LLM already discards redundant same-outlet
+content.
+
+**Lesson**: LLM cost scales linearly with context size. Any `SELECT *` that
+feeds a synthesis prompt will eventually become a runaway cost item as clusters
+grow. Always set an explicit article cap at the LLM layer, separate from the
+clustering logic.
 
 ---
 

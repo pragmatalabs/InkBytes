@@ -1,13 +1,20 @@
 """Skill 3 — SYNTHESIZE.
 
 Called when an event reaches `min_sources_to_publish`. Pulls every article
-in the cluster, feeds them to Haiku, and persists a `pages` row.
+in the cluster, feeds them to the LLM, and persists a `pages` row.
+
+Article cap (ADR-0015): at most MAX_ARTICLES articles are sent to the LLM,
+capped at MAX_PER_OUTLET per outlet and sorted by recency.  Large clusters
+(e.g. 131 articles) would otherwise send ~114k input tokens per synthesis call.
+The cap targets ~13k tokens per call — a 9× reduction with negligible quality
+impact (the LLM already ignores redundant same-outlet content).
 """
 from __future__ import annotations
 
 import json
 import logging
 import re
+from datetime import datetime, timezone
 
 from contracts.page_v1 import PageV1
 from core.config import LlmCfg
@@ -15,6 +22,12 @@ from services.database_service import DatabaseService
 from services.llm_service import LlmService
 
 logger = logging.getLogger(__name__)
+
+
+# Maximum articles to include in a single synthesis prompt (ADR-0015).
+# Prevents token explosion on large clusters (e.g. 131-article events).
+_MAX_ARTICLES = 15
+_MAX_PER_OUTLET = 2
 
 
 class SynthesizeSkill:
@@ -59,15 +72,55 @@ class SynthesizeSkill:
         return page
 
     @staticmethod
-    def _format_articles(rows: list) -> str:
-        chunks = []
+    def _select_articles(rows: list) -> list:
+        """Cap articles for synthesis: max _MAX_PER_OUTLET per outlet, then
+        top _MAX_ARTICLES by recency (ADR-0015).
+
+        Strategy:
+        1. Group by outlet_name.
+        2. Within each outlet keep the _MAX_PER_OUTLET most-recently-published.
+        3. Merge all kept rows, sort by published_at DESC (nulls last), take
+           the first _MAX_ARTICLES.
+
+        This ensures source diversity (no single outlet crowds out others) while
+        capping total tokens at a predictable level regardless of cluster size.
+        """
+        _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+        by_outlet: dict[str, list] = {}
         for r in rows:
+            by_outlet.setdefault(r["outlet_name"], []).append(r)
+
+        pool: list = []
+        for outlet_rows in by_outlet.values():
+            # Most recent first within each outlet
+            sorted_rows = sorted(
+                outlet_rows,
+                key=lambda x: x["published_at"] or _EPOCH,
+                reverse=True,
+            )
+            pool.extend(sorted_rows[:_MAX_PER_OUTLET])
+
+        # Final sort by recency across all outlets, then cap
+        pool.sort(key=lambda x: x["published_at"] or _EPOCH, reverse=True)
+        return pool[:_MAX_ARTICLES]
+
+    @staticmethod
+    def _format_articles(rows: list) -> str:
+        selected = SynthesizeSkill._select_articles(rows)
+        chunks = []
+        for r in selected:
             body = (r["body_text"] or "")[:3500]
             chunks.append(
                 f"- source: {r['outlet_name']}\n"
                 f"  url:    {r['url']}\n"
                 f"  title:  {r['title']}\n"
                 f"  text: |\n    {body.replace(chr(10), chr(10) + '    ')}\n"
+            )
+        if len(selected) < len(rows):
+            chunks.append(
+                f"# Note: {len(rows) - len(selected)} additional articles from this cluster "
+                f"were omitted (cap: {_MAX_ARTICLES} articles, {_MAX_PER_OUTLET} per outlet).\n"
             )
         return "ARTICLES:\n" + "\n".join(chunks)
 

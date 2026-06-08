@@ -539,7 +539,17 @@ class Application:
             )
 
             # 0. persist raw article
-            await self.db.upsert_article_raw(article.model_dump(), event.spaces_key)
+            # Returns True when the article is new or its content changed (needs
+            # full LLM pipeline).  Returns False when content is unchanged and
+            # enriched_at is already set — the duplicate fast-path (ADR-0015):
+            # skip ENRICH + EMBED, the existing enrichment in the DB is valid.
+            needs_enrichment = await self.db.upsert_article_raw(article.model_dump(), event.spaces_key)
+            if not needs_enrichment:
+                logger.debug(
+                    "SKIP %s (%s) — already enriched, content unchanged",
+                    article.id, article.outlet.name,
+                )
+                return
 
             # 1. ENRICH
             enrichment = await self.enrich.run(article)
