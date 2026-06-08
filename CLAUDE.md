@@ -55,7 +55,7 @@ InkBytes/                              ← repo root
 └── (other folders are legacy / pre-MVP — ignore unless asked)
 ```
 
-## Locked decisions (2026-06-02)
+## Locked decisions (updated 2026-06-08)
 
 | Decision | Choice |
 |---|---|
@@ -70,6 +70,7 @@ InkBytes/                              ← repo root
 | Object store (dev) | MinIO via docker-compose |
 | Reader exchange name | renamed `hermes` → `messor.logs` (ADR-0004) |
 | Pydantic | v1 in Messor (legacy), v2 in Curator (new) — boundary is RabbitMQ JSON |
+| `pages.media_rail` content | **Videos only** (YouTube + future direct outlet video) — Bing image fetcher parked 2026-06-08 (ADR-0014). Images caused off-topic editorial/product photos to appear in the media drawer. |
 
 ## State of the world right now
 
@@ -186,7 +187,6 @@ Required checks: **Python changes** → boot service + exercise code path. **Rea
 - **`export const revalidate = N` on Reader pages that call internal Docker services** (`inkbytes-curator-api` etc.). ISR pre-renders during `docker build` when the internal hostname doesn't exist → bakes the error state permanently. Use `export const dynamic = "force-dynamic"` instead (ADR-R-0005).
 - **Accessing asyncpg JSONB columns without `_decode_json_col()`**. asyncpg returns plain `JSONB` columns as Python strings without explicit codec registration. Every JSONB column in the `/events/{id}` response must pass through `_decode_json_col()`. In the Reader, guard defensively: `Array.isArray(v) ? v : JSON.parse(v)` (ADR-R-0004).
 - **`IllustrateSkill` without a concurrency gate**. Each run opens a Chromium instance (~200 MB). During batch synthesis N events fire N concurrent tasks → OOM. Always wrap the call in `_illustrate_sem` (`Semaphore(1)`) (ADR-0011).
-- **Re-enabling the Bing image fetcher in `IllustrateSkill`**. `_fetch_bing_images` is intentionally parked (ADR-0014). The `media_rail` column is **video-only** — YouTube and future direct outlet video fetchers. Images produce false positives (off-topic product/editorial photos) with no reliable relevance signal. Do not restore the Bing call or add any `type="image"` fetcher.
 - **Chromium in Docker without `seccomp:unconfined`**. Docker's default seccomp profile blocks the `clone()` flags Chromium needs → `SIGTRAP` crash on DO even with `--no-sandbox`. `inkbytes-curator-worker` in `infra/docker-compose.do.yml` must carry `shm_size: '256m'` and `security_opt: [seccomp:unconfined]` (ADR-0011).
 - **Scrapling `StealthyFetcher`/`DynamicFetcher` in Docker containers**. Both wrappers inject `channel='chromium'` into Playwright's browser launch options. On Docker/Linux, `channel='chromium'` triggers a channel-based binary lookup that SIGTRAP-crashes even with `seccomp:unconfined`. Use `patchright.async_api.async_playwright` / `playwright.async_api.async_playwright` directly with no `channel` argument (ADR-0011).
 
