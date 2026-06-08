@@ -156,14 +156,19 @@ bash orchestrator/scripts/down.sh --nuke  # delete volumes too
 - Using a multi-agent framework (LangGraph / CrewAI / AutoGen) for Curator's three skills. ADR-0001 §"Alternatives considered" rejected it explicitly.
 - Adding new schemas to the `inkbytes` shared package without a version bump.
 - Writing prompts as inline Python strings instead of `.md` files in `prompts/`.
+- **`export const revalidate = N` on Reader pages that call internal Docker services** (`inkbytes-curator-api` etc.). ISR pre-renders during `docker build` when the internal hostname doesn't exist → bakes the error state permanently. Use `export const dynamic = "force-dynamic"` instead (ADR-R-0005).
+- **Accessing asyncpg JSONB columns without `_decode_json_col()`**. asyncpg returns plain `JSONB` columns as Python strings without explicit codec registration. Every JSONB column in the `/events/{id}` response must pass through `_decode_json_col()`. In the Reader, guard defensively: `Array.isArray(v) ? v : JSON.parse(v)` (ADR-R-0004).
+- **`IllustrateSkill` without a concurrency gate**. Each run opens 2 Chromium instances (~400 MB). During batch synthesis N events fire N concurrent tasks → OOM. Always wrap the call in `_illustrate_sem` (`Semaphore(1)`) (ADR-0011).
 
 ## What "done" looks like for v0 (Sunday 2026-06-07)
 
 Six boxes from [`docs/mvp-plan.md`](./docs/mvp-plan.md) §7 (mirror of `docs/STATUS.md`):
 
-- [x] Curator runs end-to-end on real LLM (proved 2026-06-02)
-- [x] At least one outlet returned ≥ 5 articles via Messor (3 outlets, ~319 articles)
-- [x] First event pages in `pages` table (29 multi-source pages, hand-checkable)
+- [x] Curator runs end-to-end on real LLM
+- [x] At least one outlet returned ≥ 5 articles via Messor (22 outlets, 7,591 articles)
+- [x] First event pages in `pages` table (413 published pages)
 - [x] Reader renders events at `inkbytes.org` (production)
 - [x] DO Droplet running docker-compose.prod.yaml at `inkbytes.org`
+- [x] IllustrateSkill Phase 2 — media rail in production (Scrapling, Patchright, ADR-0011)
+- [x] Reader v2 — force graph on mobile, media drawer in action bar, brand logo (ADR-R-0003/0004/0005)
 - [ ] 24h of green scheduled cycles + first paying user invited
