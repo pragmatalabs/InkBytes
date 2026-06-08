@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
 import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem } from "@/lib/types";
 import ShareButton from "./share-button";
+import MediaRailDrawer from "./media-rail-drawer";
 
 export const revalidate = 300;
 
@@ -110,16 +111,24 @@ export default async function EventPage(
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-      {/* Back + Share action bar */}
-      <div className="flex items-center justify-between mb-8">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
-        >
-          ← All events
-        </Link>
-        <ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />
-      </div>
+      {/* Back + Media + Share action bar (MediaRailDrawer owns the toggle state) */}
+      <MediaRailDrawer
+        rail={(() => {
+          const raw = page.media_rail;
+          return Array.isArray(raw) ? raw
+            : typeof raw === "string" ? (JSON.parse(raw) as MediaRailItem[])
+            : [];
+        })()}
+        back={
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+          >
+            ← All events
+          </Link>
+        }
+        share={<ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />}
+      />
 
       {/* Hero cover image — rendered only when Messor extracted an og:image */}
       {page.lead_image && (
@@ -134,100 +143,6 @@ export default async function EventPage(
         </div>
       )}
 
-      {/* Media rail — collapsed drawer, opens on click */}
-      {(() => {
-        // Guard: asyncpg sometimes returns JSONB columns as raw JSON strings
-        // rather than decoded arrays. Handle both shapes defensively.
-        const rail: MediaRailItem[] = Array.isArray(page.media_rail)
-          ? page.media_rail
-          : typeof page.media_rail === "string"
-            ? (JSON.parse(page.media_rail) as MediaRailItem[])
-            : [];
-        const images = rail.filter((m) => m.type === "image");
-        const videos = rail.filter((m) => m.type === "video");
-        if (!images.length && !videos.length) return null;
-        return (
-          <details className="group mb-8 border-t border-[var(--border)]">
-            <summary className="flex items-center gap-2 py-3 cursor-pointer list-none select-none text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">
-              {/* Streaming icon with live-pulse rings */}
-              <span className="relative inline-flex flex-none items-center justify-center w-5 h-5">
-                {/* Two staggered rings — subtle ambient pulse */}
-                <span className="absolute inset-[-4px] rounded-sm animate-ping opacity-25 [animation-duration:2s]" style={{background:"#6A6493"}} />
-                <span className="absolute inset-[-2px] rounded-sm animate-ping opacity-15 [animation-duration:2s] [animation-delay:1s]" style={{background:"#FC4442"}} />
-                <svg className="relative w-5 h-5" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                  <path style={{fill:"#FC4442"}} d="M54.364,52.952h-1.603v-2.167h1.603c1.423,0,2.582-1.158,2.582-2.582V15.796c0-1.424-1.158-2.582-2.582-2.582H9.636c-1.424,0-2.582,1.158-2.582,2.582v2.056H4.887v-2.056c0-2.618,2.131-4.749,4.749-4.749h44.728c2.618,0,4.748,2.131,4.748,4.749v32.407C59.113,50.822,56.983,52.952,54.364,52.952z"/>
-                  <path style={{fill:"#FC4442"}} d="M59.251,48.065h-1.602v-2.167h1.602c1.424,0,2.582-1.158,2.582-2.582V10.909c0-1.423-1.158-2.582-2.582-2.582H14.524c-1.424,0-2.582,1.158,2.582,2.582v2.056H9.775v-2.056c0-2.618,2.131-4.748,4.749-4.748h44.727C61.869,6.16,64,8.29,64,10.909v32.407C64,45.934,61.869,48.065,59.251,48.065z"/>
-                  <path style={{fill:"#6A6493"}} d="M49.893,57.84H4.333C1.944,57.84,0,55.896,0,53.507V20.268c0-2.389,1.944-4.333,4.333-4.333h45.559c2.389,0,4.333,1.944,4.333,4.333v33.239C54.226,55.896,52.282,57.84,49.893,57.84z M4.333,18.101c-1.195,0-2.167,0.972-2.167,2.167v33.239c0,1.195,0.972,2.167,2.167,2.167h45.559c1.195,0,2.167-0.972,2.167-2.167V20.268c0-1.195-0.972-2.167-2.167-2.167H4.333z"/>
-                  <path style={{fill:"#6A6493"}} d="M18.56,46.137c-0.211,0-0.42-0.061-0.6-0.181c-0.301-0.201-0.483-0.54-0.483-0.902V28.721c0-0.362,0.181-0.701,0.483-0.902c0.3-0.201,0.684-0.239,1.018-0.098l19.549,8.166c0.404,0.169,0.666,0.563,0.666,1c0,0.437-0.262,0.831-0.666,1l-19.549,8.166C18.844,46.109,18.701,46.137,18.56,46.137z M19.643,30.347v13.08l15.656-6.54L19.643,30.347z"/>
-                </svg>
-              </span>
-              <span className="text-[11px] font-semibold uppercase tracking-widest">Media</span>
-              <span className="text-[11px] font-mono">{rail.length}</span>
-              {/* Chevron — rotates when open */}
-              <svg className="w-3.5 h-3.5 ml-auto transition-transform duration-200 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="m6 9 6 6 6-6"/>
-              </svg>
-            </summary>
-
-            <div className="pt-3 pb-1">
-              {images.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory scrollbar-hide">
-                  {images.map((img, i) => (
-                    <a
-                      key={i}
-                      href={img.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-none snap-start rounded-lg overflow-hidden bg-gray-100 ring-1 ring-inset ring-black/5 hover:opacity-90 transition-opacity"
-                      style={{ width: 192, height: 128 }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img.thumb_url ?? img.url}
-                        alt={img.title ?? ""}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </a>
-                  ))}
-                </div>
-              )}
-              {videos.length > 0 && (
-                <div className={`flex flex-wrap gap-2 ${images.length ? "mt-3" : ""}`}>
-                  {videos.map((vid, i) => (
-                    <a
-                      key={i}
-                      href={vid.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 hover:border-red-300 hover:shadow-sm transition-all group/vid"
-                    >
-                      {vid.thumb_url && (
-                        <div className="relative flex-none w-12 h-8 rounded overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={vid.thumb_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/vid:bg-black/20 transition-colors">
-                            <svg className="w-3 h-3 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                          </div>
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-mono uppercase tracking-wide text-red-600 mb-0.5">Watch</div>
-                        {vid.title && (
-                          <div className="text-[12px] font-medium text-[var(--ink)] line-clamp-1 max-w-[160px]">{vid.title}</div>
-                        )}
-                        {vid.source_domain && (
-                          <div className="text-[10px] text-[var(--ink-muted)]">{vid.source_domain}</div>
-                        )}
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          </details>
-        );
-      })()}
 
       {/* Meta row */}
       <div className="flex flex-wrap items-center gap-2 mb-4 text-xs text-[var(--ink-muted)]">
