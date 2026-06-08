@@ -123,10 +123,13 @@ class EmbedCfg(BaseModel):
 
 
 class ClusterCfg(BaseModel):
-    # Tuned for real cross-outlet news (text-embedding-3-small): 0.78 was too
-    # strict and produced no clusters; 0.62 + 1 shared entity merges same-story
-    # articles across outlets while the entity gate guards against false merges.
-    similarity_threshold: float = 0.62
+    # Tuned for bge-m3 (Ollama, 1024-dim, ADR-0017): 72h of production data
+    # showed articles with ≥0.50 cosine similarity are effectively the same
+    # story across outlets.  0.62 (calibrated for text-embedding-3-small) was
+    # too strict for bge-m3's different similarity distribution — same-event
+    # articles were landing below the threshold and spawning separate events.
+    # entity_overlap_min ≥ 1 is the quality gate against false merges.
+    similarity_threshold: float = 0.50
     min_sources_to_publish: int = 2
     entity_overlap_min: int = 1
     recent_window_hours: int = 48
