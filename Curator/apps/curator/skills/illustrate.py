@@ -52,6 +52,59 @@ class MediaItem(TypedDict):
     score: float
 
 
+# ── Domain blocklist ─────────────────────────────────────────────────────────
+# These domains are never useful as news illustrations.  Items whose
+# source_domain matches (exact or subdomain) are dropped before scoring.
+
+_BLOCKED_DOMAINS: frozenset[str] = frozenset({
+    # Educational / infographic / diagram sites
+    "wikipedia.org", "wikimedia.org", "commons.wikimedia.org",
+    "slideshare.net", "academia.edu", "researchgate.net", "scribd.com",
+    "brainly.com", "brainly.com.br", "brainly.lat",
+    "quora.com", "khanacademy.org", "study.com", "thoughtco.com",
+    "mundoeducacao.uol.com.br", "brasilescola.uol.com.br",
+    "coladaweb.com", "infoescola.com", "todoestudo.com.br",
+    "educacao.uol.com.br", "sobiologia.com.br", "biomania.com.br",
+    "resumoescolar.com.br", "estudokids.com.br",
+    # Stock photo / watermarked
+    "shutterstock.com", "gettyimages.com", "gettyimages.es",
+    "gettyimages.com.br", "istock.com", "istockphoto.com",
+    "dreamstime.com", "alamy.com", "123rf.com", "depositphotos.com",
+    "stockfresh.com", "bigstockphoto.com",
+    # Social / aggregator noise
+    "pinterest.com", "pinterest.co.uk", "pinterest.es", "pinterest.com.br",
+    "tumblr.com", "deviantart.com", "flickr.com",
+})
+
+
+def _is_blocked(domain: str) -> bool:
+    """Return True if the domain is on the blocklist (exact or subdomain match)."""
+    d = domain.lower().removeprefix("www.")
+    if d in _BLOCKED_DOMAINS:
+        return True
+    # Subdomain check: e.g. "cdn.shutterstock.com" → matches "shutterstock.com"
+    return any(d.endswith(f".{b}") for b in _BLOCKED_DOMAINS)
+
+
+def _is_relevant(item: "MediaItem", query_words: frozenset[str]) -> bool:
+    """Relevance gate: credible news sources are trusted unconditionally; unknown
+    domains must share at least one meaningful keyword with the search query.
+
+    This prevents infographic/diagram images (e.g. chemistry lessons) from
+    appearing in news media rails simply because they're large and high-scoring.
+    """
+    if _credibility(item["source_domain"]) >= 0.25:
+        # Reuters, AP, BBC, NYT, Guardian, WaPo, Bloomberg, FT, CNN, NBC …
+        return True
+    if not item.get("title"):
+        return False
+    title_words = frozenset(
+        w for w in re.sub(r"[^\w]", " ", item["title"].lower()).split()
+        if w not in _STOP and len(w) > 2
+    )
+    return bool(title_words & query_words)
+
+
 # ── Scoring constants ─────────────────────────────────────────────────────────
 
 # Domain → credibility score (0–0.40).  Anything unlisted gets 0.10.
@@ -334,6 +387,12 @@ class IllustrateSkill:
         query = _search_query(headline)
         logger.info("ILLUSTRATE %s | query=%r", event_id, query)
 
+        # Query words used for relevance gating of unknown-domain results
+        query_words: frozenset[str] = frozenset(
+            w.lower() for w in re.sub(r"[^\w\s]", " ", query).split()
+            if w.lower() not in _STOP and len(w) > 2
+        )
+
         bing_task = asyncio.create_task(
             asyncio.wait_for(_fetch_bing_images(query), self.FETCH_TIMEOUT)
         )
@@ -349,6 +408,21 @@ class IllustrateSkill:
                 candidates.extend(result)
             elif isinstance(result, Exception):
                 logger.warning("ILLUSTRATE fetcher error: %s", result)
+
+        # ── Filter: blocked domains + relevance gate ───────────────────────
+        before = len(candidates)
+        candidates = [
+            c for c in candidates
+            if not _is_blocked(c["source_domain"])
+            and _is_relevant(c, query_words)
+        ]
+        dropped = before - len(candidates)
+        if dropped:
+            logger.info(
+                "ILLUSTRATE %s | dropped %d irrelevant/blocked candidates "
+                "(blocked domains or no keyword overlap with query %r)",
+                event_id, dropped, query,
+            )
 
         # Deduplicate by URL, sort by score descending, take top N
         seen: set[str] = set()
