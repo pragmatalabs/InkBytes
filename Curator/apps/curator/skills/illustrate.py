@@ -146,7 +146,11 @@ async def _fetch_bing_images(query: str) -> list[MediaItem]:
         + urllib.parse.urlencode({"q": query, "form": "HDRSC2", "first": "1"})
     )
     try:
-        page = await StealthyFetcher.async_fetch(url, headless=True)
+        page = await StealthyFetcher.async_fetch(
+            url,
+            headless=True,
+            extra_flags=["--disable-setuid-sandbox", "--disable-zygote"],
+        )
     except Exception as exc:
         logger.warning("ILLUSTRATE: Bing fetch failed — %s", exc)
         return []
@@ -220,7 +224,11 @@ async def _fetch_youtube_videos(query: str) -> list[MediaItem]:
         + urllib.parse.urlencode({"search_query": query})
     )
     try:
-        page = await DynamicFetcher.async_fetch(url, headless=True)
+        page = await DynamicFetcher.async_fetch(
+            url,
+            headless=True,
+            extra_flags=["--disable-setuid-sandbox", "--disable-zygote"],
+        )
     except Exception as exc:
         logger.warning("ILLUSTRATE: YouTube fetch failed — %s", exc)
         return []
