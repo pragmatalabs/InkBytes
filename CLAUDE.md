@@ -139,7 +139,24 @@ bash orchestrator/scripts/down.sh --nuke  # delete volumes too
 4. **Outlet coverage:** harvest the remaining LATAM/ES outlets; RSS/Atom-first harvesting in roadmap.
 5. **Cleanup debt:** retire the legacy Messor GitLab remote; review `Trashx/` repos before deleting.
 
-## ⚠️ Git workflow — mandatory for ALL agents
+## ⚠️ Dev workflow — mandatory for ALL agents
+
+> Full reference: [`docs/dev-workflow.md`](./docs/dev-workflow.md)
+
+### Rule 1 — Test locally BEFORE deploying
+
+**Never push to `origin/master` or trigger a production deploy without first verifying the change works in local dev.** Julian called this out explicitly (2026-06-08).
+
+| Service | How to run locally |
+|---|---|
+| Infrastructure | `bash orchestrator/scripts/up.sh` → Postgres :5432, RabbitMQ :5672, MinIO :9000 |
+| Curator (API + worker) | `cd Curator/apps/curator && python main.py` |
+| Messor | `cd Messor/apps/scraper && python main.py` |
+| Reader (Next.js) | `cd Reader/apps/web && npm run dev` → localhost:3000 |
+
+Required checks: **Python changes** → boot service + exercise code path. **Reader changes** → `npm run dev`, open localhost:3000, verify visually. **Config changes** → confirm container picks up value. **Only then:** commit → push → `bash infra/deploy.sh [--build]`.
+
+### Rule 2 — Commit locally, wait for push/deploy instruction
 
 **Commit locally. Do NOT push or deploy without explicit instruction from Julian.**
 
