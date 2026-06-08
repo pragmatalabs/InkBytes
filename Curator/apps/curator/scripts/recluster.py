@@ -27,7 +27,9 @@ async def main() -> None:
     cfg_path = sys.argv[1] if len(sys.argv) > 1 else "env.local.yaml"
     cfg = CuratorConfig.load(cfg_path)
     app = Application(cfg)
-    await app.db.connect()
+    # startup() (not just db.connect()) overlays backoffice.curator_settings,
+    # so a threshold changed via the Backoffice is respected here too.
+    await app.startup()
     pool = app.db.pool
 
     thr = cfg.clustering.similarity_threshold
