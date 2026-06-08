@@ -1,8 +1,9 @@
-"""Skill 4 — ILLUSTRATE (Phase 2 Scrapling agent).
+"""Skill 4 — ILLUSTRATE.
 
-Searches YouTube (DynamicFetcher — JS-rendered) and Bing Images
-(StealthyFetcher — bot-detection bypass) for media that illustrates an
-event's headline.  Each candidate is scored on three axes:
+Searches YouTube (Playwright headless) and Bing Images (Patchright headless)
+for media that illustrates an event's headline.
+
+Each candidate is scored on three axes:
 
     source credibility  (0–0.40)  — domain trust tier
     image resolution    (0–0.35)  — pixel area relative to 1920×1080
@@ -13,6 +14,13 @@ The top MAX_RESULTS items are written to pages.media_rail as JSONB.
 Failure modes are isolated: if one fetcher hangs or raises, the other
 still contributes results.  An empty rail (both fail / nothing found) is
 written as [] and is not an error — the Reader simply shows no rail.
+
+Implementation note — browser launch:
+  Scrapling's StealthyFetcher/DynamicFetcher always set channel='chromium'
+  when building _browser_options.  On Docker (DO droplet) that channel lookup
+  crashes with SIGTRAP even with seccomp:unconfined.  We bypass Scrapling's
+  wrapper entirely and use the Patchright/Playwright async API directly,
+  which omits `channel` and launches the bundled Chromium without issues.
 """
 from __future__ import annotations
 
@@ -128,161 +136,178 @@ def _yt_thumb(video_id: str) -> str:
 
 # ── Fetcher wrappers ──────────────────────────────────────────────────────────
 
+# Docker-safe Chromium flags (no channel= override, no setuid helper, no zygote fork)
+_CHROMIUM_ARGS: list[str] = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-zygote",
+]
+
+
 async def _fetch_bing_images(query: str) -> list[MediaItem]:
-    """Scrape Bing Images using StealthyFetcher (Camoufox anti-bot).
+    """Scrape Bing Images using Patchright (direct API, no Scrapling wrapper).
 
     Bing Images embeds per-result JSON in the `m` attribute of each
     `a.iusc` link:  {"murl": full_url, "turl": thumb_url, "t": title,
                       "imgw": width, "imgh": height, "purl": page_url}
+
+    We bypass Scrapling's StealthyFetcher because it always injects
+    channel='chromium' into launch options, which crashes on Docker even
+    with seccomp:unconfined (SIGTRAP in Chromium channel lookup).
+    Direct patchright.launch() with no `channel` works correctly.
     """
     try:
-        from scrapling.fetchers import StealthyFetcher  # type: ignore[import]
+        from patchright.async_api import async_playwright  # type: ignore[import]
     except ImportError:
-        logger.warning("ILLUSTRATE: scrapling not installed — Bing skipped")
+        logger.warning("ILLUSTRATE: patchright not installed — Bing skipped")
         return []
 
     url = (
         "https://www.bing.com/images/search?"
         + urllib.parse.urlencode({"q": query, "form": "HDRSC2", "first": "1"})
     )
-    try:
-        page = await StealthyFetcher.async_fetch(
-            url,
-            headless=True,
-            extra_flags=["--disable-setuid-sandbox", "--disable-zygote"],
-        )
-    except Exception as exc:
-        logger.warning("ILLUSTRATE: Bing fetch failed — %s", exc)
-        return []
 
     items: list[MediaItem] = []
     try:
-        anchors = list(page.css("a.iusc"))
-        for a in anchors[:20]:
-            raw = (a.attrib or {}).get("m", "")
-            if not raw:
-                continue
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True, args=_CHROMIUM_ARGS)
             try:
-                m = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
+                page = await browser.new_page()
+                await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                anchors = await page.query_selector_all("a.iusc")
+                for a in anchors[:20]:
+                    raw = await a.get_attribute("m")
+                    if not raw:
+                        continue
+                    try:
+                        m = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
 
-            img_url   = m.get("murl", "")
-            thumb_url = m.get("turl", img_url)
-            # Clean Bing title: strip trailing " - YouTube" / " | Reuters" suffixes
-            title = re.sub(r"\s*[-|]\s*(YouTube|Getty.*|Reuters.*|AP.*|BBC.*)$", "",
-                           m.get("t", ""), flags=re.IGNORECASE)
-            # Bing m-attr omits dimensions; we do get them from the img inside the anchor
-            img_el = a.find("img")
-            width  = int((img_el.attrib or {}).get("width",  0) if img_el else 0)
-            height = int((img_el.attrib or {}).get("height", 0) if img_el else 0)
-            page_url  = m.get("purl", img_url)
+                    img_url   = m.get("murl", "")
+                    thumb_url = m.get("turl", img_url)
+                    # Clean title: strip trailing " - YouTube" / " | Reuters" etc.
+                    title = re.sub(
+                        r"\s*[-|]\s*(YouTube|Getty.*|Reuters.*|AP.*|BBC.*)$",
+                        "", m.get("t", ""), flags=re.IGNORECASE,
+                    )
+                    # m-attr includes original image dimensions
+                    width  = int(m.get("imgw", 0) or 0)
+                    height = int(m.get("imgh", 0) or 0)
+                    page_url = m.get("purl", img_url)
 
-            if not img_url:
-                continue
+                    if not img_url:
+                        continue
 
-            try:
-                domain = urllib.parse.urlparse(page_url).netloc or ""
-            except Exception:
-                domain = ""
+                    try:
+                        domain = urllib.parse.urlparse(page_url).netloc or ""
+                    except Exception:
+                        domain = ""
 
-            item: MediaItem = {
-                "url":          img_url,
-                "thumb_url":    thumb_url,
-                "type":         "image",
-                "title":        title[:200],
-                "source_domain": domain.lower().removeprefix("www."),
-                "published_at": None,
-                "width":        width,
-                "height":       height,
-                "score":        0.0,
-            }
-            item["score"] = _score(item)
-            items.append(item)
+                    item: MediaItem = {
+                        "url":           img_url,
+                        "thumb_url":     thumb_url,
+                        "type":          "image",
+                        "title":         title[:200],
+                        "source_domain": domain.lower().removeprefix("www."),
+                        "published_at":  None,
+                        "width":         width,
+                        "height":        height,
+                        "score":         0.0,
+                    }
+                    item["score"] = _score(item)
+                    items.append(item)
+            finally:
+                await browser.close()
     except Exception as exc:
-        logger.warning("ILLUSTRATE: Bing parse error — %s", exc)
+        logger.warning("ILLUSTRATE: Bing fetch failed — %s", exc)
 
     logger.debug("ILLUSTRATE: Bing returned %d raw items", len(items))
     return items
 
 
 async def _fetch_youtube_videos(query: str) -> list[MediaItem]:
-    """Scrape YouTube search using DynamicFetcher (Playwright JS execution).
+    """Scrape YouTube search using Playwright (direct API, no Scrapling wrapper).
 
     After JavaScript execution the DOM contains `ytd-video-renderer`
     elements.  We extract video IDs from watch-link hrefs and derive the
     thumbnail URL from the well-known ytimg CDN pattern.
+
+    Uses plain playwright (not patchright) since YouTube search does not
+    require anti-fingerprinting.  Same Docker-safe launch flags apply.
     """
     try:
-        from scrapling.fetchers import DynamicFetcher  # type: ignore[import]
+        from playwright.async_api import async_playwright  # type: ignore[import]
     except ImportError:
-        logger.warning("ILLUSTRATE: scrapling not installed — YouTube skipped")
+        logger.warning("ILLUSTRATE: playwright not installed — YouTube skipped")
         return []
 
     url = (
         "https://www.youtube.com/results?"
         + urllib.parse.urlencode({"search_query": query})
     )
-    try:
-        page = await DynamicFetcher.async_fetch(
-            url,
-            headless=True,
-            extra_flags=["--disable-setuid-sandbox", "--disable-zygote"],
-        )
-    except Exception as exc:
-        logger.warning("ILLUSTRATE: YouTube fetch failed — %s", exc)
-        return []
 
     items: list[MediaItem] = []
     seen_ids: set[str] = set()
-
     try:
-        # YouTube title links have id="video-title" or class containing
-        # "ytd-video-renderer"; the thumbnail anchor (id="thumbnail") has
-        # empty text.  Prefer id="video-title", fall back to any watch link
-        # with non-empty text content.
-        title_links = list(page.css("a#video-title"))
-        if not title_links:
-            title_links = [
-                a for a in page.css("a[href*='/watch?v=']")
-                if (a.text or "").strip()
-            ]
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True, args=_CHROMIUM_ARGS)
+            try:
+                page = await browser.new_page()
+                await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                # Wait for video title links to appear in the JS-rendered DOM
+                try:
+                    await page.wait_for_selector("a#video-title", timeout=10000)
+                except Exception:
+                    pass
 
-        for a in title_links[:15]:
-            href = (a.attrib or {}).get("href", "")
-            m = re.search(r"/watch\?v=([A-Za-z0-9_-]{11})", href)
-            if not m:
-                continue
-            vid_id = m.group(1)
-            if vid_id in seen_ids:
-                continue
-            seen_ids.add(vid_id)
+                title_links = await page.query_selector_all("a#video-title")
+                if not title_links:
+                    all_links = await page.query_selector_all("a[href*='/watch?v=']")
+                    for a in all_links:
+                        txt = (await a.inner_text() or "").strip()
+                        if txt:
+                            title_links.append(a)
 
-            title = (
-                (a.text or "").strip()
-                or (a.attrib or {}).get("title", "")
-                or (a.attrib or {}).get("aria-label", "").removeprefix("Watch ")
-            )[:200]
+                for a in title_links[:15]:
+                    href = (await a.get_attribute("href")) or ""
+                    m = re.search(r"/watch\?v=([A-Za-z0-9_-]{11})", href)
+                    if not m:
+                        continue
+                    vid_id = m.group(1)
+                    if vid_id in seen_ids:
+                        continue
+                    seen_ids.add(vid_id)
 
-            item: MediaItem = {
-                "url":           f"https://www.youtube.com/watch?v={vid_id}",
-                "thumb_url":     _yt_thumb(vid_id),
-                "type":          "video",
-                "title":         title,
-                "source_domain": "youtube.com",
-                "published_at":  None,   # YouTube search doesn't expose exact date
-                "width":         480,
-                "height":        360,
-                "score":         0.0,
-            }
-            item["score"] = _score(item)
-            items.append(item)
+                    title = (
+                        (await a.inner_text() or "").strip()
+                        or (await a.get_attribute("title")) or ""
+                        or ((await a.get_attribute("aria-label")) or "").removeprefix("Watch ")
+                    )[:200]
+                    if not title:
+                        continue
 
-            if len(items) >= 10:
-                break
+                    item: MediaItem = {
+                        "url":           f"https://www.youtube.com/watch?v={vid_id}",
+                        "thumb_url":     _yt_thumb(vid_id),
+                        "type":          "video",
+                        "title":         title,
+                        "source_domain": "youtube.com",
+                        "published_at":  None,
+                        "width":         480,
+                        "height":        360,
+                        "score":         0.0,
+                    }
+                    item["score"] = _score(item)
+                    items.append(item)
 
+                    if len(items) >= 10:
+                        break
+            finally:
+                await browser.close()
     except Exception as exc:
-        logger.warning("ILLUSTRATE: YouTube parse error — %s", exc)
+        logger.warning("ILLUSTRATE: YouTube fetch failed — %s", exc)
 
     logger.debug("ILLUSTRATE: YouTube returned %d raw items", len(items))
     return items
