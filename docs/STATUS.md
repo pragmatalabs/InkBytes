@@ -142,6 +142,11 @@ make shell-curator    # bash in curator-api container
 14. **Brand logo mark** ✅ 2026-06-07 — Real brand SVG (`InkBytes-Logo-White-cropped.svg`) wired into header (`<LogoMark>` component, `currentColor`) and favicon (`icon.svg` dark bg) replacing placeholder (ADR-R-0003).
 14. **PNG app icons** — generate `/public/icon-192.png` and `/public/icon-512.png` from `icon.svg` for full Android PWA install prompt (`inkscape --export-type=png --export-width=192`).
 
+### P2 — Event lifecycle (Sprint 2)
+
+14. **Story arc archive (ADR-0013)** — When a published event's `last_updated_at` is older than 7 days, mark it `concluded` and write a `story_arcs` record with `arc_article_ids TEXT[]` (ordered pointers into `articles.embedding`). Enables future "concluded story" UI badge, arc-similarity recommendation, and RAG context injection. Migration 010 + `--conclude-stories` command + `conclude_after_days` config.
+15. **Stale article filter (ADR-0012)** — Gate in Curator's `_handle_event()`: if `article.published_at > max_article_age_days (default 7)` AND no active cluster matches, drop without ENRICH/EMBED. Prevents orphan events from old re-featured homepage content. Depends on `find_nearest_active_event()` probe query + `max_article_age_days` config.
+
 ### P3 — Infrastructure
 
 11. **GitHub Actions CI/CD** — auto-build and deploy on `git push master`. Set secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`.
