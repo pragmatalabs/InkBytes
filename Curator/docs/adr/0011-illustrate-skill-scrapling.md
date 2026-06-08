@@ -94,6 +94,13 @@ multi-agent framework for a single-step scrape + score operation.
   until re-synthesized (or a future backfill script runs).
 - `scrapling[fetchers]>=0.2.9` added to `requirements.txt` (`[fetchers]` pulls Playwright + Patchright; browser binaries installed via `playwright install chromium` + `patchright install chromium` in the Dockerfile).
 - **Concurrency guard (added post-ship):** `Application._illustrate_sem = asyncio.Semaphore(1)` serialises IllustrateSkill calls. During a harvest batch, N events can synthesize concurrently via `asyncio.create_task`; without the gate, N×2 Chromium instances would launch simultaneously, easily exceeding the container memory limit. With `Semaphore(1)`, only one browser pair is alive at a time (~400 MB peak). `inkbytes-curator-worker` `mem_limit` raised 768 MB → **1.5 GB** to give ~900 MB headroom above the peak.
+- **Docker seccomp + shm fix (added post-ship):** On DigitalOcean, `inkbytes-curator-worker` was crashing with `SIGTRAP` + `chrome_crashpad_handler: --database is required`. Root cause: Docker's default seccomp profile blocks the `clone()` flags and `ptrace` calls that Chromium's sandbox and crashpad handler require — `--no-sandbox` in Playwright launch args is insufficient because the seccomp block is at a lower level. Fix applied in `infra/docker-compose.do.yml`:
+  ```yaml
+  shm_size: '256m'          # Chromium needs /dev/shm even with --disable-dev-shm-usage
+  security_opt:
+    - seccomp:unconfined    # lifts kernel syscall filtering for this container only
+  ```
+  `seccomp:unconfined` is an accepted trade-off for a single-droplet deploy where the container boundary is already the security perimeter.
 - **API compat (Scrapling 0.4.9):** Both fetchers use classmethod calls (`DynamicFetcher.async_fetch`, `StealthyFetcher.async_fetch`), not instance construction. `page.css(...)` returns a `Selectors` iterable — wrap in `list()` before iterating. Single-element lookup uses `.find()` not `.css_first()`.
 - Migration 009 runs on next Curator startup.
 

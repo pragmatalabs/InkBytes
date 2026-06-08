@@ -53,7 +53,7 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 | Container | Limit | Typical usage |
 |---|---|---|
 | `inkbytes-messor` | 6 GB | 2–3 GB mid-scrape, ~150 MB idle |
-| `inkbytes-curator-worker` | **1.5 GB** | ~200 MB idle / ~600 MB peak (IllustrateSkill — 2× Chromium, serialised via Semaphore(1)) |
+| `inkbytes-curator-worker` | **1.5 GB** | ~200 MB idle / ~600 MB peak (IllustrateSkill — 2× Chromium, serialised via Semaphore(1)); `shm_size:'256m'` + `seccomp:unconfined` required to prevent Chromium SIGTRAP on Docker |
 | `inkbytes-reader` | 512 MB | ~65 MB |
 | `inkbytes-backoffice` | 512 MB | ~115 MB |
 | `inkbytes-curator-api` | 512 MB | ~110 MB |

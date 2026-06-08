@@ -14,6 +14,9 @@ services:
 
   inkbytes-curator-worker:
     mem_limit: 1.5g  # raised from 768m — IllustrateSkill opens 2 Chromium instances (~400 MB peak)
+    shm_size: '256m'  # Chromium needs shared memory even with --disable-dev-shm-usage
+    security_opt:
+      - seccomp:unconfined  # Docker's default seccomp blocks clone() flags Chromium needs → SIGTRAP
     environment:
       # On DO, Ollama runs as infra-ollama (infra-shared network).
       # infra-ollama is connected to inkbytes-internal at deploy time (see deploy.sh).
