@@ -1,4 +1,4 @@
-# ADR-0011 — RSS/Atom-first scraping architecture (v2, deferred)
+# ADR-0013 — RSS/Atom-first scraping architecture (v2, deferred)
 
 > *Status: proposed · Owner: Julian · Date: 2026-06-07 · Target: post-v0*
 

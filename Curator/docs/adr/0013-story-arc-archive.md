@@ -1,6 +1,9 @@
 # ADR-0013 — Story Arc Archive: concluded events + vector timeline pointers
 
-> *Status: proposed · Owner: Julian · Date: 2026-06-07*
+> *Status: accepted · Sprint: 2 (not started) · Owner: Julian · Last updated: 2026-06-08*
+>
+> 🟡 **Design only — not started.** Decision is final; implementation deferred to Sprint 2.
+> See implementation checklist at the bottom of this file.
 
 ## Context
 

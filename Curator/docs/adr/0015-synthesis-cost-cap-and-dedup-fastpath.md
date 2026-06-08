@@ -1,6 +1,8 @@
 # ADR-0015 — Synthesis Article Cap + Duplicate Enrichment Fast-Path
 
-> *Status: proposed · Owner: Julián · Last updated: 2026-06-08*
+> *Status: accepted / implemented · Owner: Julián · Last updated: 2026-06-08*
+>
+> ✅ **Deployed 2026-06-08.** Both fixes are live in production on DO (`67.205.136.61`).
 
 ## Context
 
