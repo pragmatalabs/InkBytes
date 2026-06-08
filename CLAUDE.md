@@ -160,6 +160,7 @@ bash orchestrator/scripts/down.sh --nuke  # delete volumes too
 - **Accessing asyncpg JSONB columns without `_decode_json_col()`**. asyncpg returns plain `JSONB` columns as Python strings without explicit codec registration. Every JSONB column in the `/events/{id}` response must pass through `_decode_json_col()`. In the Reader, guard defensively: `Array.isArray(v) ? v : JSON.parse(v)` (ADR-R-0004).
 - **`IllustrateSkill` without a concurrency gate**. Each run opens 2 Chromium instances (~400 MB). During batch synthesis N events fire N concurrent tasks → OOM. Always wrap the call in `_illustrate_sem` (`Semaphore(1)`) (ADR-0011).
 - **Chromium in Docker without `seccomp:unconfined`**. Docker's default seccomp profile blocks the `clone()` flags Chromium needs → `SIGTRAP` crash on DO even with `--no-sandbox`. `inkbytes-curator-worker` in `infra/docker-compose.do.yml` must carry `shm_size: '256m'` and `security_opt: [seccomp:unconfined]` (ADR-0011).
+- **Scrapling `StealthyFetcher`/`DynamicFetcher` in Docker containers**. Both wrappers inject `channel='chromium'` into Playwright's browser launch options. On Docker/Linux, `channel='chromium'` triggers a channel-based binary lookup that SIGTRAP-crashes even with `seccomp:unconfined`. Use `patchright.async_api.async_playwright` / `playwright.async_api.async_playwright` directly with no `channel` argument (ADR-0011).
 
 ## What "done" looks like for v0 (Sunday 2026-06-07)
 
