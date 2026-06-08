@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import BottomNav from "./bottom-nav";
 import { LogoMark } from "@/components/logo";
+import PwaInstallBanner from "@/components/pwa-install-banner";
 import "./globals.css";
 
 const inter = Inter({
@@ -94,6 +95,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Mobile-only spacer — height matches the bottom nav + safe area */}
           <div className="bottom-nav-spacer md:hidden" aria-hidden="true" />
         </main>
+
+        {/* PWA install prompt — Android (beforeinstallprompt) + iOS (manual) */}
+        <PwaInstallBanner />
 
         {/* Bottom nav — only visible on mobile (md:hidden inside component) */}
         <BottomNav />
