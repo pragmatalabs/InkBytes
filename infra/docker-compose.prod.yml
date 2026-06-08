@@ -27,7 +27,6 @@ networks:
 volumes:
   inkbytes-postgres-data:
   inkbytes-rabbitmq-data:
-  inkbytes-minio-data:
   inkbytes-messor-scrapes:   # staging files — persists URL dedup across container restarts (ADR-0012)
 
 services:
@@ -90,12 +89,11 @@ services:
       RABBITMQ_PASS: ${RABBITMQ_PASS}
       CURATOR_URL: http://inkbytes-curator-api:8060
       MESSOR_URL: http://inkbytes-messor:8050
-      AWS_ACCESS_KEY_ID: ${MINIO_KEY}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET}
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_BUCKET: inkbytes
-      AWS_ENDPOINT: http://inkbytes-minio:9000
-      AWS_USE_PATH_STYLE_ENDPOINT: "true"
+      AWS_ACCESS_KEY_ID: ${DO_SPACES_KEY}
+      AWS_SECRET_ACCESS_KEY: ${DO_SPACES_SECRET}
+      AWS_DEFAULT_REGION: nyc3
+      AWS_BUCKET: ${DO_SPACES_BUCKET:-inkbytes-prod}
+      AWS_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       # Scraping trigger — messor-trigger.sh parses {SCRAPE_ARGS} (outlets/limit),
       # POSTs to Messor's internal trigger endpoint, echoes status to the job log.
       SCRAPING_COMMAND: "/usr/local/bin/messor-trigger {SCRAPE_ARGS}"
@@ -129,7 +127,7 @@ services:
       DO_SPACES_KEY: ${DO_SPACES_KEY}
       DO_SPACES_SECRET: ${DO_SPACES_SECRET}
       DO_SPACES_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
-      DO_SPACES_BUCKET: ${DO_SPACES_BUCKET:-inkbytes}
+      DO_SPACES_BUCKET: ${DO_SPACES_BUCKET:-inkbytes-prod}
       # MESSOR_API_BASE_URL removed — legacy endpoint (B12.3 decommissioned)
     volumes:
       # Persist staging files across container restarts/deploys so URL dedup
@@ -166,10 +164,10 @@ services:
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
-      S3_ENDPOINT: http://inkbytes-minio:9000
-      S3_KEY: ${MINIO_KEY}
-      S3_SECRET: ${MINIO_SECRET}
-      S3_BUCKET: inkbytes
+      S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
+      S3_KEY: ${DO_SPACES_KEY}
+      S3_SECRET: ${DO_SPACES_SECRET}
+      S3_BUCKET: ${DO_SPACES_BUCKET:-inkbytes-prod}
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }
@@ -206,10 +204,10 @@ services:
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
-      S3_ENDPOINT: http://inkbytes-minio:9000
-      S3_KEY: ${MINIO_KEY}
-      S3_SECRET: ${MINIO_SECRET}
-      S3_BUCKET: inkbytes
+      S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
+      S3_KEY: ${DO_SPACES_KEY}
+      S3_SECRET: ${DO_SPACES_SECRET}
+      S3_BUCKET: ${DO_SPACES_BUCKET:-inkbytes-prod}
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }
@@ -259,45 +257,6 @@ services:
       timeout: 30s
       retries: 10
       start_period: 60s
-
-  # ── STATEFUL: MinIO (S3-compatible object store) ─────────────────────────────
-  inkbytes-minio:
-    image: minio/minio:latest
-    container_name: inkbytes-minio
-    restart: unless-stopped
-    networks: [inkbytes-internal]
-    volumes:
-      - inkbytes-minio-data:/data
-    environment:
-      MINIO_ROOT_USER: ${MINIO_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET}
-    command: server /data --console-address ":9001"
-    ports:
-      # Console — 127.0.0.1 ONLY; access via SSH tunnel: ssh -L 9030:localhost:9030 root@pragmata-001
-      - "127.0.0.1:9030:9001"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9000/minio/health/live || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── INIT: Create MinIO bucket ─────────────────────────────────────────────────
-  inkbytes-minio-init:
-    image: minio/mc:latest
-    container_name: inkbytes-minio-init
-    restart: "no"
-    networks: [inkbytes-internal]
-    depends_on:
-      inkbytes-minio: { condition: service_healthy }
-    environment:
-      MINIO_KEY: ${MINIO_KEY}
-      MINIO_SECRET: ${MINIO_SECRET}
-    entrypoint: >
-      /bin/sh -c "
-        mc alias set local http://inkbytes-minio:9000 $$MINIO_KEY $$MINIO_SECRET &&
-        mc mb --ignore-existing local/inkbytes &&
-        echo 'MinIO bucket inkbytes ready.'
-      "
 
   # Ollama: uses host's existing Ollama instance (bge-m3 pulled separately).
   # Curator containers reach it at http://ollama:11434/v1
