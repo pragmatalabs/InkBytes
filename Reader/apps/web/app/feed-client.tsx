@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
 import type { EventSummary } from "@/lib/types";
 import { CategoryIcon } from "@/components/icons";
@@ -376,6 +377,23 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
   const [streamExpanded, setStreamExpanded] = useState(false);
   const searchRef                           = useRef<HTMLInputElement>(null);
 
+  // ── 20-minute auto-refresh ─────────────────────────────────────────────────
+  // router.refresh() re-runs the server component tree (re-fetches /events from
+  // Curator) and reconciles the diff without a full page reload.  Client state
+  // (filters, search, lang preference) is preserved across the refresh.
+  const router                      = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    const MS = 20 * 60 * 1000; // 20 minutes
+    const id = setInterval(() => {
+      startTransition(() => router.refresh());
+      setRefreshedAt(new Date().toISOString());
+    }, MS);
+    return () => clearInterval(id);
+  }, [router]);
+
   // Restore preferences from localStorage
   useEffect(() => {
     const savedLang = localStorage.getItem(LANG_KEY) as Lang | null;
@@ -469,10 +487,34 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
           <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">
             Today&rsquo;s events
           </h1>
-          <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-            {events.length > 0
-              ? `${events.length} stories · one page per event · multiple sources`
-              : "One page per story · multiple sources · no noise"}
+          <p className="text-xs text-[var(--ink-muted)] mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <span>
+              {events.length > 0
+                ? `${events.length} stories · one page per event · multiple sources`
+                : "One page per story · multiple sources · no noise"}
+            </span>
+            {/* Live refresh indicator — spins during refresh, shows last-updated time after */}
+            <span
+              className="inline-flex items-center gap-0.5 opacity-50"
+              title="Feed refreshes automatically every 20 minutes"
+            >
+              <svg
+                className={`w-2.5 h-2.5 shrink-0 ${isPending ? "animate-spin" : ""}`}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              >
+                <path d="M21 2v6h-6"/>
+                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                <path d="M3 22v-6h6"/>
+                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              </svg>
+              <span suppressHydrationWarning>
+                {isPending
+                  ? "refreshing…"
+                  : refreshedAt
+                  ? `${new Date(refreshedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`
+                  : "20m"}
+              </span>
+            </span>
           </p>
         </div>
 
