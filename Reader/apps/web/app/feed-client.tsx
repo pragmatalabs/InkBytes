@@ -15,7 +15,7 @@ type Category = "all" | "politics" | "business" | "technology" | "sports"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const BREAKING_COUNT = 5;   // events pinned in the "Latest" strip
+const BREAKING_COUNT = 20;  // events pinned in the "Latest" strip
 const STREAM_INITIAL = 60;  // stream rows shown before "show more"
 
 const CATEGORIES: { key: Category; label: string }[] = [
