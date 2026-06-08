@@ -151,10 +151,8 @@ export default async function EventPage(
             <summary className="flex items-center gap-2 py-3 cursor-pointer list-none select-none text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">
               {/* Streaming icon with live-pulse rings */}
               <span className="relative inline-flex flex-none items-center justify-center w-5 h-5">
-                {/* Outer pulse ring */}
-                <span className="absolute inset-[-4px] rounded-sm animate-ping opacity-20" style={{background:"#FC4442"}} />
-                {/* Inner pulse ring — staggered via delay */}
-                <span className="absolute inset-[-2px] rounded-sm animate-ping opacity-30 [animation-delay:0.4s]" style={{background:"#FC4442"}} />
+                {/* Single slow pulse ring */}
+                <span className="absolute inset-[-3px] rounded-sm animate-ping opacity-[0.12] [animation-duration:2s]" style={{background:"#6A6493"}} />
                 <svg className="relative w-5 h-5" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                   <path style={{fill:"#FC4442"}} d="M54.364,52.952h-1.603v-2.167h1.603c1.423,0,2.582-1.158,2.582-2.582V15.796c0-1.424-1.158-2.582-2.582-2.582H9.636c-1.424,0-2.582,1.158-2.582,2.582v2.056H4.887v-2.056c0-2.618,2.131-4.749,4.749-4.749h44.728c2.618,0,4.748,2.131,4.748,4.749v32.407C59.113,50.822,56.983,52.952,54.364,52.952z"/>
                   <path style={{fill:"#FC4442"}} d="M59.251,48.065h-1.602v-2.167h1.602c1.424,0,2.582-1.158,2.582-2.582V10.909c0-1.423-1.158-2.582-2.582-2.582H14.524c-1.424,0-2.582,1.158,2.582,2.582v2.056H9.775v-2.056c0-2.618,2.131-4.748,4.749-4.748h44.727C61.869,6.16,64,8.29,64,10.909v32.407C64,45.934,61.869,48.065,59.251,48.065z"/>
