@@ -51,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`h-full ${inter.variable}`}>
       <body className="min-h-full flex flex-col">
-        <header className="bg-[var(--accent)] sticky top-0 z-40 border-b border-white/10">
+        <header className="bg-[var(--accent)] sticky top-0 z-40 border-b border-white/10 safe-top">
           <div className="max-w-4xl mx-auto px-4 h-13 flex items-center justify-between gap-4">
             <Link
               href="/"

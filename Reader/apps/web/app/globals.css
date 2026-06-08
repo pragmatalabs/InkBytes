@@ -58,6 +58,16 @@ html, body {
   .developing-dot::after { animation: none; }
 }
 
+/* ── PWA safe-area header ────────────────────────────────────────────────────
+   Pads the sticky header so its content clears the iOS/Android status bar
+   (time, signal, battery) when the app is installed to the home screen.
+   The dark header background still bleeds under the status bar (correct for
+   a native feel); only the inner content is pushed down.
+   On desktop safe-area-inset-top resolves to 0 so this is a no-op. */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* ── PWA bottom nav spacer ───────────────────────────────────────────────────
    Placed at the end of <main> so the last piece of content is never hidden
    under the fixed bottom nav (58px) + iOS home indicator safe area.
