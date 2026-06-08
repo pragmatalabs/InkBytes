@@ -1,7 +1,8 @@
 # InkBytes — Overall Status
 
 > *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-08*
-> *Pipeline proven end-to-end. 413 published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
+> *Pipeline proven end-to-end. 413+ published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
+> *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — queue flood eliminated.*
 
 ---
 
@@ -90,10 +91,13 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 - [x] At least one outlet returned ≥ 5 articles via Messor
 - [x] First event pages in `pages` table (413 multi-source pages)
 - [x] Reader renders events at production URL
-- [x] Server running docker-compose.prod.yaml at `inkbytes.galvanic.cloud`
-- [x] Continuous 4×/day scheduled cycles with per-outlet session tracking
+- [x] Server running docker-compose.prod.yaml at `inkbytes.org`
+- [x] Continuous 12×/day scheduled cycles with per-outlet session tracking
+- [x] Synthesis cost cap (ADR-0015) — max 15 articles / 2 per outlet; 9× token reduction deployed 2026-06-08
+- [x] Duplicate enrichment fast-path (ADR-0015) — unchanged articles skip LLM; queue drains in ~2h not ~21d, deployed 2026-06-08
+- [x] Persistent Messor staging volume (ADR-0012) — `inkbytes_inkbytes-messor-scrapes` pre-seeded; no more restart floods, deployed 2026-06-08
 - [ ] 24h of green scheduled cycles + first paying user invited
-- [ ] Switch to `inkbytes.news` domain (DNS A records → `82.112.250.139`)
+- [ ] Switch to `inkbytes.news` domain (DNS A records → `67.205.136.61`)
 - [ ] GitHub Actions CI/CD (secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`)
 
 ---
@@ -120,7 +124,7 @@ make shell-curator    # bash in curator-api container
 ### P0 — Blocking on first paying user
 
 1. **`inkbytes.news` domain** — add A records → `67.205.136.61`; update `READER_DOMAIN`/`ADMIN_DOMAIN` in `infra/.env` on DO Droplet; update Traefik config.
-2. **Ollama reconnect on reboot** — `docker network connect inkbytes_inkbytes-internal ollama` is currently manual after server reboot. Add a systemd unit or cron.
+2. **Ollama reconnect on reboot** — `docker network connect inkbytes_inkbytes-internal infra-ollama` is currently manual after server reboot. Add a systemd unit or cron.
 3. **Phase 3 / Stripe** — subscriber gating blocked on pricing decisions. See `docs/product.md`.
 4. **24h green soak** — let 4 scheduled cycles complete; verify Scrape Results shows outlets at >80% parse success.
 
@@ -145,8 +149,8 @@ make shell-curator    # bash in curator-api container
 
 ### P2 — Event lifecycle (Sprint 2)
 
-14. **Story arc archive (ADR-0013)** — When a published event's `last_updated_at` is older than 7 days, mark it `concluded` and write a `story_arcs` record with `arc_article_ids TEXT[]` (ordered pointers into `articles.embedding`). Enables future "concluded story" UI badge, arc-similarity recommendation, and RAG context injection. Migration 010 + `--conclude-stories` command + `conclude_after_days` config.
-15. **Stale article filter (ADR-0012)** — Gate in Curator's `_handle_event()`: if `article.published_at > max_article_age_days (default 7)` AND no active cluster matches, drop without ENRICH/EMBED. Prevents orphan events from old re-featured homepage content. Depends on `find_nearest_active_event()` probe query + `max_article_age_days` config.
+14. **Story arc archive (Curator ADR-0013)** — When a published event's `last_updated_at` is older than 7 days, mark it `concluded` and write a `story_arcs` record with `arc_article_ids TEXT[]` (ordered pointers into `articles.embedding`). Enables future "concluded story" UI badge, arc-similarity recommendation, and RAG context injection. Migration 010 + `--conclude-stories` command + `conclude_after_days` config.
+15. **Stale article filter (Curator ADR-0012)** — Gate in Curator's `_handle_event()`: if `article.published_at > max_article_age_days (default 7)` AND no active cluster matches, drop without ENRICH/EMBED. Prevents orphan events from old re-featured homepage content. Depends on `find_nearest_active_event()` probe query + `max_article_age_days` config. *(Note: Messor ADR-0012 is the separate staging-volume fix — different service, same number is fine.)*
 
 ### P3 — Infrastructure
 
