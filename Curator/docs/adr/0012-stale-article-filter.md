@@ -1,6 +1,10 @@
 # ADR-0012 — Stale Article Filter: 7-day freshness gate in Curator
 
-> *Status: proposed · Owner: Julian · Date: 2026-06-07*
+> *Status: accepted · Sprint: 2 (not started) · Owner: Julian · Last updated: 2026-06-08*
+>
+> 🟡 **Design only — not started.** Decision is final; implementation deferred to Sprint 2.
+> See checklist at the bottom of this file. Gate ships disabled (`max_article_age_days: 0`) and
+> must be validated against the live corpus before enabling.
 
 ## Context
 
