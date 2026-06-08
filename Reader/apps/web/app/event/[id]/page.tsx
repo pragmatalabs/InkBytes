@@ -134,7 +134,7 @@ export default async function EventPage(
         </div>
       )}
 
-      {/* Media rail — images strip + video chips from IllustrateSkill */}
+      {/* Media rail — collapsed drawer, opens on click */}
       {(() => {
         // Guard: asyncpg sometimes returns JSONB columns as raw JSON strings
         // rather than decoded arrays. Handle both shapes defensively.
@@ -147,62 +147,78 @@ export default async function EventPage(
         const videos = rail.filter((m) => m.type === "video");
         if (!images.length && !videos.length) return null;
         return (
-          <div className="mb-8">
-            {images.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory scrollbar-hide">
-                {images.map((img, i) => (
-                  <a
-                    key={i}
-                    href={img.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-none snap-start rounded-lg overflow-hidden bg-gray-100 ring-1 ring-inset ring-black/5 hover:opacity-90 transition-opacity"
-                    style={{ width: 192, height: 128 }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={img.thumb_url ?? img.url}
-                      alt={img.title ?? ""}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </a>
-                ))}
-              </div>
-            )}
-            {videos.length > 0 && (
-              <div className={`flex flex-wrap gap-2 ${images.length ? "mt-3" : ""}`}>
-                {videos.map((vid, i) => (
-                  <a
-                    key={i}
-                    href={vid.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 hover:border-red-300 hover:shadow-sm transition-all group"
-                  >
-                    {vid.thumb_url && (
-                      <div className="relative flex-none w-12 h-8 rounded overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={vid.thumb_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/20 transition-colors">
-                          <svg className="w-3 h-3 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <details className="group mb-8 border-t border-[var(--border)]">
+            <summary className="flex items-center gap-2 py-3 cursor-pointer list-none select-none text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">
+              {/* Camera icon */}
+              <svg className="w-4 h-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                <circle cx="12" cy="13" r="3"/>
+              </svg>
+              <span className="text-[11px] font-semibold uppercase tracking-widest">Media</span>
+              <span className="text-[11px] font-mono">{rail.length}</span>
+              {/* Chevron — rotates when open */}
+              <svg className="w-3.5 h-3.5 ml-auto transition-transform duration-200 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+
+            <div className="pt-3 pb-1">
+              {images.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory scrollbar-hide">
+                  {images.map((img, i) => (
+                    <a
+                      key={i}
+                      href={img.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-none snap-start rounded-lg overflow-hidden bg-gray-100 ring-1 ring-inset ring-black/5 hover:opacity-90 transition-opacity"
+                      style={{ width: 192, height: 128 }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.thumb_url ?? img.url}
+                        alt={img.title ?? ""}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {videos.length > 0 && (
+                <div className={`flex flex-wrap gap-2 ${images.length ? "mt-3" : ""}`}>
+                  {videos.map((vid, i) => (
+                    <a
+                      key={i}
+                      href={vid.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 hover:border-red-300 hover:shadow-sm transition-all group/vid"
+                    >
+                      {vid.thumb_url && (
+                        <div className="relative flex-none w-12 h-8 rounded overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={vid.thumb_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/vid:bg-black/20 transition-colors">
+                            <svg className="w-3 h-3 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                          </div>
                         </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-mono uppercase tracking-wide text-red-600 mb-0.5">Watch</div>
+                        {vid.title && (
+                          <div className="text-[12px] font-medium text-[var(--ink)] line-clamp-1 max-w-[160px]">{vid.title}</div>
+                        )}
+                        {vid.source_domain && (
+                          <div className="text-[10px] text-[var(--ink-muted)]">{vid.source_domain}</div>
+                        )}
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-mono uppercase tracking-wide text-red-600 mb-0.5">Watch</div>
-                      {vid.title && (
-                        <div className="text-[12px] font-medium text-[var(--ink)] line-clamp-1 max-w-[160px]">{vid.title}</div>
-                      )}
-                      {vid.source_domain && (
-                        <div className="text-[10px] text-[var(--ink-muted)]">{vid.source_domain}</div>
-                      )}
-                    </div>
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
         );
       })()}
 
