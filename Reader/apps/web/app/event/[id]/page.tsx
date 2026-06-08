@@ -149,11 +149,19 @@ export default async function EventPage(
         return (
           <details className="group mb-8 border-t border-[var(--border)]">
             <summary className="flex items-center gap-2 py-3 cursor-pointer list-none select-none text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">
-              {/* Camera icon */}
-              <svg className="w-4 h-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-                <circle cx="12" cy="13" r="3"/>
-              </svg>
+              {/* Streaming icon with live-pulse rings */}
+              <span className="relative inline-flex flex-none items-center justify-center w-5 h-5">
+                {/* Outer pulse ring */}
+                <span className="absolute inset-[-4px] rounded-sm animate-ping opacity-20" style={{background:"#FC4442"}} />
+                {/* Inner pulse ring — staggered via delay */}
+                <span className="absolute inset-[-2px] rounded-sm animate-ping opacity-30 [animation-delay:0.4s]" style={{background:"#FC4442"}} />
+                <svg className="relative w-5 h-5" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                  <path style={{fill:"#FC4442"}} d="M54.364,52.952h-1.603v-2.167h1.603c1.423,0,2.582-1.158,2.582-2.582V15.796c0-1.424-1.158-2.582-2.582-2.582H9.636c-1.424,0-2.582,1.158-2.582,2.582v2.056H4.887v-2.056c0-2.618,2.131-4.749,4.749-4.749h44.728c2.618,0,4.748,2.131,4.748,4.749v32.407C59.113,50.822,56.983,52.952,54.364,52.952z"/>
+                  <path style={{fill:"#FC4442"}} d="M59.251,48.065h-1.602v-2.167h1.602c1.424,0,2.582-1.158,2.582-2.582V10.909c0-1.423-1.158-2.582-2.582-2.582H14.524c-1.424,0-2.582,1.158,2.582,2.582v2.056H9.775v-2.056c0-2.618,2.131-4.748,4.749-4.748h44.727C61.869,6.16,64,8.29,64,10.909v32.407C64,45.934,61.869,48.065,59.251,48.065z"/>
+                  <path style={{fill:"#6A6493"}} d="M49.893,57.84H4.333C1.944,57.84,0,55.896,0,53.507V20.268c0-2.389,1.944-4.333,4.333-4.333h45.559c2.389,0,4.333,1.944,4.333,4.333v33.239C54.226,55.896,52.282,57.84,49.893,57.84z M4.333,18.101c-1.195,0-2.167,0.972-2.167,2.167v33.239c0,1.195,0.972,2.167,2.167,2.167h45.559c1.195,0,2.167-0.972,2.167-2.167V20.268c0-1.195-0.972-2.167-2.167-2.167H4.333z"/>
+                  <path style={{fill:"#6A6493"}} d="M18.56,46.137c-0.211,0-0.42-0.061-0.6-0.181c-0.301-0.201-0.483-0.54-0.483-0.902V28.721c0-0.362,0.181-0.701,0.483-0.902c0.3-0.201,0.684-0.239,1.018-0.098l19.549,8.166c0.404,0.169,0.666,0.563,0.666,1c0,0.437-0.262,0.831-0.666,1l-19.549,8.166C18.844,46.109,18.701,46.137,18.56,46.137z M19.643,30.347v13.08l15.656-6.54L19.643,30.347z"/>
+                </svg>
+              </span>
               <span className="text-[11px] font-semibold uppercase tracking-widest">Media</span>
               <span className="text-[11px] font-mono">{rail.length}</span>
               {/* Chevron — rotates when open */}
