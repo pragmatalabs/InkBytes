@@ -152,11 +152,15 @@ make shell-curator    # bash in curator-api container
 14. **Story arc archive (Curator ADR-0013)** — When a published event's `last_updated_at` is older than 7 days, mark it `concluded` and write a `story_arcs` record with `arc_article_ids TEXT[]` (ordered pointers into `articles.embedding`). Enables future "concluded story" UI badge, arc-similarity recommendation, and RAG context injection. Migration 010 + `--conclude-stories` command + `conclude_after_days` config.
 15. **Stale article filter (Curator ADR-0012)** — Gate in Curator's `_handle_event()`: if `article.published_at > max_article_age_days (default 7)` AND no active cluster matches, drop without ENRICH/EMBED. Prevents orphan events from old re-featured homepage content. Depends on `find_nearest_active_event()` probe query + `max_article_age_days` config. *(Note: Messor ADR-0012 is the separate staging-volume fix — different service, same number is fine.)*
 
+### P2 — Infrastructure (Sprint 2)
+
+11. **Object store consolidation + embedding durability (Curator ADR-0016)** — Two separate objects stores in prod (MinIO internal + DO Spaces for Messor) is an accident of history. Sprint 2: remove `inkbytes-minio` from prod stack; point all services (Curator, Backoffice) at DO Spaces. Add daily `pg_dump` to DO Spaces (`backups/postgres/YYYY-MM-DD.sql.gz`, 28-day retention) — reduces embedding recovery from ~18h re-embed to ~10 min restore. pgvector stays; re-evaluate at 100k articles (~2 months out).
+
 ### P3 — Infrastructure
 
-11. **GitHub Actions CI/CD** — auto-build and deploy on `git push master`. Set secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`.
-12. **Curator config default** — change `embeddings_base_url` default to `http://ollama:11434/v1` (currently `localhost:11434` breaks after `migrate:fresh`).
-13. **Approach B entity embeddings** — event-level pgvector for related-events at >1000 events scale.
+12. **GitHub Actions CI/CD** — auto-build and deploy on `git push master`. Set secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`.
+13. **Curator config default** — change `embeddings_base_url` default to `http://ollama:11434/v1` (currently `localhost:11434` breaks after `migrate:fresh`).
+14. **Approach B entity embeddings** — event-level pgvector for related-events at >1000 events scale.
 
 ---
 
