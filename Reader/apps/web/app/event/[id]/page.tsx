@@ -136,7 +136,13 @@ export default async function EventPage(
 
       {/* Media rail — images strip + video chips from IllustrateSkill */}
       {(() => {
-        const rail: MediaRailItem[] = page.media_rail ?? [];
+        // Guard: asyncpg sometimes returns JSONB columns as raw JSON strings
+        // rather than decoded arrays. Handle both shapes defensively.
+        const rail: MediaRailItem[] = Array.isArray(page.media_rail)
+          ? page.media_rail
+          : typeof page.media_rail === "string"
+            ? (JSON.parse(page.media_rail) as MediaRailItem[])
+            : [];
         const images = rail.filter((m) => m.type === "image");
         const videos = rail.filter((m) => m.type === "video");
         if (!images.length && !videos.length) return null;
