@@ -93,6 +93,8 @@ multi-agent framework for a single-step scrape + score operation.
 - Events synthesized before this migration deploy will have `media_rail = []`
   until re-synthesized (or a future backfill script runs).
 - `scrapling[fetchers]>=0.2.9` added to `requirements.txt` (`[fetchers]` pulls Playwright + Patchright; browser binaries installed via `playwright install chromium` + `patchright install chromium` in the Dockerfile).
+- **Concurrency guard (added post-ship):** `Application._illustrate_sem = asyncio.Semaphore(1)` serialises IllustrateSkill calls. During a harvest batch, N events can synthesize concurrently via `asyncio.create_task`; without the gate, N×2 Chromium instances would launch simultaneously, easily exceeding the container memory limit. With `Semaphore(1)`, only one browser pair is alive at a time (~400 MB peak). `inkbytes-curator-worker` `mem_limit` raised 768 MB → **1.5 GB** to give ~900 MB headroom above the peak.
+- **API compat (Scrapling 0.4.9):** Both fetchers use classmethod calls (`DynamicFetcher.async_fetch`, `StealthyFetcher.async_fetch`), not instance construction. `page.css(...)` returns a `Selectors` iterable — wrap in `list()` before iterating. Single-element lookup uses `.find()` not `.css_first()`.
 - Migration 009 runs on next Curator startup.
 
 ## Open items

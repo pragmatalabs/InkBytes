@@ -53,7 +53,7 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 | Container | Limit | Typical usage |
 |---|---|---|
 | `inkbytes-messor` | 6 GB | 2–3 GB mid-scrape, ~150 MB idle |
-| `inkbytes-curator-worker` | 1 GB | ~130 MB |
+| `inkbytes-curator-worker` | **1.5 GB** | ~200 MB idle / ~600 MB peak (IllustrateSkill — 2× Chromium, serialised via Semaphore(1)) |
 | `inkbytes-reader` | 512 MB | ~65 MB |
 | `inkbytes-backoffice` | 512 MB | ~115 MB |
 | `inkbytes-curator-api` | 512 MB | ~110 MB |
@@ -136,7 +136,8 @@ make shell-curator    # bash in curator-api container
 9. **Reader R4** — global perf/SEO pass. Lighthouse score, sitemap.xml.
 10. **Language filter on feed** — Spanish content stays in Spanish; Reader shows language badge.
 11. **Media Tier 1** ✅ 2026-06-07 — Messor passively extracts `og:image`/`top_image` and YouTube embeds; stored in `articles.lead_image`/`video_url`; rolled up to event level in API; Reader LeadCard, SecondaryCard, and event detail hero show cover image (ADR-0010).
-12. **Media Tier 2** ✅ 2026-06-07 — `IllustrateSkill` output (`pages.media_rail`) now surfaced end-to-end: Curator API exposes `media_rail` on `GET /events/{id}`; `MediaRailItem` type in Reader; event page renders images as a snap-scroll strip below the hero and videos as "Watch" chips (ADR-R-0003).
+12. **Media Tier 2** ✅ 2026-06-07 — `IllustrateSkill` output (`pages.media_rail`) surfaced end-to-end. Curator API exposes `media_rail`; `MediaRailItem` typed in Reader. Event page: collapsed drawer in the action bar (streaming icon + pulse rings alongside Share button) — expands to image strip + video chips on click. `MediaRailDrawer` client component owns toggle state (ADR-R-0003, ADR-R-0004).
+15. **Entities graph on mobile** ✅ 2026-06-07 — Force-directed SVG graph now renders on all screen sizes (was replaced by a pill list on mobile). Single responsive grid (`grid-cols-1 md:grid-cols-[1fr_320px]`); `touchAction:none` on SVG so finger-drag moves nodes without triggering page scroll (ADR-R-0004).
 13. **PWA + bottom nav + share** ✅ 2026-06-07 — Web App Manifest, bottom nav (News/Search/Entities/About), Web Share API share button on event pages (ADR-R-0001). TODO: generate 192/512px PNG icons for Android install banner.
 14. **Brand logo mark** ✅ 2026-06-07 — Real brand SVG (`InkBytes-Logo-White-cropped.svg`) wired into header (`<LogoMark>` component, `currentColor`) and favicon (`icon.svg` dark bg) replacing placeholder (ADR-R-0003).
 14. **PNG app icons** — generate `/public/icon-192.png` and `/public/icon-512.png` from `icon.svg` for full Android PWA install prompt (`inkscape --export-type=png --export-width=192`).
