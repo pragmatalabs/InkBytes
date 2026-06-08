@@ -139,6 +139,16 @@ bash orchestrator/scripts/down.sh --nuke  # delete volumes too
 4. **Outlet coverage:** harvest the remaining LATAM/ES outlets; RSS/Atom-first harvesting in roadmap.
 5. **Cleanup debt:** retire the legacy Messor GitLab remote; review `Trashx/` repos before deleting.
 
+## ⚠️ Git workflow — mandatory for ALL agents
+
+**Commit locally. Do NOT push or deploy without explicit instruction from Julian.**
+
+- Always finish with: "N commits ahead of origin, ready to push when you say so."
+- `git push`, `make deploy-build-do`, and any SSH-side deploys require an explicit "push" or "deploy" from Julian in chat.
+- **Deploy target:** DigitalOcean only — `67.205.136.61` / `inkbytes.org`. Hostinger is retired.
+
+---
+
 ## Conventions to keep using
 
 - **Prompts as `.md` files** in `Curator/apps/curator/prompts/` — diffable, reviewable. See `Curator/docs/prompts.md` for the versioning policy.
