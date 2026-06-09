@@ -86,6 +86,12 @@ class MediaValidator:
         """
         if not self.enabled or not url:
             return True
+        # Only http(s) URLs are probeable. `data:`/`blob:` URIs are inline images
+        # the browser renders directly (keep them); a relative path or unknown
+        # scheme isn't ours to judge — keep rather than drop. httpx also raises on
+        # a non-http scheme, so this guard doubles as a crash guard.
+        if not url.lower().startswith(("http://", "https://")):
+            return True
         if url in self._cache:
             self._cache.move_to_end(url)
             return self._cache[url]
@@ -98,7 +104,7 @@ class MediaValidator:
                 ctype = resp.headers.get("content-type", "").lower()
                 final_url = str(resp.url).lower()
                 clen = resp.headers.get("content-length")
-        except (httpx.HTTPError, OSError) as e:
+        except Exception as e:  # noqa: BLE001 — fail open on any probe error
             logger.debug("lead_image probe failed, keeping %s: %s", url, e)
             return self._remember(url, True)
 

@@ -126,6 +126,13 @@ async def logic_tests() -> None:
     check("empty url → displayable",
           await v.is_displayable(""), True)
 
+    # 7b. Non-http schemes are kept, never probed (httpx would raise on them).
+    #     A data: URI is an inline image the browser renders directly.
+    check("data: URI → displayable (no probe)",
+          await v.is_displayable("data:image/svg+xml,%3Csvg%3E%3C/svg%3E"), True)
+    check("relative path → displayable (no probe)",
+          await v.is_displayable("/local/image.png"), True)
+
     # 8. Cache: second call to a blocked URL returns the cached verdict.
     v = _make_stub_validator({"/gone.jpg": httpx.Response(404)})
     await v.is_displayable("https://cdn.example/gone.jpg")
