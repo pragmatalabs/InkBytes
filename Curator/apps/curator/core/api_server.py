@@ -237,14 +237,20 @@ def build_app(app: Application) -> FastAPI:
                            AND a.factuality IS NOT NULL
                        ) AS avg_factuality,
 
-                       -- Cover image: first non-null lead_image from the event's
-                       -- articles, ordered by scraped_at DESC so the freshest
-                       -- article's image wins (og:images are usually the best).
+                       -- Cover image: freshest lead_image among the event's CORE
+                       -- members (ADR-0021). The cluster attach threshold is 0.50
+                       -- cosine distance; a marginal member (e.g. distance 0.47) can be
+                       -- loosely related yet supply the only image, hijacking the hero
+                       -- with an off-topic photo (a Stevie Nicks photo on a conductor's
+                       -- obituary). Gating to cluster_distance <= 0.45 keeps the hero
+                       -- on-topic; events whose only image sits on an outlier go
+                       -- text-only rather than show a wrong photo.
                        (SELECT a.lead_image
                           FROM articles a
                          WHERE a.event_id = e.id
                            AND a.lead_image IS NOT NULL
                            AND a.lead_image <> ''
+                           AND a.cluster_distance <= 0.45
                          ORDER BY a.scraped_at DESC
                          LIMIT 1
                        ) AS lead_image,
@@ -304,6 +310,7 @@ def build_app(app: Application) -> FastAPI:
                          WHERE a.event_id = e.id
                            AND a.lead_image IS NOT NULL
                            AND a.lead_image <> ''
+                           AND a.cluster_distance <= 0.45
                          ORDER BY a.scraped_at DESC
                          LIMIT 1
                        ) AS lead_image,
