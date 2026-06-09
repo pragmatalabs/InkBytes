@@ -62,7 +62,8 @@ InkBytes/                              ← repo root
 | LLM (enrich + synthesize) | **Anthropic Claude Haiku 4.5** |
 | Embeddings | **Local Ollama `bge-m3` (1024-dim, multilingual)** — Curator ADR-0003; OpenAI `text-embedding-3-small` is the fallback provider |
 | Local model runtime | **Ollama** — deployed service (dev `full` profile + prod compose); serves bge-m3 over an OpenAI-compatible `/v1` endpoint |
-| Outlet vertical | LATAM bilingual (DR/MX/CO/AR) + global EN business/tech |
+| Outlet vertical | LATAM bilingual (DR/MX/CO/AR/PE/CL/EC/PR/VE) + Europe (ES/FR/DE) + global EN business/tech |
+| Outlet regions | Single source of truth: `Messor/apps/platform/config/regions.php`. Rule: `global` OR `{macro}-{cc}` (`{macro}` ∈ `latam`/`europe`/…, `{cc}` = ISO 3166-1 alpha-2 lowercase). Extend by adding the code under its macro in that config — the validator allowlist + Backoffice dropdown derive from it. Do NOT hardcode region lists in controllers (2026-06-09). |
 | Deploy target | Single DigitalOcean Droplet |
 | Database | Postgres + pgvector |
 | Event bus | RabbitMQ |

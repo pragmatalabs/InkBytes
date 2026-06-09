@@ -28,9 +28,18 @@ class OutletController extends Controller
 {
     use PaginatesQueries;
 
-    private const REGIONS = ['global', 'latam-dr', 'latam-mx', 'latam-co', 'latam-ar'];
-
     private const VERTICALS = ['general', 'business', 'tech', 'politics'];
+
+    /**
+     * Allowed outlet regions — derived from config/regions.php (single source
+     * of truth + naming rule). Extend regions there, not here.
+     *
+     * @return list<string>
+     */
+    private function regions(): array
+    {
+        return config('regions.allowed', ['global']);
+    }
 
     /** Columns the outlet list may sort on (B7). */
     private const SORTABLE = ['display_name', 'id', 'region', 'language', 'vertical', 'priority', 'active'];
@@ -468,7 +477,7 @@ class OutletController extends Controller
             'name' => ['required', 'string', 'max:200'],
             'display_name' => ['required', 'string', 'max:200'],
             'url' => ['required', 'url', 'max:500'],
-            'region' => ['required', Rule::in(self::REGIONS)],
+            'region' => ['required', Rule::in($this->regions())],
             'language' => ['required', 'string', 'max:10'],
             'vertical' => ['required', Rule::in(self::VERTICALS)],
             'priority' => ['required', 'integer', 'between:1,3'],
@@ -516,7 +525,7 @@ class OutletController extends Controller
             'name' => ['required', 'string', 'max:200'],
             'display_name' => ['required', 'string', 'max:200'],
             'url' => ['required', 'url', 'max:500'],
-            'region' => ['required', Rule::in(self::REGIONS)],
+            'region' => ['required', Rule::in($this->regions())],
             'language' => ['required', 'string', 'max:10'],
             'vertical' => ['required', Rule::in(self::VERTICALS)],
             'priority' => ['required', 'integer', 'between:1,3'],
@@ -557,7 +566,7 @@ class OutletController extends Controller
     private function options(): array
     {
         return [
-            'regions' => self::REGIONS,
+            'regions' => $this->regions(),
             'verticals' => self::VERTICALS,
         ];
     }
