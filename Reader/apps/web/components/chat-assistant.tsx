@@ -36,7 +36,8 @@ const QUICK_ACTIONS: { label: string; mode: Mode; question: string }[] = [
 ];
 
 // Render a line of answer text, turning [n] citation markers into links.
-function renderLine(line: string, sources: Source[]) {
+// onNavigate closes the overlay before the route changes to the event page.
+function renderLine(line: string, sources: Source[], onNavigate: () => void) {
   const parts = line.split(/(\[\d+\])/g);
   return parts.map((part, i) => {
     const m = part.match(/^\[(\d+)\]$/);
@@ -48,6 +49,7 @@ function renderLine(line: string, sources: Source[]) {
           <Link
             key={i}
             href={src.url}
+            onClick={onNavigate}
             className="text-[var(--accent-dot)] font-medium hover:underline align-super text-[0.7em]"
             title={src.title}
           >
@@ -60,7 +62,7 @@ function renderLine(line: string, sources: Source[]) {
   });
 }
 
-function renderAnswer(md: string, sources: Source[]) {
+function renderAnswer(md: string, sources: Source[], onNavigate: () => void) {
   const lines = md.trim().split(/\n+/).filter(Boolean);
   return lines.map((line, i) => {
     const bullet = /^\s*[-*]\s+/.test(line);
@@ -70,13 +72,13 @@ function renderAnswer(md: string, sources: Source[]) {
       return (
         <div key={i} className="flex gap-2 mb-2 leading-relaxed">
           <span className="text-[var(--ink-muted)] shrink-0">•</span>
-          <span>{renderLine(clean, sources)}</span>
+          <span>{renderLine(clean, sources, onNavigate)}</span>
         </div>
       );
     }
     return (
       <p key={i} className="mb-3 leading-relaxed">
-        {renderLine(line, sources)}
+        {renderLine(line, sources, onNavigate)}
       </p>
     );
   });
@@ -202,13 +204,13 @@ export default function ChatAssistant() {
               )}
               {answer && !loading && (
                 <>
-                  <div className="prose-answer">{renderAnswer(answer.answer_md, answer.sources)}</div>
+                  <div className="prose-answer">{renderAnswer(answer.answer_md, answer.sources, () => setOpen(false))}</div>
                   {answer.sources.length > 0 && (
                     <div className="mt-6 pt-4 border-t border-[var(--border)]">
                       <p className="text-[11px] uppercase tracking-wide text-[var(--ink-muted)] mb-2">Sources</p>
                       <div className="flex flex-col gap-1.5">
                         {answer.sources.map((s) => (
-                          <Link key={s.n} href={s.url} className="text-sm text-[var(--ink)] hover:text-[var(--accent-dot)] transition-colors">
+                          <Link key={s.n} href={s.url} onClick={() => setOpen(false)} className="text-sm text-[var(--ink)] hover:text-[var(--accent-dot)] transition-colors">
                             <span className="text-[var(--ink-muted)] font-mono text-xs mr-1.5">[{s.n}]</span>
                             {s.title}
                           </Link>
