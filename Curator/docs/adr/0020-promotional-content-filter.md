@@ -90,3 +90,33 @@ city in the world?", "the seven best shows to stream") are kept.
 - **LLM classification of content type.** More robust to novel phrasing but adds a
   per-article LLM call and latency; the deterministic filter already covers the
   observed corpus. Revisit if new commerce phrasings slip through.
+
+## Addendum — recall tuning (2026-06-09)
+
+A "May 2026 Mother's Day roundup" cluster (Guardian/Wired/Gizmodo/CNBC shopping
+verticals) published despite the gate: the original patterns required tight
+adjacency (`best gifts`, `best deals`) and only flagged 8/43 titles, below the
+strict-majority threshold. The page also surfaced **stale** content (member
+articles dated back to 2024–2025, re-featured on homepages today → high
+`freshness_at`).
+
+Broadened recall (still precision-first; `scripts/test_promo_filter.py` 50/50,
+0/441 published-headline false positives, 0.5% article-title flag rate):
+
+- `best <words> gifts/deals`; occasion gifts (Mother's/Father's/Valentine's/
+  Christmas/holiday, straight `'` or curly `’`)
+- `$N off`, `half off`, `price drop(s)`, `$N per <unit>`
+- Black Friday low/deal/sale; `<product>` hits all-time/record/Black-Friday low;
+  `<product> … Prime Day`; `we/I (stress) tested`
+- products added: phones, backpacks, hard drives, power banks, charging stations,
+  streamers, consoles
+
+Added an **EDITORIAL guard** (checked before the commerce patterns) so arts/
+culture content is never mis-flagged: named media reviews ("Music/Movie/Album
+Review:"), "shows/series/movies to stream/watch", "best (TV) shows/series/
+movies". Product reviews ("Sonos review:") still flag.
+
+**Note — staleness is a separate gap.** Even with the promo gate, stale-dated
+articles bypass the Messor 48h freshness gate (ADR-0015) and float up via
+`freshness_at = max(scraped_at)`. That is Messor's responsibility and remains
+open (see the Messor staging/freshness work).
