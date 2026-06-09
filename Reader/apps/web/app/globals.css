@@ -68,6 +68,11 @@ html, body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
+/* Pads the assistant overlay input bar to clear the iOS home indicator. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ── PWA bottom nav spacer ───────────────────────────────────────────────────
    Placed at the end of <main> so the last piece of content is never hidden
    under the fixed bottom nav (58px) + iOS home indicator safe area.

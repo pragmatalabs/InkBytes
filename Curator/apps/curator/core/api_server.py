@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from core.application import Application
 
@@ -21,6 +22,13 @@ logger = logging.getLogger(__name__)
 _MAX_EVENTS_LIMIT = 500
 _MAX_GRAPH_NODES  = 200
 _MAX_GRAPH_EDGES  = 500
+_MAX_QUESTION_LEN = 500  # assistant /ask question cap (ADR-0022)
+
+
+class AskRequest(BaseModel):
+    """Body for POST /ask (ADR-0022 corpus chat assistant)."""
+    question: str = Field("", max_length=_MAX_QUESTION_LEN)
+    mode: str = "chat"  # "resume" | "top10" | "chat"
 
 # ── Broad news categories derived from article-level topic strings ────────────
 # Each entry is (category_key, [keywords...]).  First match wins; "world" is
@@ -99,7 +107,7 @@ def build_app(app: Application) -> FastAPI:
     api.add_middleware(
         CORSMiddleware,
         allow_origins=app.cfg.api.cors_allow_origins,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
 
@@ -632,5 +640,17 @@ def build_app(app: Application) -> FastAPI:
                 event_id, min_score, limit,
             )
         return [dict(r) for r in rows]
+
+    @api.post("/ask")
+    async def ask(body: AskRequest) -> dict[str, Any]:
+        """Corpus chat assistant (ADR-0022) — grounded digest / Q&A.
+
+        Answers ONLY from published events; returns markdown + numbered sources
+        that resolve to InkBytes event pages. mode: resume | top10 | chat.
+        """
+        mode = body.mode if body.mode in ("resume", "top10", "chat") else "chat"
+        if mode == "chat" and not body.question.strip():
+            raise HTTPException(400, "question required for chat mode")
+        return await app.assistant.answer(body.question, mode)
 
     return api

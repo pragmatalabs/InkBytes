@@ -4,6 +4,7 @@ import Link from "next/link";
 import BottomNav from "./bottom-nav";
 import { LogoMark } from "@/components/logo";
 import PwaInstallBanner from "@/components/pwa-install-banner";
+import ChatAssistant from "@/components/chat-assistant";
 import "./globals.css";
 
 const inter = Inter({
@@ -95,6 +96,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Mobile-only spacer — height matches the bottom nav + safe area */}
           <div className="bottom-nav-spacer md:hidden" aria-hidden="true" />
         </main>
+
+        {/* Corpus chat assistant — floating button + overlay (ADR-0022) */}
+        <ChatAssistant />
 
         {/* PWA install prompt — Android (beforeinstallprompt) + iOS (manual) */}
         <PwaInstallBanner />

@@ -16,6 +16,7 @@ from services.embedding_service import EmbeddingService
 from services.llm_service import LlmService, LlmQuotaError
 from services.media_validation import MediaValidator
 from services.message_service import MessageService
+from skills.assistant import AssistantSkill
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
 from skills.illustrate import IllustrateSkill
@@ -66,6 +67,9 @@ class Application:
             filter_noise=cfg.application.filter_noise,
         )
         self.illustrate = IllustrateSkill(self.db)
+        # Corpus chat assistant (ADR-0022): grounded digests + Q&A over
+        # published events, reusing the synthesis LLM engine.
+        self.assistant = AssistantSkill(self.llm, self.db, self.embed, cfg.llm)
         # Concurrency gate — article pipeline
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
         # IllustrateSkill concurrency gate: cap at 1 concurrent browser pair.
