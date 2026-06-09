@@ -75,6 +75,14 @@ if [[ "${1:-}" == "--build" ]]; then
         -t "${READER_IMAGE:-ghcr.io/pragmatalabs/inkbytes-reader:latest}" \
         -f "$REPO_ROOT/Reader/apps/web/Dockerfile" \
         "$REPO_ROOT/Reader/apps/web/"
+    # Messor — context is Messor/ (Dockerfile COPYs apps/scraper + packages/inkbytes),
+    # mirroring .github/workflows/deploy.yml. Previously omitted here, so a
+    # `--build` deploy silently shipped a stale Messor image (Messor ADR-0014 fix
+    # was pushed but not rebuilt). Keep this in lockstep with the CI build.
+    docker build \
+        -t "${MESSOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-messor:latest}" \
+        -f "$REPO_ROOT/Messor/docker/Dockerfile" \
+        "$REPO_ROOT/Messor/"
 else
     echo "[deploy] Pulling images from GitHub Container Registry..."
     if [ -n "${GHCR_TOKEN:-}" ]; then
