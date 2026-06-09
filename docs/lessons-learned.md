@@ -1,9 +1,44 @@
 # InkBytes — Lessons Learned
 
-> *Status: living doc · Owner: Julián · Last updated: 2026-06-08*
+> *Status: living doc · Owner: Julián · Last updated: 2026-06-09*
 
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
+
+---
+
+## 2026-06-09 — Per-DAY staging files re-published the whole day every cycle (105k-msg flood)
+
+**What happened**: A **105 143-message** backlog built up in
+`curator.articles-scraped` and had to be purged manually. Messor logs were full
+of `Staging file not found for event publish: …`. It looked like a repeat of the
+ADR-0012 volume wipe, but that was only the *trigger*.
+
+**Root cause (two compounding causes)**:
+1. **Trigger** — the ADR-0016 MinIO→DO Spaces migration tore down volumes with
+   `docker compose down -v` / `docker volume prune`, which *also* destroyed
+   `inkbytes_inkbytes-messor-scrapes`, wiping all URL-dedup history (exactly the
+   risk ADR-0012 flagged). The mount was fine; the contents were lost once.
+2. **Amplifier (the real bug)** — staging files were named with
+   `generate_today_timestamp()` (midnight UTC) → **one file per outlet per
+   day**, accumulating every cycle's new articles. But
+   `_publish_articles_from_staging_file` re-reads the **whole file every
+   cycle**, so each article was re-published ~4×/day even when dedup worked. After
+   the wipe, day-files ballooned to multi-MB and replayed in full each cycle.
+
+**Fix**: See Messor ADR-0014. Name staging files with a **per-RUN** timestamp
+(`int(time.time())`) so each cycle gets its own file holding only that run's new
+articles — re-publishing it emits only-new. Cross-run/day dedup is unchanged
+(`load_known_article_urls` still scans the 7-day window). Also downgraded
+"Staging file not found" WARNING→INFO (0 new articles → no file is the *healthy*
+outcome, reconciling the session vs publish dedup layers).
+
+**Lesson**: Two things. (1) A "dedup" layer that re-reads a *cumulative* file is
+not deduping — the granularity of the staging unit (per-run vs per-day) silently
+determines publish volume; align the file lifetime with the publish lifetime.
+(2) `docker compose down -v` / `docker volume prune` on a prod stack destroys
+*every* named volume, not just the one you're migrating. Target volumes
+explicitly by their Compose-prefixed name (`inkbytes_<volume>`).
 
 ---
 
