@@ -170,6 +170,8 @@ See [`docs/sprint-1-backlog.md`](./docs/sprint-1-backlog.md) for the full Sprint
 - **Don't add `openai:` / `topics_extracted` / `clusters_path`** to `env.yaml`. Those are Curator config.
 - **Don't upgrade pydantic to v2.** Messor's `Article` model uses v1 BaseModel; the shared `inkbytes` package depends on v1. Pydantic v2 lives in Curator only.
 - **Don't import from `Curator/`.** Cross-service code is the RabbitMQ event JSON, not Python imports.
+- **Don't harvest stale articles.** `process_outlet_articles` drops anything whose `publish_date` is outside `articles.freshness_window_hours` (48h) — strict, undated dropped — and `_slice_outlet_articles` takes the homepage **head only** (the tail-crawl surfaced archives back to 2012). Don't re-add the tail or weaken the gate without bumping [ADR-0015](./docs/adr/0015-harvest-freshness-window.md).
+- **Don't name staging files per-day.** Use the per-run `int(time.time())` prefix ([ADR-0014](./docs/adr/0014-per-run-staging-files-stop-republish-amplification.md)); `generate_today_timestamp()` (midnight) makes one file accumulate a day of cycles that then re-publishes in full.
 
 ## Where to read more
 

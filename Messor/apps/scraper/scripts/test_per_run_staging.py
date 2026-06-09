@@ -35,14 +35,20 @@ def make_np_article(url):
 
 
 def fake_scrape_outlet_article(np_article, brand):
-    """Stand in for the network fetch: build an Article straight from the URL."""
+    """Stand in for the network fetch: build an Article straight from the URL.
+
+    Emits a fresh publish_date so the ADR-0015 freshness gate keeps the article
+    (this test exercises per-run staging, not freshness)."""
+    import datetime as _dt
     url = np_article.url
+    fresh = (_dt.datetime.utcnow() - _dt.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
     return Article(
         id=url,                 # id == url keeps the test deterministic
         article_url=url,
         title=f"title for {url}",
         text="lorem ipsum " * 20,
         language="en",
+        publish_date=fresh,
     )
 
 

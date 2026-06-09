@@ -19,7 +19,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
 
@@ -31,7 +31,6 @@ from pydantic import BaseModel, Field
 from inkbytes.common.system.logger.advanced_logger import LogDestination, AdvancedLogger
 from inkbytes.common.system.config.config_loader import ConfigLoader
 from inkbytes.common.system.module_handler import get_module_name
-from inkbytes.common.system.utils import generate_threshold_timestamp, generate_today_timestamp
 from inkbytes.models.articles import Article, ArticleBuilder, ArticleCollection
 from inkbytes.models.newspaperbase import NewsPaper
 from inkbytes.models.outlets import OutletsSource
@@ -215,49 +214,31 @@ def validate_outlet_url(outlet):
     return outlet.url and outlet.url.strip()
 
 
-MAX_ARTICLES_PER_OUTLET = 300   # articles taken from each end of the feed
-_HEAD_TAIL_THRESHOLD = MAX_ARTICLES_PER_OUTLET * 2  # 600 — minimum to trigger head+tail
+MAX_ARTICLES_PER_OUTLET = 300   # per-outlet download bound on the homepage-order head (ADR-0015)
 
 
 def _slice_outlet_articles(articles: list) -> list:
     """Return the subset of articles to process for one outlet.
 
     newspaper3k discovers URLs from the homepage **and** every category page,
-    so large outlets (CNN, AP, …) can surface 2,000+ links per build().  We
-    used to cap at the first 300, which means we only ever saw today's top
-    headlines and missed articles that newspaper3k found deep in category pages.
+    so large outlets (CNN, AP, …) can surface 2,000+ links per build().
 
-    Strategy
-    --------
-    - Small feeds  (≤ 600 total): take everything — no need to split.
-    - Large feeds  (> 600 total): take the first 300 **and** the last 300.
-      Head = freshest breaking headlines (homepage order).
-      Tail = category-page articles surfaced later in the crawl that never
-             appear on the front page (international, sports, technology, …).
-
-    Overlap is impossible when total > 2 × MAX, but we dedup defensively.
+    Strategy (Messor ADR-0015): take the **homepage-order head only**, capped at
+    ``MAX_ARTICLES_PER_OUTLET``.  We previously also took the last 300 ("tail")
+    to capture category-page depth — but that tail is exactly where newspaper3k
+    surfaces deep archive links (articles back to 2012 on theguardian), which is
+    the wrong content for a fresh-news reader.  The 48-hour ``publish_date`` gate
+    in ``process_outlet_articles`` is the precise freshness filter; this cap is
+    now just a per-outlet **download bound** on the freshest-first head.
     """
     total = len(articles)
-    if total <= _HEAD_TAIL_THRESHOLD:
-        return articles  # small feed — take everything
-
     head = articles[:MAX_ARTICLES_PER_OUTLET]
-    tail = articles[-MAX_ARTICLES_PER_OUTLET:]
-
-    seen_urls: set = set()
-    combined: list = []
-    for a in head + tail:
-        url = getattr(a, "url", None) or id(a)
-        if url not in seen_urls:
-            seen_urls.add(url)
-            combined.append(a)
-
-    tail_count = len(combined) - MAX_ARTICLES_PER_OUTLET
-    logger.info(
-        f"Head+tail slice: {total} total → {len(combined)} selected "
-        f"({MAX_ARTICLES_PER_OUTLET} head + {tail_count} tail)"
-    )
-    return combined
+    if total > len(head):
+        logger.info(
+            f"Head slice: {total} total → {len(head)} selected "
+            f"(homepage-order head, tail dropped — ADR-0015)"
+        )
+    return head
 
 
 def process_found_articles(executor, outlet, paper) -> list:
@@ -303,6 +284,42 @@ def article_exists(article: Article, store: StagingStore) -> bool:
     except Exception as e:
         logging.getLogger().error(f"Error checking if article exists: {e}")
         return False
+
+
+_FUTURE_SKEW_DAYS = 2   # publish_date beyond now+2d is a newspaper3k body-date artefact
+
+
+def is_article_fresh(record: Article, window_hours: int) -> bool:
+    """Return True iff ``record.publish_date`` falls within the freshness window.
+
+    The harvest freshness rule (Messor ADR-0015): we only bring articles
+    published within the last ``window_hours`` (48h in production).  newspaper3k
+    populates ``publish_date`` reliably (~99% of harvested articles), so this is
+    an exact filter, not a heuristic.
+
+    **Strict** policy (decided 2026-06-09): a missing / unparseable date returns
+    ``False`` (the article is dropped).  A date absurdly in the future
+    (> now + ``_FUTURE_SKEW_DAYS``) is also dropped — newspaper3k sometimes lifts
+    a date from the article *body* rather than its byline, which would otherwise
+    sneak a stale piece past the window.
+
+    Comparison is done in naive-UTC; tz-aware dates are converted first.  A few
+    hours of tz imprecision is irrelevant against a 48-hour window.
+    """
+    raw = getattr(record, "publish_date", None)
+    if raw is None or str(raw).strip().lower() in ("", "none", "null"):
+        return False
+    try:
+        from dateutil import parser as _date_parser
+        dt = _date_parser.parse(str(raw))
+    except (ValueError, OverflowError, TypeError):
+        return False
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    now = datetime.utcnow()
+    if dt > now + timedelta(days=_FUTURE_SKEW_DAYS):
+        return False
+    return dt >= now - timedelta(hours=window_hours)
 
 
 def check_article_exists_in_all_scrapes(article: Article, outlet_name: str) -> bool:
@@ -1024,10 +1041,16 @@ class NewsScraper:
         self.logger.info(f"Saving articles to: {file_path}")
         data_handler = StagingStore(file_path)
 
+        # Harvest freshness window (Messor ADR-0015): only articles published in
+        # the last N hours are staged.  Configurable via `articles.freshness_
+        # window_hours`; defaults to 48h if unset.
+        window_hours = int(config.articles.freshness_window_hours() or 48)
+
         total           = len(np_articles)
         url_skipped     = 0   # Layer 3 pre-dedup hits (no download)
         batch_dupes     = 0   # within this cycle's staging file
         lang_skipped    = 0
+        stale_skipped   = 0   # published outside the freshness window (or undated)
         parse_failed    = 0
         progress_every  = max(1, min(total // 10, 20))
 
@@ -1073,6 +1096,15 @@ class NewsScraper:
                 self.session.increment_failed_articles()
                 continue
 
+            # Freshness gate (ADR-0015): only articles published within the last
+            # `window_hours` are staged.  Strict — a missing/unparseable date is
+            # treated as stale and dropped.  This is what stops month-old archive
+            # links (theguardian back to 2012) from being re-published as "fresh".
+            if not is_article_fresh(record, window_hours):
+                stale_skipped += 1
+                self.session.increment_failed_articles()
+                continue
+
             # New article — accept
             self.processed_articles.append(record)
             self.session.increment_successful_articles()
@@ -1088,6 +1120,7 @@ class NewsScraper:
                     f"Progress: {i+1}/{total} ({(i+1)/total*100:.1f}%) | "
                     f"New: {len(self.processed_articles)} | "
                     f"URL-skip: {url_skipped} | batch-dupe: {batch_dupes} | "
+                    f"stale-skip: {stale_skipped} | "
                     f"parse-fail: {parse_failed} | lang-skip: {lang_skipped}"
                 )
 
@@ -1096,6 +1129,7 @@ class NewsScraper:
         self.logger.info(
             f"Completed {outletBrand}: new={len(self.processed_articles)} "
             f"url-skip={url_skipped} batch-dupe={batch_dupes} "
+            f"stale-skip={stale_skipped} (>{window_hours}h or undated) "
             f"parse-fail={parse_failed} lang-skip={lang_skipped}"
         )
 
