@@ -5,6 +5,7 @@ the Application; the callback orchestrates the three skills.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Awaitable, Callable
@@ -15,6 +16,19 @@ import openai
 
 from core.config import RmqCfg
 from services.llm_service import LlmQuotaError
+
+
+class ProcessingPausedError(Exception):
+    """Raised by the article handler when the Backoffice kill-switch is off.
+
+    The message is requeued (never lost) and the consumer backs off so it does
+    not tight-loop while paused. See AppCfg.processing_enabled.
+    """
+
+
+# Seconds to wait before requeuing while processing is paused — throttles the
+# (prefetch=1) consumer so a paused worker idles instead of spinning.
+_PAUSE_BACKOFF = 5.0
 
 # Transient infrastructure errors — requeue the article so it's retried on
 # the next consumer cycle instead of being permanently dropped.
@@ -77,6 +91,12 @@ class MessageService:
                 payload = json.loads(msg.body.decode("utf-8"))
                 await handler(payload)
                 await msg.ack()
+            except ProcessingPausedError:
+                # Kill-switch is off — preserve the article and back off so the
+                # worker idles (no processing, no LLM calls) until re-enabled.
+                await asyncio.sleep(_PAUSE_BACKOFF)
+                await msg.nack(requeue=True)
+                logger.debug("Processing paused — article requeued.")
             except LlmQuotaError as exc:
                 # Quota is a hard monthly wall — preserve the article so it can
                 # be processed when the limit resets, then signal the caller to

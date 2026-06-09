@@ -73,6 +73,7 @@ InkBytes/                              ← repo root
 | Pydantic | v1 in Messor (legacy), v2 in Curator (new) — boundary is RabbitMQ JSON |
 | `pages.media_rail` content | **Videos only** (YouTube + future direct outlet video) — Bing image fetcher parked 2026-06-08 (ADR-0014). Images caused off-topic editorial/product photos to appear in the media drawer. |
 | Corpus chat assistant | Curator `POST /ask` (`skills/assistant.py`, `prompts/assistant.md`) + Reader floating button/overlay (`components/chat-assistant.tsx` → `/api/ask` proxy). Grounded digests + RAG Q&A over **published events only**; cites `[n]` → `/event/{id}`; reuses the synthesis LLM engine. Curator ADR-0022. |
+| Curator kill-switch | "Stop Curator" toggle on the Backoffice Settings page → `curator_settings.processing_enabled` (persistent). Curator polls it (~30s) and pauses the enrich→cluster→synthesize pipeline — articles requeue in RabbitMQ (no loss), API stays up. Curator ADR-0023. |
 
 ## State of the world right now
 

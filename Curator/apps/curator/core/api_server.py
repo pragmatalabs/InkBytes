@@ -168,6 +168,9 @@ def build_app(app: Application) -> FastAPI:
             "pages_published":   pages_published,
             # Live pipeline state — via Application properties (ADR-0006 §D5)
             "synths_in_flight":  app.synths_in_flight,
+            # Processing kill-switch (Backoffice "Stop Curator", ADR-0023) — the
+            # live value the worker is honoring (reflects the ~30s refresh lag).
+            "processing_enabled": app.cfg.application.processing_enabled,
             # LLM tier (live — hot-reloaded by reconfigure)
             "llm": {
                 "provider":         app.cfg.llm.provider,

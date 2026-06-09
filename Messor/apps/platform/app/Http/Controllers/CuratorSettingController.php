@@ -47,6 +47,8 @@ class CuratorSettingController extends Controller
                 'entity_overlap_min'    => (int) $settings->entity_overlap_min,
                 'min_sources_to_publish' => (int) $settings->min_sources_to_publish,
                 'recent_window_hours'   => (int) $settings->recent_window_hours,
+                // ADR-0023 "Stop Curator" kill-switch (default true for legacy rows).
+                'processing_enabled' => (bool) ($settings->processing_enabled ?? true),
                 'monthly_budget_usd' => $settings->monthly_budget_usd !== null
                     ? (float) $settings->monthly_budget_usd : null,
                 // Embedding tier.
@@ -194,5 +196,37 @@ class CuratorSettingController extends Controller
         return redirect()
             ->route('settings.edit')
             ->with('success', 'Re-embed command sent. Curator is rebuilding embeddings for the whole corpus in the background.');
+    }
+
+    /**
+     * "Stop Curator" kill-switch (ADR-0023). Sets curator_settings.processing_enabled;
+     * Curator polls it and pauses/resumes its pipeline within the refresh interval.
+     * Articles keep queuing in RabbitMQ while paused (no loss); the API stays up.
+     */
+    public function toggleProcessing(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $settings = CuratorSetting::current();
+        $before   = ['processing_enabled' => (bool) ($settings->processing_enabled ?? true)];
+
+        $settings->processing_enabled = $data['enabled'];
+        $settings->save();
+
+        AuditLog::record(
+            'settings.processing_toggled',
+            'settings',
+            (string) $settings->getKey(),
+            $before,
+            ['processing_enabled' => (bool) $settings->processing_enabled],
+        );
+
+        $msg = $data['enabled']
+            ? 'Curator processing RESUMED. The pipeline restarts within the refresh interval (~30s).'
+            : 'Curator processing PAUSED. New articles queue in RabbitMQ (no loss) and the reader stays up; takes effect within ~30s.';
+
+        return redirect()->route('settings.edit')->with('success', $msg);
     }
 }

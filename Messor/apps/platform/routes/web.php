@@ -124,6 +124,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // ADR-0004: trigger a corpus re-embed (publishes embeddings.reembed to
         // Curator). Used after switching the embedding provider/model.
         Route::post('/settings/reembed', [CuratorSettingController::class, 'reembed'])->name('settings.reembed');
+        // ADR-0023: "Stop Curator" kill-switch — toggles curator_settings.processing_enabled.
+        Route::post('/settings/processing', [CuratorSettingController::class, 'toggleProcessing'])->name('settings.processing');
 
         // Provider API keys — encrypted-at-rest vault for store/rotate/mask/test.
         // Curator does NOT read these (it loads real keys from env — ADR-0004).

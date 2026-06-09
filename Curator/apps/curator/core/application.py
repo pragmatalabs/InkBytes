@@ -15,7 +15,7 @@ from services.database_service import DatabaseService
 from services.embedding_service import EmbeddingService
 from services.llm_service import LlmService, LlmQuotaError
 from services.media_validation import MediaValidator
-from services.message_service import MessageService
+from services.message_service import MessageService, ProcessingPausedError
 from skills.assistant import AssistantSkill
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
@@ -540,6 +540,12 @@ class Application:
                 logger.exception("ILLUSTRATE %s failed (non-fatal)", event_id)
 
     async def _handle_event(self, payload: dict[str, Any]) -> None:
+        # Kill-switch (Backoffice "Stop Curator", ADR-0023): when processing is
+        # disabled, requeue the article untouched (no loss) and let the consumer
+        # back off. Checked BEFORE the malformed-event try so it propagates to
+        # the consumer's pause branch rather than being swallowed as a bad event.
+        if not self.cfg.application.processing_enabled:
+            raise ProcessingPausedError()
         async with self._sem:
             try:
                 event = ArticleScrapedEvent.model_validate(payload)

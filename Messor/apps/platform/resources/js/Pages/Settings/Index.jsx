@@ -3,10 +3,13 @@ import { Head, router, useForm } from '@inertiajs/react';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
+import PauseCircleRoundedIcon from '@mui/icons-material/PauseCircleRounded';
+import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
 import {
     Alert,
     Box,
     Button,
+    Chip,
     Dialog,
     DialogActions,
     DialogContent,
@@ -32,6 +35,14 @@ export default function SettingsIndex({
 }) {
     const [resetOpen, setResetOpen]   = useState(false);
     const [reembedOpen, setReembedOpen] = useState(false);
+    const [stopOpen, setStopOpen]     = useState(false);
+
+    // ADR-0023 "Stop Curator" kill-switch — separate from the settings form.
+    const processingEnabled = settings.processing_enabled ?? true;
+    const doToggleProcessing = (enabled) => {
+        setStopOpen(false);
+        router.post(route('settings.processing'), { enabled });
+    };
 
     const form = useForm({
         // LLM
@@ -147,6 +158,47 @@ export default function SettingsIndex({
             subtitle="LLM provider, models, token caps, clustering thresholds, and the embedding tier. Curator polls this row and applies changes without a redeploy."
         >
             <Head title="Curator Settings" />
+
+            {/* ── Processing kill-switch (ADR-0023) ───────────────────────── */}
+            <Paper sx={{ p: 3, mb: 3 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                    <Box>
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                            <Typography variant="h6">Processing</Typography>
+                            <Chip
+                                size="small"
+                                label={processingEnabled ? 'Running' : 'Paused'}
+                                color={processingEnabled ? 'success' : 'warning'}
+                                variant={processingEnabled ? 'filled' : 'outlined'}
+                            />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 560 }}>
+                            {processingEnabled
+                                ? 'Curator is consuming and synthesizing articles. Pausing stops the enrich → cluster → synthesize pipeline; incoming articles queue in RabbitMQ (no loss) and the public reader stays up. Takes effect within ~30s.'
+                                : 'Curator processing is paused. New articles are queuing in RabbitMQ and will be processed when you resume. The public reader is unaffected.'}
+                        </Typography>
+                    </Box>
+                    {processingEnabled ? (
+                        <Button
+                            variant="contained"
+                            color="warning"
+                            startIcon={<PauseCircleRoundedIcon />}
+                            onClick={() => setStopOpen(true)}
+                        >
+                            Stop Curator
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="contained"
+                            color="success"
+                            startIcon={<PlayCircleRoundedIcon />}
+                            onClick={() => doToggleProcessing(true)}
+                        >
+                            Resume Curator
+                        </Button>
+                    )}
+                </Stack>
+            </Paper>
 
             <Paper component="form" onSubmit={submit} sx={{ p: 3 }}>
                 <Stack spacing={3}>
@@ -430,6 +482,25 @@ export default function SettingsIndex({
                 <DialogActions>
                     <Button onClick={() => setReembedOpen(false)}>Cancel</Button>
                     <Button onClick={doReembed} color="primary" variant="contained">Re-embed corpus</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Stop Curator dialog (ADR-0023) */}
+            <Dialog open={stopOpen} onClose={() => setStopOpen(false)}>
+                <DialogTitle>Pause Curator processing?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Curator will stop enriching, clustering, and synthesizing articles within ~30s. Incoming
+                        articles keep queuing in RabbitMQ and are <strong>not lost</strong> — they process when you
+                        resume. The public reader (inkbytes.org) stays up and keeps serving existing pages. This
+                        action is recorded in the audit log.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setStopOpen(false)}>Cancel</Button>
+                    <Button onClick={() => doToggleProcessing(false)} color="warning" variant="contained">
+                        Stop Curator
+                    </Button>
                 </DialogActions>
             </Dialog>
         </AppLayout>

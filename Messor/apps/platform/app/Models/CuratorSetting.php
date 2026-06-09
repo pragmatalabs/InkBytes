@@ -27,6 +27,9 @@ class CuratorSetting extends Model
         'entity_overlap_min',
         'min_sources_to_publish',
         'recent_window_hours',
+        // ADR-0023: "Stop Curator" kill-switch. Curator polls this; FALSE pauses
+        // the processing pipeline (articles requeued, API stays up).
+        'processing_enabled',
         // B5: admin-editable monthly LLM-spend budget (USD). NULL = unset.
         // Backoffice-only display knob; Curator does not read it (ADR-0004).
         'monthly_budget_usd',
@@ -57,6 +60,7 @@ class CuratorSetting extends Model
         'entity_overlap_min' => 'integer',
         'min_sources_to_publish' => 'integer',
         'recent_window_hours' => 'integer',
+        'processing_enabled' => 'boolean',
         'monthly_budget_usd' => 'float',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

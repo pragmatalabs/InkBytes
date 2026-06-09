@@ -52,6 +52,8 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
     "recent_window_hours":    ("clustering", "recent_window_hours"),
     "conclude_after_days":    ("clustering", "conclude_after_days"),
+    # Processing kill-switch (Backoffice "Stop Curator").
+    "processing_enabled":     ("application", "processing_enabled"),
     # Embeddings (ADR-0004). provider/model/base_url are live-overlaid; the
     # EmbeddingService rebuilds its client on change (with a dim-probe guard).
     # `dimensions` is deliberately NOT here — it's a pgvector column width, a
@@ -101,6 +103,11 @@ class AppCfg(BaseModel):
     # a strict majority horoscope / lottery-result / betting-pick filler, or whose
     # synthesized headline is filler. False disables the gate.
     filter_noise: bool = True
+    # Processing kill-switch (Backoffice "Stop Curator"): when False the worker
+    # pauses the enrich→cluster→synthesize pipeline — incoming articles are
+    # requeued (never lost), the API keeps serving. Live-polled from
+    # backoffice.curator_settings via the config-refresh loop (~30s latency).
+    processing_enabled: bool = True
 
 
 class LlmCfg(BaseModel):
