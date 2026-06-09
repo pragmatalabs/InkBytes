@@ -97,6 +97,10 @@ class AppCfg(BaseModel):
     # source cluster is a strict majority of shopping/affiliate articles (gift
     # guides, product reviews, deals). False disables the gate.
     filter_promotional: bool = True
+    # Non-news filler filter (ADR-0021): refuse to publish a page whose cluster is
+    # a strict majority horoscope / lottery-result / betting-pick filler, or whose
+    # synthesized headline is filler. False disables the gate.
+    filter_noise: bool = True
 
 
 class LlmCfg(BaseModel):

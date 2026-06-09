@@ -63,6 +63,7 @@ class Application:
         self.synthesize = SynthesizeSkill(
             self.llm, self.db, cfg.llm,
             filter_promotional=cfg.application.filter_promotional,
+            filter_noise=cfg.application.filter_noise,
         )
         self.illustrate = IllustrateSkill(self.db)
         # Concurrency gate — article pipeline

@@ -21,6 +21,7 @@ from core.config import LlmCfg
 from services.database_service import DatabaseService
 from services.llm_service import LlmService
 from services.promo_filter import is_promotional, promo_reason
+from services.content_filter import is_excluded, exclusion_reason
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,13 @@ class SynthesizeSkill:
     name = "synthesize"
 
     def __init__(self, llm: LlmService, db: DatabaseService, llm_cfg: LlmCfg,
-                 filter_promotional: bool = True) -> None:
+                 filter_promotional: bool = True,
+                 filter_noise: bool = True) -> None:
         self.llm = llm
         self.db = db
         self.llm_cfg = llm_cfg
         self.filter_promotional = filter_promotional
+        self.filter_noise = filter_noise
         self._system_prompt = self._load_system_prompt()
 
     def _load_system_prompt(self) -> str:
@@ -75,6 +78,20 @@ class SynthesizeSkill:
                 )
                 return None
 
+        # Non-news filler gate (ADR-0021): skip a cluster that is a strict
+        # majority horoscope / lottery-result / betting-pick filler — these
+        # recur daily across outlets and cluster into junk pages.
+        if self.filter_noise:
+            titles = [r["title"] for r in rows if r["title"]]
+            noise = sum(1 for t in titles if is_excluded(t))
+            if titles and noise * 2 > len(titles):
+                logger.info(
+                    "SYNTHESIZE skipped — non-news filler cluster (%d/%d article "
+                    "titles are horoscope/lottery/betting), event %s",
+                    noise, len(titles), event_id,
+                )
+                return None
+
         user_content = self._format_articles(rows)
         page = await self.llm.structured(
             model=self.llm_cfg.synthesize_model,
@@ -90,6 +107,15 @@ class SynthesizeSkill:
         if self.filter_promotional and (reason := promo_reason(page.headline)):
             logger.info(
                 "SYNTHESIZE skipped — ad-style headline [%s]: '%s' (event %s)",
+                reason, page.headline, event_id,
+            )
+            return None
+
+        # Backstop: a mixed cluster can still yield a filler headline
+        # ("Horóscopo del día y resultados de la lotería"). Don't publish those.
+        if self.filter_noise and (reason := exclusion_reason(page.headline)):
+            logger.info(
+                "SYNTHESIZE skipped — filler headline [%s]: '%s' (event %s)",
                 reason, page.headline, event_id,
             )
             return None
