@@ -47,7 +47,7 @@ class SynthesizeSkill:
         async with self.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
                 """
-                SELECT id, outlet_name, url, title, body_text, language, published_at
+                SELECT id, outlet_name, url, title, body_text, language, published_at, scraped_at
                   FROM articles
                  WHERE event_id = $1
                  ORDER BY published_at NULLS LAST, scraped_at
@@ -127,7 +127,10 @@ class SynthesizeSkill:
     async def _persist(self, event_id: str, page: PageV1, rows: list) -> None:
         evidence = [e.model_dump() for e in page.evidence_rail]
         entities = [{"name": n} for n in page.entities_top]
-        freshness = max((r["published_at"] for r in rows if r["published_at"]), default=None)
+        # Use scraped_at (Messor wall-clock, always reliable) not published_at
+        # (outlet-supplied — can be null, future-dated, or wrong). See memory:
+        # freshness-at-use-scraped-at.md
+        freshness = max((r["scraped_at"] for r in rows if r["scraped_at"]), default=None)
         async with self.db.pool.acquire() as conn:  # type: ignore[union-attr]
             await conn.execute(
                 """
