@@ -1,6 +1,6 @@
 # ADR-0022 — Corpus chat assistant: grounded digests & Q&A over published events
 
-> *Status: proposed · Owner: Julian · Date: 2026-06-09*
+> *Status: accepted (Phase 1+2 implemented) · Owner: Julian · Date: 2026-06-09*
 
 ## Context
 
@@ -154,11 +154,30 @@ linking to each InkBytes event page.
   one cycle reuse one LLM call.
 - Story-arc-aware historical answers (ADR-0013).
 
-## Implementation checklist (when built)
+## Implementation checklist
 
-- [ ] `prompts/assistant.md` — grounding rule + digest/Q&A formats
-- [ ] `contracts/answer_v1.py` — `AnswerV1 { answer_md, sources[] }`
-- [ ] `skills/assistant.py` — `AssistantSkill.answer(question, mode, category)`
-- [ ] `core/api_server.py` — `POST /ask` (length cap + rate limit per ADR-0006)
-- [ ] Reader overlay component + floating button + 3 digest chips
-- [ ] Phase 2: pgvector retrieval over published events; free-form box
+- [x] `prompts/assistant.md` — grounding rule + digest/Q&A formats
+- [x] `contracts/answer_v1.py` — `AnswerV1 { answer_md }` (sources assembled
+      deterministically by the skill → no hallucinated URLs)
+- [x] `skills/assistant.py` — `AssistantSkill.answer(question, mode)`
+- [x] `core/api_server.py` — `POST /ask` (500-char cap; CORS allows POST)
+- [x] Reader overlay component + discrete always-on floating round button + chips
+- [x] Phase 2: pgvector retrieval over published events; free-form box
+
+## Implemented (2026-06-09)
+
+Phase 1 (digest) and Phase 2 (free-form RAG) shipped together. Notes from build:
+
+- **Source list is deterministic, not LLM-emitted.** `AnswerV1` is just
+  `{ answer_md }`; the skill numbers the retrieved candidates and returns them as
+  `sources[]`, so the model can cite `[n]` but never fabricates a URL.
+- **Chat retrieval ranks by nearest-article distance per event.** A first cut
+  used `DISTINCT ON (event_id)` whose required `ORDER BY event_id` discards
+  distance order — it returned arbitrary events. Fixed with an inner
+  nearest-per-event query wrapped in an outer `ORDER BY dist`.
+- **Reader UX:** clicking any source (inline `[n]` or the Sources list) dismisses
+  the overlay (`setOpen(false)`) before client-navigating to `/event/{id}`.
+- **Surfaces:** Reader `POST /api/ask` proxies to Curator `POST /ask`
+  (`CURATOR_API_URL`). Floating button lives in `app/layout.tsx`.
+- Deferred: per-(category,cycle) digest caching; rate limiting; hybrid corpus
+  fallback; story-arc (ADR-0013) historical context.
