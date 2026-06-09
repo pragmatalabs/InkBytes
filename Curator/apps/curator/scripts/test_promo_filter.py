@@ -35,6 +35,19 @@ FLAG = [
     "El hub USB-C de Anker para MacBook cae un 47% en la liquidación final de Amazon",
     "Guardian Covers Top New Mom Gifts and Sonos Speaker Reviews",  # synthesized headline
     "Apple Vision Pro review: This is the future of computing",
+    # Recall additions (ADR-0020 tuning, 2026-06-09): commerce that slipped past
+    # the original tight patterns — the May-2026 Mother's Day roundup cluster.
+    "The 23 best Mother’s Day gifts, according to moms, grandmas and one great-gran",
+    "The 26 best Mother’s Day deals actually worth your (and your mom’s) time",
+    "The Best Tech Gifts for Mother’s Day 2026",
+    "Seven last-minute Mother’s Day gifts that arrive by Sunday",
+    "Hisense 98″ Hi-QLED 4K Smart Google TV Is Now $1,300 Off as a Best Buy Exclusive",
+    "Get Bruvi’s Pod Coffee Maker for Nearly Half Off",
+    "Lenovo All-in-One Desktop Is Now Priced Like a Tablet After Quiet Price Drops",
+    "Shark FlexStyle Air Styling System Just Returned to Its Black Friday Low",
+    "Seagate’s 22TB External Hard Drive Is Now Just $0.02 per GB",
+    "We stress tested 22 USB chargers to find the best for phones and laptops",
+    "The Best Phones of 2025",
 ]
 
 KEEP = [
@@ -57,6 +70,11 @@ KEEP = [
     "Best coffee city in the world? Los Angeles",
     "Alice and Steve to Proud: the seven best shows to stream this week",
     "Summer Reading Roundup: New Books from Patchett, O'Farrell, and More",
+    # Arts/culture reviews + entertainment best-of — NOT product reviews (editorial guard)
+    "Music Review: Niall Horan throws a ‘Dinner Party’ for those in love",
+    "Movie Review: ‘Scary Movie 6' brings back the Wayans",
+    "The 10 Best TV Shows to Stream This Month",
+    "The best movies to watch this weekend",
     # Plain news
     "Pope Leo draws over a million to mass in Madrid, urges unity",
     "Iran Launches Missiles at Israel, Escalating Regional Tensions",

@@ -41,7 +41,8 @@ _PRODUCT = (
     r"towels?|jackets?|banks?|credit unions?|software|gadgets?|appliances?|blenders?|"
     r"fryer|cameras?|drones?|smartwatch|watches?|routers?|ssd|tv|tvs|televisors?|"
     r"audífonos|altavoz|altavoces|auriculares|zapatillas|tenis|cargador|protein bars?|"
-    r"running shoes?|bike locks?|space heaters?|leaf blowers?|rain jackets?|bath towels?"
+    r"running shoes?|bike locks?|space heaters?|leaf blowers?|rain jackets?|bath towels?|"
+    r"phones?|backpacks?|hard drives?|power banks?|charging stations?|streamers?|consoles?"
 )
 
 # Explicit price / discount / sale actions — the unambiguous ad signal (EN + ES).
@@ -71,12 +72,35 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bbest\s+gifts?\b", re.I), "best-gifts"),
     (re.compile(r"\b\d+\s+(?:best\s+)?gifts?\b", re.I), "n-gifts"),
     (re.compile(r"\bgifts?\s+for\b[^.!?]{0,30}\b(mom|dad|her|him|grad|kids?|new mom)\b", re.I), "gifts-for"),
+    # "best <words> gifts/deals" — "best Mother's Day gifts", "Best Tech Gifts",
+    # "26 best Mother's Day deals". 'gifts'/'deals' are inherently commercial, so
+    # the intervening words are safe (editorial "best shows/coffee" lack them).
+    (re.compile(r"\bbest\b[^.!?]{0,30}\b(gifts?|deals?)\b", re.I), "best-gifts-deals"),
+    # Occasion gift roundups regardless of "best". Apostrophe may be straight (')
+    # or curly (’) in real titles, so accept either (or none).
+    (re.compile(r"\b((mother|father|valentine)['’]?s?\s+(day\s+)?|christmas\s+|holiday\s+)gifts?\b", re.I), "occasion-gifts"),
+
+    # ── Discounts beyond the % case ──────────────────────────────────────────────
+    (re.compile(r"\$[\d,]+\s+off\b", re.I), "dollar-off"),
+    (re.compile(r"\bhalf\s+off\b", re.I), "half-off"),
+    (re.compile(r"\bprice\s+drops?\b", re.I), "price-drop"),
+    (re.compile(r"\$[\d.]+\s+per\s+\w+\b", re.I), "price-per-unit"),
+    # "Black Friday low/deal/sale" — inherently a sale (no economic collision).
+    (re.compile(r"\bblack\s+friday\b[^.!?]{0,15}\b(low|deals?|sale|price|lowest)\b", re.I), "black-friday-sale"),
+    # A PRODUCT hitting an all-time / record / Black Friday low (commerce), NOT a
+    # bare economic "record low" (kept — no product nearby).
+    (re.compile(rf"\b(?:{_PRODUCT})\b[^.!?]{{0,45}}\b(all-time|record|black\s+friday)\s+low\b", re.I), "product-low"),
+    (re.compile(rf"\b(all-time|record|black\s+friday)\s+low\b[^.!?]{{0,45}}\b(?:{_PRODUCT})\b", re.I), "product-low"),
+    # "<product> … Prime Day" deal framing (kept: 'Prime Day event' news has no product).
+    (re.compile(rf"\b(?:{_PRODUCT})\b[^.!?]{{0,30}}\bprime\s+day\b", re.I), "prime-day-deal"),
+    (re.compile(rf"\bprime\s+day\b[^.!?]{{0,30}}\b(?:{_PRODUCT})\b", re.I), "prime-day-deal"),
 
     # ── Product reviews / first-person testing (affiliate hallmark) ────────────
     (re.compile(r"\breview:\s", re.I), "review-colon"),
     (re.compile(r"\b(hands?-on|head[\s-]to[\s-]head)\b[^.!?]{0,30}\breview\b", re.I), "hands-on-review"),
     (re.compile(r"\bI\s+(tried|tested|compared|cut up|bought|reviewed)\b", re.I), "first-person-test"),
     (re.compile(r"\btested and reviewed\b", re.I), "tested-reviewed"),
+    (re.compile(r"\b(we|I)\s+(stress[\s-]?)?tested\b", re.I), "we-tested"),
 
     # ── "best X to buy / money can buy" (purchase intent, any product) ─────────
     (re.compile(r"\bbest\b[^.!?]{0,45}\b(to buy|money can buy|worth buying|for your money)\b", re.I), "best-buy"),
@@ -91,10 +115,24 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+# Editorial guard — arts/culture content that superficially looks commercial
+# ("Movie Review:", "10 Best TV Shows to Stream"). Checked FIRST so it overrides
+# the commerce patterns. Product reviews ("Sonos review:") are NOT exempted —
+# only named media-type reviews and "shows/series/movies to stream/watch".
+_EDITORIAL_KEEP = re.compile(
+    r"\b(music|movie|film|tv|book|album|concert|theat(?:re|er)|art|game|series)\s+review\b"
+    r"|\b(shows?|series|episodes?|movies?|films?)\s+to\s+(stream|watch)\b"
+    r"|\bbest\s+(tv\s+)?(shows?|series|movies?|films?)\b",
+    re.I,
+)
+
+
 def promo_reason(text: str | None) -> str | None:
     """Return the label of the first matching promo pattern, or None if clean."""
     if not text:
         return None
+    if _EDITORIAL_KEEP.search(text):
+        return None  # arts/culture best-of or media review — never commerce
     for pat, label in _PATTERNS:
         if pat.search(text):
             return label
