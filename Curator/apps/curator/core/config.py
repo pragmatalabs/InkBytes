@@ -92,6 +92,11 @@ class AppCfg(BaseModel):
     # per-article network probe entirely.
     validate_lead_images: bool = True
     lead_image_probe_timeout_s: float = 4.0
+    # Promotional / commerce content filter (ADR-0020): refuse to publish a page
+    # whose synthesized headline is ad-style ("X Covers Top Gifts…") or whose
+    # source cluster is a strict majority of shopping/affiliate articles (gift
+    # guides, product reviews, deals). False disables the gate.
+    filter_promotional: bool = True
 
 
 class LlmCfg(BaseModel):

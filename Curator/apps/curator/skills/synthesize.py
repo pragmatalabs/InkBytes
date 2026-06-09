@@ -20,6 +20,7 @@ from contracts.page_v1 import PageV1
 from core.config import LlmCfg
 from services.database_service import DatabaseService
 from services.llm_service import LlmService
+from services.promo_filter import is_promotional, promo_reason
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,12 @@ _MAX_PER_OUTLET = 2
 class SynthesizeSkill:
     name = "synthesize"
 
-    def __init__(self, llm: LlmService, db: DatabaseService, llm_cfg: LlmCfg) -> None:
+    def __init__(self, llm: LlmService, db: DatabaseService, llm_cfg: LlmCfg,
+                 filter_promotional: bool = True) -> None:
         self.llm = llm
         self.db = db
         self.llm_cfg = llm_cfg
+        self.filter_promotional = filter_promotional
         self._system_prompt = self._load_system_prompt()
 
     def _load_system_prompt(self) -> str:
@@ -58,6 +61,20 @@ class SynthesizeSkill:
             logger.info("SYNTHESIZE skipped — event %s has < 2 articles", event_id)
             return None
 
+        # Promotional-cluster gate (ADR-0020): when a strict majority of the
+        # cluster's article titles are shopping/affiliate content (gift guides,
+        # product reviews, deals), the event is a commerce roundup, not news —
+        # skip BEFORE the LLM call so we don't pay to synthesize an ad page.
+        if self.filter_promotional:
+            titles = [r["title"] for r in rows if r["title"]]
+            promo = sum(1 for t in titles if is_promotional(t))
+            if titles and promo * 2 > len(titles):
+                logger.info(
+                    "SYNTHESIZE skipped — promotional cluster (%d/%d article titles "
+                    "look commercial), event %s", promo, len(titles), event_id,
+                )
+                return None
+
         user_content = self._format_articles(rows)
         page = await self.llm.structured(
             model=self.llm_cfg.synthesize_model,
@@ -67,6 +84,16 @@ class SynthesizeSkill:
             max_tokens=self.llm_cfg.max_tokens_synth,
             event_id=event_id,
         )
+
+        # Backstop: even a mixed cluster can yield an ad-style headline
+        # ("X Covers Top Gifts and Y Reviews"). Don't publish those.
+        if self.filter_promotional and (reason := promo_reason(page.headline)):
+            logger.info(
+                "SYNTHESIZE skipped — ad-style headline [%s]: '%s' (event %s)",
+                reason, page.headline, event_id,
+            )
+            return None
+
         await self._persist(event_id, page, rows)
         logger.info("SYNTHESIZE %s -> '%s'", event_id, page.headline)
         return page

@@ -60,7 +60,10 @@ class Application:
         # Skills
         self.enrich = EnrichSkill(self.llm, cfg.llm)
         self.cluster = ClusterSkill(self.db, cfg.clustering)
-        self.synthesize = SynthesizeSkill(self.llm, self.db, cfg.llm)
+        self.synthesize = SynthesizeSkill(
+            self.llm, self.db, cfg.llm,
+            filter_promotional=cfg.application.filter_promotional,
+        )
         self.illustrate = IllustrateSkill(self.db)
         # Concurrency gate — article pipeline
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
