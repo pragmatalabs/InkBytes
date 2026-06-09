@@ -7,6 +7,36 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-06-08 — The ADR-0015 dedup fast-path never fired: `content_hash` was unstable (~$780 / 13-day drain)
+
+**What happened**: After ADR-0015 the fast-path still didn't skip anything —
+**0 SKIP / 176 ENRICH** over 29 minutes, with only ~30 genuinely new article
+rows. Combined with the Messor re-publish flood, a 105k-message backlog cost
+~$780 and ~13 days to drain on the paid LLM.
+
+**Root cause**: `upsert_article_raw()` computed
+`content_hash = MD5(title + body_text)` over the **raw** newspaper3k body.
+newspaper3k extracts a slightly different body on every scrape of the same URL
+(trailing "N min read", related-links blocks, dynamic view/comment counts,
+whitespace re-render jitter), so the hash changed on nearly every re-scrape →
+the `IS DISTINCT FROM` guard was always true → enrichment was reset → every
+re-scrape looked "new" and got re-enriched. The fast-path logic was correct;
+its *input signal* was noise.
+
+**Fix**: See ADR-0018. Hash a **normalized prefix**: lowercase + collapse
+whitespace, then hash only the first 500 chars of the normalized body
+(`_content_hash()` in `database_service.py`). The stable lede drives the hash;
+the volatile boilerplate is appended at the tail, beyond the prefix window.
+Also promoted the SKIP log line to `info` so the fast-path is greppable.
+
+**Lesson**: A content fingerprint is only as good as the stability of its
+input. Hashing scraper output verbatim guarantees churn — extractors are
+non-deterministic at the byte level. Normalize and hash the *stable* part
+(the lede), never the raw extraction. And when an optimization "does nothing"
+in prod, instrument the signal it depends on before assuming the logic is wrong.
+
+---
+
 ## 2026-06-08 — Messor re-publishes all articles after every container restart (queue flood)
 
 **What happened**: The RabbitMQ queue kept growing even after ADR-0015 fast-path

@@ -545,7 +545,11 @@ class Application:
             # skip ENRICH + EMBED, the existing enrichment in the DB is valid.
             needs_enrichment = await self.db.upsert_article_raw(article.model_dump(), event.spaces_key)
             if not needs_enrichment:
-                logger.debug(
+                # info-level (not debug): this is the ADR-0015/0018 duplicate
+                # fast-path firing — the line we grep to confirm re-scrapes are
+                # NOT re-enriched. Expect a flood during a re-publish backlog
+                # drain; that is the fix working, not noise.
+                logger.info(
                     "SKIP %s (%s) — already enriched, content unchanged",
                     article.id, article.outlet.name,
                 )

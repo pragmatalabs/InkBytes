@@ -3,6 +3,7 @@
 > *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-08*
 > *Pipeline proven end-to-end. 413+ published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
 > *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — queue flood eliminated.*
+> *2026-06-08: ADR-0018 — `content_hash` made stable (normalized lede prefix); fixes the ADR-0015 fast-path that never fired. Tested locally, pending deploy.*
 
 ---
 
@@ -95,6 +96,7 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 - [x] Continuous 12×/day scheduled cycles with per-outlet session tracking
 - [x] Synthesis cost cap (ADR-0015) — max 15 articles / 2 per outlet; 9× token reduction deployed 2026-06-08
 - [x] Duplicate enrichment fast-path (ADR-0015) — unchanged articles skip LLM; queue drains in ~2h not ~21d, deployed 2026-06-08
+- [x] Stable `content_hash` (ADR-0018) — fixes the ADR-0015 fast-path that never fired (raw hash churned on newspaper3k noise → 0 SKIP / 176 ENRICH, ~$780 / 13-day drain); now hashes a normalized lede prefix. Tested locally, pending deploy.
 - [x] Persistent Messor staging volume (ADR-0012) — `inkbytes_inkbytes-messor-scrapes` pre-seeded; no more restart floods, deployed 2026-06-08
 - [ ] 24h of green scheduled cycles + first paying user invited
 - [ ] Switch to `inkbytes.news` domain (DNS A records → `67.205.136.61`)

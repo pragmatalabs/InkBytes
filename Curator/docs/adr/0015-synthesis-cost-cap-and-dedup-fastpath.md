@@ -3,6 +3,14 @@
 > *Status: accepted / implemented · Owner: Julián · Last updated: 2026-06-08*
 >
 > ✅ **Deployed 2026-06-08.** Both fixes are live in production on DO (`67.205.136.61`).
+>
+> ⚠️ **Superseded in part by [ADR-0018](./0018-content-hash-normalization.md).**
+> Fix 2 (the duplicate fast-path) relied on `content_hash` being stable across
+> re-scrapes, but the original hash was a *raw* MD5 of `title + body_text` —
+> newspaper3k jitter changed it on nearly every re-scrape, so the fast-path
+> **never fired** (0 SKIP / 176 ENRICH observed). ADR-0018 replaces the hash
+> with a normalized-prefix fingerprint. The fast-path logic here is unchanged;
+> only the hash *value* it compares is now stable.
 
 ## Context
 

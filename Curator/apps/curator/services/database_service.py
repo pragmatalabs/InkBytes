@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -569,8 +570,12 @@ class DatabaseService:
     async def upsert_article_raw(self, art: dict[str, Any], spaces_key: str | None) -> bool:
         """Insert the article shell (Messor's v1 fields). Enrichment fills the rest later.
 
-        Content-change detection (migration 006):
-          - content_hash = MD5(title + body_text) is stored on first insert.
+        Content-change detection (migration 006; hash strategy ADR-0018):
+          - content_hash = _content_hash(title, body_text) is stored on first
+            insert. It is a NORMALIZED PREFIX hash (lowercase + collapsed
+            whitespace + first _HASH_PREFIX_CHARS of body), NOT a raw byte hash —
+            see _content_hash() for why. This is what makes the ADR-0015
+            duplicate fast-path actually fire on re-scrapes.
           - On re-scrape of the same URL (same id), the ON CONFLICT clause
             updates the body and RESETS all enrichment fields (topic, embedding,
             etc.) **only when the hash changes**.  Unchanged content → no-op.
@@ -591,9 +596,13 @@ class DatabaseService:
         # clause now rewrites and resets enrichment on content change.  Fine at
         # current volume; revisit if DB write contention appears.
         # Fast revert: git revert 428270e (restores ON CONFLICT DO NOTHING).
-        content_hash = hashlib.md5(
-            (art["title"] + (art.get("text") or "")).encode("utf-8")
-        ).hexdigest()
+        #
+        # ADR-0018: hash a NORMALIZED PREFIX, not the raw title+body. The raw
+        # hash changed on nearly every re-scrape (newspaper3k boilerplate jitter)
+        # so the ADR-0015 fast-path never fired and every re-scrape paid for a
+        # full LLM re-enrichment. _content_hash() collapses whitespace/case and
+        # hashes only the stable lede prefix.
+        content_hash = _content_hash(art["title"], art.get("text") or "")
 
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             await conn.execute(
@@ -783,6 +792,56 @@ class DatabaseService:
             """,
             event_id,
         )
+
+
+# ─────────────────────────────────────── content fingerprint (ADR-0018) ──
+# The duplicate fast-path (ADR-0015) keys off content_hash: an unchanged
+# re-scrape must produce the SAME hash so enrichment is preserved and the LLM
+# pipeline is skipped. The old hash (raw MD5(title + body_text)) was unstable —
+# newspaper3k yields slightly different body_text on every scrape of the same
+# URL, so the hash changed on nearly every re-scrape and the fast-path NEVER
+# fired (observed 0 SKIP / 176 ENRICH). ADR-0018 documents the fix below.
+_HASH_PREFIX_CHARS = 500          # normalized body chars that feed the hash
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _normalize_for_hash(text: str) -> str:
+    """Canonicalise text for the content fingerprint.
+
+    Lowercase, then collapse every whitespace run (spaces, tabs, newlines) to a
+    single space and strip the ends. This removes the formatting jitter
+    newspaper3k introduces between scrapes (re-indentation, extra blank lines,
+    case flips in re-rendered headers) so cosmetically-identical content hashes
+    identically.
+    """
+    return _WHITESPACE_RE.sub(" ", text or "").strip().lower()
+
+
+def _content_hash(title: str, body: str) -> str:
+    """Stable content fingerprint resistant to re-scrape noise (ADR-0018).
+
+    newspaper3k yields slightly different ``body_text`` on each scrape of the
+    same URL — trailing boilerplate ("N min read"), related-links blocks, share
+    widgets, and dynamic view/comment counts churn the *tail* of the
+    extraction. Hashing the raw ``title + body_text`` therefore changed on
+    nearly every re-scrape, defeating the ADR-0015 duplicate fast-path (every
+    re-scrape looked "changed" → a full, paid LLM re-enrichment).
+
+    Strategy — hash a NORMALIZED PREFIX:
+      • normalize → lowercase + collapse all whitespace to single spaces
+        (kills indentation/newline jitter and case flips)
+      • prefix    → only the first ``_HASH_PREFIX_CHARS`` of the normalized body
+        (the substantive lede is stable across scrapes; the volatile boilerplate
+        is appended at the END of the extraction, beyond the prefix window, so
+        it never moves the hash). News ledes comfortably exceed 500 chars, so
+        for real articles the boilerplate is always outside the window.
+
+    A genuine edit to the headline or lede still lands inside the window and
+    changes the hash, so material content changes still trigger re-enrichment.
+    """
+    norm_title = _normalize_for_hash(title)
+    norm_body = _normalize_for_hash(body)[:_HASH_PREFIX_CHARS]
+    return hashlib.md5(f"{norm_title}\n{norm_body}".encode("utf-8")).hexdigest()
 
 
 def _vector_literal(v: list[float]) -> str:
