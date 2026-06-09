@@ -83,6 +83,16 @@ if [[ "${1:-}" == "--build" ]]; then
         -t "${MESSOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-messor:latest}" \
         -f "$REPO_ROOT/Messor/docker/Dockerfile" \
         "$REPO_ROOT/Messor/"
+    # Backoffice (Laravel) — context is Messor/apps/platform, mirroring
+    # .github/workflows/deploy.yml. Previously omitted here, so a `--build`
+    # deploy silently shipped a stale Backoffice image (the config-driven
+    # region change was pushed but not rebuilt — 2026-06-09). Keep in lockstep
+    # with the CI build. Note: image bakes `php artisan config:cache`, so a new
+    # config/*.php only takes effect once this rebuilds the image.
+    docker build \
+        -t "${BACKOFFICE_IMAGE:-ghcr.io/pragmatalabs/inkbytes-backoffice:latest}" \
+        -f "$REPO_ROOT/Messor/apps/platform/Dockerfile" \
+        "$REPO_ROOT/Messor/apps/platform"
 else
     echo "[deploy] Pulling images from GitHub Container Registry..."
     if [ -n "${GHCR_TOKEN:-}" ]; then
