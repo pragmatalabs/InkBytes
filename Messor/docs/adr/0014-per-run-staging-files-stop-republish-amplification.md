@@ -128,6 +128,37 @@ or `docker volume prune` on the prod stack, which also destroy
 Compose project-prefixed name (`inkbytes_<volume>`), per ADR-0012 §"Pre-deploy
 volume seeding order".
 
+### Enforced guardrail (2026-06-09) — external volumes
+
+The runbook rule above is now backed by configuration. In
+`infra/docker-compose.prod.yml`, the two stateful volumes are declared
+`external: true` with `name:` pinned to the existing project-prefixed volumes:
+
+```yaml
+volumes:
+  inkbytes-postgres-data:
+    external: true
+    name: inkbytes_inkbytes-postgres-data
+  inkbytes-messor-scrapes:
+    external: true
+    name: inkbytes_inkbytes-messor-scrapes
+```
+
+Compose never deletes a volume it does not own, so **`docker compose down -v`
+can no longer destroy these** — the exact command that caused this incident is
+now inert against them. `name:` pins the *existing* physical volume, so the
+change moves no data. `infra/deploy.sh` creates them (idempotently) before
+`compose up`, because Compose errors on a missing external volume: a fresh host
+gets empty ones, an existing host is a no-op.
+
+**Residual gap (deliberately not closed here):** a blanket `docker volume prune`
+issued while the whole stack is *stopped* can still remove them (they become
+dangling). The durable fix for that is managed storage (DO Managed Postgres +
+Spaces) so production data never lives in droplet-local volumes — deferred to
+post-MVP. `rabbitmq-data` was intentionally left internal: a lost queue is
+self-healing (Messor re-publishes), and the per-run-staging fix above bounds the
+re-publish.
+
 ---
 
 ## Alternatives considered

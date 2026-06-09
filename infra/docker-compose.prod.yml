@@ -25,9 +25,20 @@ networks:
     driver: bridge
 
 volumes:
+  # external:true → Compose treats these as pre-existing and will NEVER delete
+  # them on `docker compose down -v`. This neutralises the exact accident that
+  # wiped the dedup volume during the ADR-0016 migration (Messor ADR-0014).
+  # `name:` pins the EXISTING project-prefixed volume so no data is moved or
+  # orphaned; without it, external:true would resolve to an unprefixed (empty)
+  # volume and silently mount blank storage. deploy.sh creates these if absent
+  # (fresh host) since Compose errors on a missing external volume.
   inkbytes-postgres-data:
+    external: true
+    name: inkbytes_inkbytes-postgres-data
   inkbytes-rabbitmq-data:
   inkbytes-messor-scrapes:   # staging files — persists URL dedup across container restarts (ADR-0012)
+    external: true
+    name: inkbytes_inkbytes-messor-scrapes
 
 services:
 

@@ -91,6 +91,18 @@ else
     docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" pull --ignore-pull-failures || true
 fi
 
+# ── 3b. Ensure external state volumes exist ───────────────────────────────────
+# postgres-data + messor-scrapes are declared `external: true` in the compose
+# file so `down -v` / `volume prune` can never destroy them (Messor ADR-0014).
+# Compose errors if an external volume is missing, so create them if absent
+# (idempotent — a no-op on an existing host, seeds empty ones on a fresh host).
+for V in inkbytes_inkbytes-postgres-data inkbytes_inkbytes-messor-scrapes; do
+    if ! docker volume inspect "$V" >/dev/null 2>&1; then
+        echo "[deploy] Creating missing external volume: $V"
+        docker volume create "$V" >/dev/null
+    fi
+done
+
 # ── 4. (Re)start the stack ────────────────────────────────────────────────────
 echo "[deploy] Starting stack..."
 docker compose -f "$COMPOSE" $OVERRIDE_FILE --env-file "$ENV_FILE" up -d --remove-orphans
