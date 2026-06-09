@@ -86,6 +86,12 @@ class AppCfg(BaseModel):
     # How often (seconds) the consumer re-reads backoffice.curator_settings so
     # an admin change takes effect without a redeploy. 0 disables polling.
     config_refresh_seconds: int = 30
+    # Lead-image hotlink guard (ADR-0019): probe each og:image at ingest with a
+    # browser request fingerprint and NULL out URLs a cross-origin <img> can't
+    # render (CDN hotlink redirects to a 1×1 placeholder). False skips the
+    # per-article network probe entirely.
+    validate_lead_images: bool = True
+    lead_image_probe_timeout_s: float = 4.0
 
 
 class LlmCfg(BaseModel):

@@ -14,6 +14,7 @@ from core.config import CuratorConfig
 from services.database_service import DatabaseService
 from services.embedding_service import EmbeddingService
 from services.llm_service import LlmService, LlmQuotaError
+from services.media_validation import MediaValidator
 from services.message_service import MessageService
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
@@ -51,6 +52,11 @@ class Application:
         self.llm = LlmService(cfg.llm)
         self.embed = EmbeddingService(cfg.embeddings)
         self.mq = MessageService(cfg.rabbitmq)
+        # Lead-image hotlink guard (ADR-0019): probes og:image URLs at ingest.
+        self.media = MediaValidator(
+            enabled=cfg.application.validate_lead_images,
+            timeout_s=cfg.application.lead_image_probe_timeout_s,
+        )
         # Skills
         self.enrich = EnrichSkill(self.llm, cfg.llm)
         self.cluster = ClusterSkill(self.db, cfg.clustering)
@@ -196,6 +202,7 @@ class Application:
         if self._config_task is not None:
             self._config_task.cancel()
         await self.llm.close()   # closes underlying httpx AsyncClient
+        await self.media.aclose()
         await self.mq.close()
         await self.db.close()
 
@@ -543,7 +550,19 @@ class Application:
             # full LLM pipeline).  Returns False when content is unchanged and
             # enriched_at is already set — the duplicate fast-path (ADR-0015):
             # skip ENRICH + EMBED, the existing enrichment in the DB is valid.
-            needs_enrichment = await self.db.upsert_article_raw(article.model_dump(), event.spaces_key)
+            art_dict = article.model_dump()
+            # Lead-image hotlink guard (ADR-0019): an og:image that a cross-origin
+            # <img> can't render (CDN hotlink-redirects to a 1×1 placeholder) is
+            # stored as NULL so the /events lead_image rollup falls back to
+            # another source's image instead of showing a blank hero.
+            lead = art_dict.get("lead_image")
+            if lead and not await self.media.is_displayable(lead):
+                logger.info(
+                    "lead_image hotlink-blocked, dropping for %s (%s): %s",
+                    article.id, article.outlet.name, lead,
+                )
+                art_dict["lead_image"] = None
+            needs_enrichment = await self.db.upsert_article_raw(art_dict, event.spaces_key)
             if not needs_enrichment:
                 # info-level (not debug): this is the ADR-0015/0018 duplicate
                 # fast-path firing — the line we grep to confirm re-scrapes are

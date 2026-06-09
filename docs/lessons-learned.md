@@ -7,6 +7,39 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-06-08 — Some cover images render blank: CDN hotlink protection serves a 1×1 placeholder
+
+**What happened**: A reported event page showed a blank hero where a cover image
+should be. The `<img>` was present in the HTML with a valid LA Times brightspot
+`src`, and the URL returned a real 200 JPEG via `curl` and in DevTools'
+"open in new tab" — yet the browser showed nothing, and the `onError` fallback
+never fired. Only *some* outlets were affected.
+
+**Root cause**: The Reader embeds `lead_image` as a **cross-origin** `<img>`.
+A real browser sends `Sec-Fetch-Dest: image` + `Sec-Fetch-Site: cross-site` on
+that load. brightspot (LA Times' CDN) reads that exact fingerprint as hotlinking
+and **302-redirects to a 69-byte `placeholder-1x1.png`** served with HTTP 200.
+Because it's a *successful* load of a transparent pixel, `onError` doesn't fire —
+`object-cover` just stretches an invisible pixel. Server-side fetchers (Messor
+harvest, `curl`, link-preview bots) don't send `Sec-Fetch-*`, so they all see the
+real image — which is why the dead URL passed extraction and only failed inside a
+browser embedding it cross-origin. Isolated trigger: `Dest=image` **and**
+`Site=cross-site` together → 302; either alone → 200 real image.
+
+**Fix**: Curator ADR-0019. A `MediaValidator` probes each og:image at ingest with
+the browser fingerprint, follows redirects, and NULLs out URLs whose final
+response is non-200 / non-image / a `placeholder` URL / a <512 B pixel. The
+`/events` `lead_image` rollup then falls back to another source's image. Fails
+open on network error; results cached in-process per URL.
+
+**Lesson**: A URL returning `200 image/jpeg` to `curl` is **not** proof a browser
+will display it. Cross-origin `<img>` loads carry `Sec-Fetch-*` headers that
+trigger CDN anti-hotlink logic invisible to server-side fetches — and a hotlink
+"block" is often a 200 placeholder pixel (no error event), not a 403. To validate
+an image the way the Reader actually loads it, send the browser fingerprint.
+
+---
+
 ## 2026-06-09 — Per-DAY staging files re-published the whole day every cycle (105k-msg flood)
 
 **What happened**: A **105 143-message** backlog built up in
