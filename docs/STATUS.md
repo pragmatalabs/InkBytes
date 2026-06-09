@@ -1,12 +1,14 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-09*
+> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-08*
 > *Pipeline proven end-to-end. 413+ published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
 > *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — restart-driven queue flood eliminated.*
 > *2026-06-08: ADR-0018 — `content_hash` made stable (normalized lede prefix); fixes the ADR-0015 fast-path that never fired. Tested locally, pending deploy.*
 > *2026-06-09: 105 143-msg backlog purged. Root cause = ADR-0016 migration teardown wiped the dedup volume + per-DAY staging files re-published in full every cycle. Fixed by Messor ADR-0014 (per-RUN staging files). Tested locally, pending deploy.*
 > *2026-06-09: Messor ADR-0015 — 48h harvest freshness gate (strict on undated) + dropped the archive tail-crawl. Stops month-old (back to 2012) articles entering as "fresh". History preserved (no prune). Tested locally, pending deploy.*
 > *2026-06-09: Reader ADR-0007 — mobile daily splash ("Morning Briefing"), once per 24h over the home feed. Real Reader design system (Inter, LogoMark, --accent/--accent-dot); real local streak + live 24h category counts. Tested locally.*
+> *2026-06-08: Curator ADR-0019 — lead-image hotlink guard. Outlet og:images embedded as a cross-origin `<img>` get hotlink-redirected by some CDNs (brightspot/LA Times) to a 1×1 `placeholder-1x1.png` (HTTP 200) → blank hero with no `onError`. `MediaValidator` probes each og:image at ingest with the browser `Sec-Fetch-*` fingerprint and NULLs blocked ones so the `/events` rollup falls back to another source. **Deployed + backfilled** (293 rows / 217 blocked URLs across 4,683 distinct). Verified live: the reported event now renders The Guardian's real photo. Two follow-up fixes: skip non-http(s) URLs (`data:` URIs were crashing the probe + would crash live ingest); don't false-positive images served without a Content-Type.*
+> *2026-06-08: Messor — removed dead `process_found_articles` (no callers; pre-ADR-0011 thread-pool + ADR-0015-removed head+tail slicing). On branch `chore/remove-dead-process-found-articles`, **not yet pushed**.*
 
 ---
 
@@ -146,6 +148,7 @@ make shell-curator    # bash in curator-api container
 9. **Reader R4** — global perf/SEO pass. Lighthouse score, sitemap.xml.
 10. **Language filter on feed** — Spanish content stays in Spanish; Reader shows language badge.
 11. **Media Tier 1** ✅ 2026-06-07 — Messor passively extracts `og:image`/`top_image` and YouTube embeds; stored in `articles.lead_image`/`video_url`; rolled up to event level in API; Reader LeadCard, SecondaryCard, and event detail hero show cover image (ADR-0010).
+    - ✅ 2026-06-08 — **Lead-image hotlink guard** (Curator ADR-0019): `MediaValidator` probes each og:image at ingest with the browser `Sec-Fetch-Dest:image`+`Sec-Fetch-Site:cross-site` fingerprint and NULLs URLs that hotlink-redirect to a placeholder pixel / 404 / serve an error page / a <512B pixel, so the `/events` rollup falls back to another source. Deployed + one-time backfill applied (`scripts/backfill_lead_images.py`). Toggle `application.validate_lead_images` (default true).
 12. **Media Tier 2** ✅ 2026-06-07 — `IllustrateSkill` output (`pages.media_rail`) surfaced end-to-end. Curator API exposes `media_rail`; `MediaRailItem` typed in Reader. Event page: collapsed drawer in the action bar (streaming icon + pulse rings alongside Share button) — expands to **video chips only** on click. `MediaRailDrawer` client component owns toggle state (ADR-R-0003, ADR-R-0004).
     - ✅ 2026-06-08 — **Media rail video-only** (ADR-0014 / ADR-R-0006): Bing image fetcher parked; `media_rail` stores YouTube videos only. Eliminates off-topic editorial/product photos. Existing image items silently skipped at render time — no migration needed.
 15. **Entities graph on mobile** ✅ 2026-06-07 — Force-directed SVG graph now renders on all screen sizes (was replaced by a pill list on mobile). Single responsive grid (`grid-cols-1 md:grid-cols-[1fr_320px]`); `touchAction:none` on SVG so finger-drag moves nodes without triggering page scroll (ADR-R-0004).
