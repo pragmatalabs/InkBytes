@@ -104,8 +104,18 @@ async def logic_tests() -> None:
     v = _make_stub_validator({
         "/oops.jpg": httpx.Response(200, headers={"content-type": "text/html"}),
     })
-    check("200 non-image content-type → blocked",
+    check("200 text/html error page → blocked",
           await v.is_displayable("https://cdn.example/oops.jpg"), False)
+
+    # 4b. 200 real image with NO content-type header (e.g. eltiempo) → kept.
+    #     Browsers sniff and render it; blocking on missing type is a false +.
+    v = _make_stub_validator({
+        "/notype.jpeg": httpx.Response(
+            200, headers={"content-length": "35952"}, content=b"x" * 1024,
+        ),
+    })
+    check("200 image, no content-type → displayable",
+          await v.is_displayable("https://cdn.example/notype.jpeg"), True)
 
     # 5. 200 image but tiny (< 512 B tracking pixel) → not displayable.
     v = _make_stub_validator({

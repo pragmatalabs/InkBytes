@@ -110,11 +110,16 @@ class MediaValidator:
 
         if status != 200:
             return self._remember(url, False)
-        if not ctype.startswith("image/"):
+        # An error / landing page served as 200 — HTML, JSON or plain text rather
+        # than an image. We do NOT block on a *missing* content-type: some CDNs
+        # serve real images with no Content-Type header (e.g. eltiempo) and the
+        # browser sniffs them fine — blocking those would be a false positive.
+        if ctype.startswith(("text/", "application/")):
             return self._remember(url, False)
         # Followed a hotlink redirect to a placeholder/tracking pixel.
         if "placeholder" in final_url:
             return self._remember(url, False)
+        # A 1×1 tracking/placeholder pixel — real lead images are kilobytes+.
         if clen is not None and clen.isdigit() and int(clen) < _MIN_IMAGE_BYTES:
             return self._remember(url, False)
         return self._remember(url, True)
