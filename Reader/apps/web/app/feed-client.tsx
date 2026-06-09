@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useRef, useEffect, useTransition } from "react";
+import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
 import type { EventSummary } from "@/lib/types";
@@ -31,10 +31,16 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: "world",       label: "World"    },
 ];
 
-// ── Sort: freshness_at DESC, source_count as tiebreaker ────────────────────────
+// ── Sort: global-first, freshness_at DESC within each tier (ADR-0017) ──────────
+// Mirrors the API's ORDER BY so the client never undoes the server ranking.
+// Global events (has_global_outlet=true) receive a +6 h freshness bonus —
+// identical to the INTERVAL '6 hours' applied in the SQL ORDER BY.
+
+const GLOBAL_BONUS_MS = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
 function importance(ev: EventSummary): number {
-  return new Date(ev.freshness_at).getTime() + ev.source_count * 1000;
+  const bonus = ev.has_global_outlet ? GLOBAL_BONUS_MS : 0;
+  return new Date(ev.freshness_at).getTime() + bonus;
 }
 
 // ── Category chip styles ──────────────────────────────────────────────────────
@@ -685,9 +691,31 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
                 More stories — {stream.length} total
               </p>
               <div>
-                {streamVisible.map((ev) => (
-                  <StreamRow key={ev.id} event={ev} showLang={showLangChip} />
-                ))}
+                {streamVisible.map((ev, idx) => {
+                  // Insert a "Regional" section divider before the first event
+                  // that has no global-outlet coverage (ADR-0017).  The divider
+                  // only appears once — when the ranked list transitions from
+                  // globally-covered stories to regional-only ones.
+                  const isFirstRegional =
+                    !ev.has_global_outlet &&
+                    (idx === 0 || streamVisible[idx - 1].has_global_outlet);
+                  return (
+                    <Fragment key={ev.id}>
+                      {isFirstRegional && (
+                        <div className="flex items-center gap-2 mt-4 mb-1 pt-4 border-t border-[var(--border)]">
+                          <svg className="w-3 h-3 text-[var(--ink-muted)] opacity-60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                          </svg>
+                          <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+                            Regional
+                          </span>
+                        </div>
+                      )}
+                      <StreamRow event={ev} showLang={showLangChip} />
+                    </Fragment>
+                  );
+                })}
               </div>
               {streamHidden > 0 && (
                 <button

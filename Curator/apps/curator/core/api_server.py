@@ -276,13 +276,40 @@ def build_app(app: Application) -> FastAPI:
                                  AND a2.scraped_at <  bucket + INTERVAL '6 hours'
                           GROUP BY bucket
                           ORDER BY bucket
-                       ) AS coverage_spark
+                       ) AS coverage_spark,
+
+                       -- Global-first ranking (ADR-0017): true when at least one
+                       -- article in this event came from a global-region outlet
+                       -- (region = 'global': AP, Reuters, BBC, CNN, NPR …).
+                       -- Used in ORDER BY to give global stories a +6h freshness
+                       -- bonus so they stay above regional-only stories across
+                       -- multiple harvest cycles.  Also returned to the Reader so
+                       -- it can render a "Regional" section divider.
+                       gflag.has_global_outlet
 
                   FROM pages p
                   JOIN events e ON e.id = p.event_id
+                  -- Lateral join computes has_global_outlet once per event row;
+                  -- referenced in both SELECT and ORDER BY without repeating the
+                  -- subquery.  LEFT JOIN so events with no articles still appear.
+                  LEFT JOIN LATERAL (
+                      SELECT EXISTS (
+                          SELECT 1
+                            FROM articles a_gf
+                            JOIN outlets o_gf ON o_gf.id = a_gf.outlet_id
+                           WHERE a_gf.event_id = e.id
+                             AND o_gf.region = 'global'
+                      ) AS has_global_outlet
+                  ) gflag ON true
                  WHERE p.published_at IS NOT NULL
                    AND e.status = 'published'
-                 ORDER BY p.freshness_at DESC NULLS LAST
+                 ORDER BY (
+                     p.freshness_at
+                     + CASE WHEN gflag.has_global_outlet
+                           THEN INTERVAL '6 hours'
+                           ELSE INTERVAL '0'
+                       END
+                 ) DESC NULLS LAST
                  LIMIT $1
                 """,
                 limit,

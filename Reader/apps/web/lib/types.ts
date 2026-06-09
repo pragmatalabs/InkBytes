@@ -36,6 +36,10 @@ export interface EventSummary {
   /** Cover image URL: best og:image / top_image from event articles. null when
    *  no article has a lead_image (pre-migration rows, or outlet has no og:image). */
   lead_image: string | null;
+  /** True when at least one article came from a global-region outlet (AP, Reuters,
+   *  BBC, CNN, NPR, etc.). Drives the +6 h freshness bonus in the API ORDER BY
+   *  (ADR-0017) and the "Regional" section divider in the Reader. */
+  has_global_outlet: boolean;
 }
 
 export interface EvidenceItem {
