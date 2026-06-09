@@ -6,6 +6,7 @@
 > *2026-06-08: ADR-0018 — `content_hash` made stable (normalized lede prefix); fixes the ADR-0015 fast-path that never fired. Tested locally, pending deploy.*
 > *2026-06-09: 105 143-msg backlog purged. Root cause = ADR-0016 migration teardown wiped the dedup volume + per-DAY staging files re-published in full every cycle. Fixed by Messor ADR-0014 (per-RUN staging files). Tested locally, pending deploy.*
 > *2026-06-09: Messor ADR-0015 — 48h harvest freshness gate (strict on undated) + dropped the archive tail-crawl. Stops month-old (back to 2012) articles entering as "fresh". History preserved (no prune). Tested locally, pending deploy.*
+> *2026-06-09: Reader ADR-0007 — mobile daily splash ("Morning Briefing"), once per 24h over the home feed. Real Reader design system (Inter, LogoMark, --accent/--accent-dot); real local streak + live 24h category counts. Tested locally.*
 
 ---
 
