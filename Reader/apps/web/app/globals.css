@@ -87,3 +87,15 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .animate-slide-up { animation: none; }
 }
+
+/* ── Daily splash entrance (fade + 10px rise) ────────────────────────────── */
+@keyframes splash-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-splash-in {
+  animation: splash-in 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-splash-in { animation: none; }
+}
