@@ -482,6 +482,19 @@ class DatabaseService:
                 json.dumps(items),
             )
 
+    async def write_hero_image(self, event_id: str, url: str) -> None:
+        """Persist the best YouTube thumbnail to events.hero_image (ADR-0016).
+
+        Used by IllustrateSkill as a story-relevant fallback for events whose
+        outlet og:image was NULL, hotlink-blocked, or an author headshot.
+        Overwrites any prior value — re-synthesis may yield a better video.
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE events SET hero_image = $1 WHERE id = $2",
+                url, event_id,
+            )
+
     async def get_outlets_with_stats(self) -> list[dict[str, Any]]:
         """Return all outlets joined with live article/event stats from the DB."""
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]

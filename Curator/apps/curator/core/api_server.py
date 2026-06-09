@@ -245,14 +245,19 @@ def build_app(app: Application) -> FastAPI:
                        -- obituary). Gating to cluster_distance <= 0.45 keeps the hero
                        -- on-topic; events whose only image sits on an outlier go
                        -- text-only rather than show a wrong photo.
-                       (SELECT a.lead_image
-                          FROM articles a
-                         WHERE a.event_id = e.id
-                           AND a.lead_image IS NOT NULL
-                           AND a.lead_image <> ''
-                           AND a.cluster_distance <= 0.45
-                         ORDER BY a.scraped_at DESC
-                         LIMIT 1
+                       -- ADR-0016: COALESCE with events.hero_image (best YouTube
+                       -- thumbnail written by IllustrateSkill) as fallback when the
+                       -- outlet og:image was NULL, hotlink-blocked, or an author photo.
+                       COALESCE(
+                           (SELECT a.lead_image
+                              FROM articles a
+                             WHERE a.event_id = e.id
+                               AND a.lead_image IS NOT NULL
+                               AND a.lead_image <> ''
+                               AND a.cluster_distance <= 0.45
+                             ORDER BY a.scraped_at DESC
+                             LIMIT 1),
+                           e.hero_image
                        ) AS lead_image,
 
                        -- Coverage sparkline: 7 data-points at 6-hour intervals
@@ -304,15 +309,18 @@ def build_app(app: Application) -> FastAPI:
                 """
                 SELECT p.*, e.source_count, e.article_count, e.topic,
 
-                       -- Cover image: same rollup as the /events list endpoint.
-                       (SELECT a.lead_image
-                          FROM articles a
-                         WHERE a.event_id = e.id
-                           AND a.lead_image IS NOT NULL
-                           AND a.lead_image <> ''
-                           AND a.cluster_distance <= 0.45
-                         ORDER BY a.scraped_at DESC
-                         LIMIT 1
+                       -- Cover image: same rollup as the /events list endpoint
+                       -- with ADR-0016 COALESCE fallback to events.hero_image.
+                       COALESCE(
+                           (SELECT a.lead_image
+                              FROM articles a
+                             WHERE a.event_id = e.id
+                               AND a.lead_image IS NOT NULL
+                               AND a.lead_image <> ''
+                               AND a.cluster_distance <= 0.45
+                             ORDER BY a.scraped_at DESC
+                             LIMIT 1),
+                           e.hero_image
                        ) AS lead_image,
 
                        -- Timeline: article publication order, showing how the

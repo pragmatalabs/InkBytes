@@ -1,23 +1,22 @@
-"""Lead-image displayability probe — drops hotlink-blocked og:images at ingest.
+"""Lead-image validation — hotlink probe + author-photo URL guard.
 
-A source outlet's og:image URL (``articles.lead_image``) is embedded by the
-Reader as a *cross-origin* ``<img>``. Some outlet CDNs (notably LA Times'
-brightspot) detect that exact request fingerprint —
-``Sec-Fetch-Dest: image`` + ``Sec-Fetch-Site: cross-site`` — as hotlinking and
-302-redirect to a 1×1 ``placeholder-1x1.png``. That redirect lands on a *valid*
-HTTP 200 transparent pixel, so the Reader's ``<img onError>`` fallback never
-fires — the hero renders as a blank box with no fallback (Curator ADR-0019).
+Two gates run at article ingest to keep hero images relevant:
 
-Server-side fetchers (Messor harvest, link-preview bots, plain ``curl``) don't
-send the ``Sec-Fetch-*`` headers, so they see the real image and HTTP 200 — which
-is why the dead URL sails through extraction and only fails inside a real
-browser. We reproduce the browser fingerprint here, at ingest, and let the
-caller NULL out blocked URLs so the ``/events`` ``lead_image`` rollup falls back
-to another source's image.
+1. **Hotlink probe** (``is_displayable``, ADR-0019) — async, sends the exact
+   ``Sec-Fetch-*`` browser fingerprint that trips CDN hotlink guards (notably
+   LA Times' brightspot). Keeps the URL if the probe times out (fail-open).
+
+2. **Author-photo URL guard** (``is_author_photo``, ADR-0016) — sync, no HTTP.
+   Detects byline headshots via URL path patterns common across WordPress/CMS
+   outlets (``/author/``, ``/avatar/``, ``/profile/``, Spanish equivalents,
+   etc.).  Heraldo and similar outlets set ``og:image`` to the journalist's
+   headshot rather than a story photo; this gate NULLs it so the
+   ``events.hero_image`` YouTube-thumbnail fallback kicks in instead.
 """
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 
 import httpx
@@ -43,6 +42,33 @@ _BROWSER_IMG_HEADERS = {
 # pixel (brightspot's placeholder-1x1.png is 69 bytes).
 _MIN_IMAGE_BYTES = 512
 _CACHE_MAX = 5000
+
+# ── Author-photo URL patterns (ADR-0016) ─────────────────────────────────────
+# Path segments and parameter names that reliably indicate a journalist byline
+# headshot rather than a story photo.  Covers English and Spanish CMS patterns.
+_AUTHOR_URL_RE = re.compile(
+    r"("
+    r"/authors?/"
+    r"|/autores?/"           # Spanish
+    r"|/journalists?/"
+    r"|/reporters?/"
+    r"|/contributors?/"
+    r"|/columnists?/"
+    r"|/staff/"
+    r"|/people/"
+    r"|/team/"
+    r"|/profiles?/"
+    r"|/avatars?/"
+    r"|/headshots?/"
+    r"|/bylines?/"
+    r"|[_\-]author[_\-]"
+    r"|author[_\-]photo"
+    r"|author[_\-]image"
+    r"|profile[_\-]image"
+    r"|profile[_\-]photo"
+    r")",
+    re.IGNORECASE,
+)
 
 
 class MediaValidator:
@@ -123,6 +149,22 @@ class MediaValidator:
         if clen is not None and clen.isdigit() and int(clen) < _MIN_IMAGE_BYTES:
             return self._remember(url, False)
         return self._remember(url, True)
+
+    @staticmethod
+    def is_author_photo(url: str) -> bool:
+        """Return True if the URL path looks like a journalist byline headshot.
+
+        Sync and free — pure regex, no HTTP.  Intended to be called after
+        ``is_displayable`` (which is async/network) so that cheap pattern
+        matching runs even when probe validation is disabled.
+
+        Covers common English and Spanish CMS path patterns:
+        /author/, /avatar/, /profile/, /headshot/, /staff/, /people/,
+        /autores/, /journalists/, /reporters/, /contributors/ …
+        Also catches query-param and filename patterns like
+        ``author_photo.jpg`` or ``profile-image.png``.
+        """
+        return bool(_AUTHOR_URL_RE.search(url))
 
     async def aclose(self) -> None:
         if self._client is not None:

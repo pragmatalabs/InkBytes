@@ -433,6 +433,21 @@ class IllustrateSkill:
                 break
 
         await self.db.write_media_rail(event_id, rail)  # type: ignore[arg-type]
+
+        # Hero image fallback (ADR-0016): write the best YouTube thumbnail to
+        # events.hero_image so the API can COALESCE it when the outlet's
+        # og:image is NULL (hotlink-blocked, author photo, or absent entirely).
+        # Prefer rail[0] (already filtered + sorted); fall back to yt_results[0]
+        # in the rare case the relevance gate filtered everything out.
+        best_thumb = (
+            rail[0]["thumb_url"] if rail
+            else yt_results[0]["thumb_url"] if yt_results
+            else None
+        )
+        if best_thumb:
+            await self.db.write_hero_image(event_id, best_thumb)
+            logger.info("ILLUSTRATE %s → hero_image=%s", event_id, best_thumb)
+
         logger.info(
             "ILLUSTRATE %s → %d video items (yt_raw=%d)",
             event_id, len(rail), len(yt_results),

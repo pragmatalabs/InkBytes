@@ -565,6 +565,16 @@ class Application:
                     article.id, article.outlet.name, lead,
                 )
                 art_dict["lead_image"] = None
+            # Author-photo guard (ADR-0016): some outlets (e.g. Heraldo) set
+            # og:image to a journalist headshot.  URL-pattern check is sync +
+            # free; NULLs it so events.hero_image (YouTube thumbnail) fills in.
+            lead = art_dict.get("lead_image")
+            if lead and self.media.is_author_photo(lead):
+                logger.info(
+                    "lead_image looks like author photo, dropping for %s (%s): %s",
+                    article.id, article.outlet.name, lead,
+                )
+                art_dict["lead_image"] = None
             needs_enrichment = await self.db.upsert_article_raw(art_dict, event.spaces_key)
             if not needs_enrichment:
                 # info-level (not debug): this is the ADR-0015/0018 duplicate
