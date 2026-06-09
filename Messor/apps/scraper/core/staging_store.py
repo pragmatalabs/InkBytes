@@ -140,9 +140,11 @@ def load_known_article_urls(scrapes_dir: str, outlet_name: str) -> set:
     ArticleBuilder.buildFromNewspaper3K).  ``url``/``canonical_url`` are checked
     as fallbacks for older file formats.
 
-    File naming convention: ``<unix-day-ts>.<outlet_name>.db.json`` where
-    ``<unix-day-ts>`` is the Unix timestamp of midnight UTC for that day
-    (``generate_today_timestamp()``).  Files whose prefix cannot be parsed as an
+    File naming convention: ``<unix-run-ts>.<outlet_name>.db.json`` where
+    ``<unix-run-ts>`` is ``int(time.time())`` at the start of that scrape RUN
+    (Messor ADR-0014; was midnight-UTC per-day before, which caused per-cycle
+    re-publish amplification).  All files in the window are still scanned
+    regardless of the exact prefix; files whose prefix cannot be parsed as an
     integer are included unconditionally (graceful handling of legacy names).
     """
     import time as _time

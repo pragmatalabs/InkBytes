@@ -1,9 +1,10 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-08*
+> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-09*
 > *Pipeline proven end-to-end. 413+ published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
-> *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — queue flood eliminated.*
+> *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — restart-driven queue flood eliminated.*
 > *2026-06-08: ADR-0018 — `content_hash` made stable (normalized lede prefix); fixes the ADR-0015 fast-path that never fired. Tested locally, pending deploy.*
+> *2026-06-09: 105 143-msg backlog purged. Root cause = ADR-0016 migration teardown wiped the dedup volume + per-DAY staging files re-published in full every cycle. Fixed by Messor ADR-0014 (per-RUN staging files). Tested locally, pending deploy.*
 
 ---
 
@@ -98,6 +99,7 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 - [x] Duplicate enrichment fast-path (ADR-0015) — unchanged articles skip LLM; queue drains in ~2h not ~21d, deployed 2026-06-08
 - [x] Stable `content_hash` (ADR-0018) — fixes the ADR-0015 fast-path that never fired (raw hash churned on newspaper3k noise → 0 SKIP / 176 ENRICH, ~$780 / 13-day drain); now hashes a normalized lede prefix. Tested locally, pending deploy.
 - [x] Persistent Messor staging volume (ADR-0012) — `inkbytes_inkbytes-messor-scrapes` pre-seeded; no more restart floods, deployed 2026-06-08
+- [x] Per-RUN staging files (Messor ADR-0014) — fixes the per-day file that re-published in full every cycle; ADR-0016 migration teardown had wiped the dedup volume → 105 143-msg backlog (purged 2026-06-09). Volume mount intact (survives restart); per-run files make any future wipe survivable. Tested locally, pending deploy.
 - [ ] 24h of green scheduled cycles + first paying user invited
 - [ ] Switch to `inkbytes.news` domain (DNS A records → `67.205.136.61`)
 - [ ] GitHub Actions CI/CD (secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`)

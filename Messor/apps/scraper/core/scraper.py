@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict, Any
@@ -1004,8 +1005,20 @@ class NewsScraper:
             known_urls:   Set of article URLs already seen in prior staging files
                           (loaded once before this call — ADR-0011 Layer 3).
         """
-        time_stamp = generate_today_timestamp()
-        self.session.set_results_staging_file_name(f"{time_stamp}.{outletBrand}.db.json")
+        # Per-RUN staging file (Messor ADR-0014).  Previously this used
+        # generate_today_timestamp() (midnight UTC), so ONE file per outlet
+        # accumulated every cycle's new articles across the whole day.
+        # _publish_articles_from_staging_file() re-reads the WHOLE file each
+        # cycle, so a per-day file re-published earlier cycles' articles on every
+        # run (≈4×/day amplification) — and after the ADR-0016 migration wiped the
+        # dedup volume, the per-day files ballooned to multi-MB and were
+        # re-published in full each cycle (the 105 143-message flood, 2026-06-09).
+        # A per-RUN timestamp gives each cycle its own file containing ONLY that
+        # run's new articles, so re-publishing it == publishing only-new.
+        # Cross-run / cross-day dedup is unchanged: load_known_article_urls()
+        # still scans every staging file in the 7-day window (ADR-0012).
+        run_ts = int(time.time())
+        self.session.set_results_staging_file_name(f"{run_ts}.{outletBrand}.db.json")
         staging_path = config.storage.staging.local.scraping()
         file_path = os.path.join(staging_path, self.session.results_staging_file_name)
         self.logger.info(f"Saving articles to: {file_path}")

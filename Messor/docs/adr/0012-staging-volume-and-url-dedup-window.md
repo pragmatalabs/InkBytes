@@ -1,6 +1,13 @@
 # ADR-0012 — Persistent Staging Volume + Bounded URL-Dedup Window
 
 > *Status: accepted · Owner: Julián · Last updated: 2026-06-08*
+>
+> **Follow-up:** [ADR-0014](./0014-per-run-staging-files-stop-republish-amplification.md)
+> — the per-day staging file this ADR assumed (`generate_today_timestamp()`)
+> was itself re-published in full every cycle, amplifying any dedup gap. The
+> ADR-0016 migration deleted this volume (exactly the §"Risk: named volume
+> deleted manually" scenario) and the amplification turned a ~1 540-msg re-flood
+> into the 105 143-msg backlog of 2026-06-09. ADR-0014 switches to per-RUN files.
 
 ## Context
 
@@ -38,7 +45,8 @@ free to process, but the queue still grows unboundedly and wastes I/O.
 
 `load_known_article_urls` scanned ALL `.db.json` files in `scrapes_dir` for the
 outlet.  Files accumulate at 1 per outlet per day (`generate_today_timestamp()`
-produces a per-day prefix).  After one year of 22 outlets: **8 030 files**.
+produces a per-day prefix — note: ADR-0014 later changed this to 1 file per
+outlet per *run*).  After one year of 22 outlets: **8 030 files**.
 
 - Startup per outlet: O(N_files) JSON reads → increasingly slow.
 - Memory: entire URL set for all scraped history loaded into RAM at cycle start.

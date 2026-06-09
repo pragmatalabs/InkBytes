@@ -128,7 +128,14 @@ class StorageService:
             return 0
 
         if not os.path.exists(staging_file_path):
-            self.logger.warning(f"Staging file not found for event publish: {staging_file_path}")
+            # Not an error: a per-run staging file is only written when the run
+            # produced ≥1 NEW article (StagingStore flushes on insert). Zero new
+            # articles → no file → nothing to publish. This is the common, healthy
+            # outcome once URL-dedup has caught up (Messor ADR-0014).
+            self.logger.info(
+                "No staging file to publish (0 new articles this run): %s",
+                staging_file_path,
+            )
             return 0
 
         try:
