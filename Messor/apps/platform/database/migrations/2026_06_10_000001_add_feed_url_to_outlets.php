@@ -13,15 +13,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('outlets', function (Blueprint $table) {
+        // Curator migration 012 owns this column — it may already exist when
+        // Curator ran before this Laravel migration. Guard so `php artisan migrate`
+        // is idempotent on either ordering.
+        if (Schema::hasColumn('outlets', 'feed_url')) {
+            return;
+        }
+
+        Schema::table('outlets', function (Blueprint $table): void {
             $table->text('feed_url')->nullable()->after('url');
         });
     }
 
     public function down(): void
     {
-        Schema::table('outlets', function (Blueprint $table) {
-            $table->dropColumn('feed_url');
-        });
+        if (Schema::hasColumn('outlets', 'feed_url')) {
+            Schema::table('outlets', function (Blueprint $table): void {
+                $table->dropColumn('feed_url');
+            });
+        }
     }
 };

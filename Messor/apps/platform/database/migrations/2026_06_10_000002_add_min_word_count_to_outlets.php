@@ -15,6 +15,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Curator migration 013 owns this column — guard so the migration is
+        // idempotent regardless of whether Curator ran first.
+        if (Schema::hasColumn('outlets', 'min_word_count')) {
+            return;
+        }
+
         Schema::table('outlets', function (Blueprint $table): void {
             $table->unsignedSmallInteger('min_word_count')->nullable()->after('feed_url');
         });
@@ -22,8 +28,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('outlets', function (Blueprint $table): void {
-            $table->dropColumn('min_word_count');
-        });
+        if (Schema::hasColumn('outlets', 'min_word_count')) {
+            Schema::table('outlets', function (Blueprint $table): void {
+                $table->dropColumn('min_word_count');
+            });
+        }
     }
 };
