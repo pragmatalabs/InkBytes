@@ -20,7 +20,11 @@ class AdvancedLogger:
         self.setup_logging()
 
     def setup_logging(self):
-        logging.basicConfig(level=self.config['log_level'])
+        # NOTE: do NOT call logging.basicConfig() here — it adds a StreamHandler
+        # to the root logger, which makes every log record propagate to BOTH the
+        # root handler (plain "INFO:name:msg" format) AND the named-logger handlers
+        # added below, doubling every line in logs.  The LoggingService in the
+        # scraper already sets up all required handlers; this call is redundant.
         self.logger = logging.getLogger(self.config['logger_name'])
 
         # File log setup

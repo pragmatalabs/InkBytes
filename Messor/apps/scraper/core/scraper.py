@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import time
+import yaml
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
@@ -53,6 +54,29 @@ logger_config = {
 }
 
 advanced_logger = AdvancedLogger(logger_config)
+
+
+def _load_url_skip_patterns() -> dict:
+    """Load per-outlet URL skip patterns from data/outlets/url_skip_patterns.yaml.
+
+    Returns a dict mapping outlet slug → list[str] of substring patterns.
+    Missing file is silently ignored (returns empty dict).
+    """
+    path = os.path.join(os.path.dirname(__file__), '..', 'data', 'outlets', 'url_skip_patterns.yaml')
+    path = os.path.normpath(path)
+    try:
+        with open(path) as fh:
+            data = yaml.safe_load(fh) or {}
+        return {k: list(v) for k, v in data.items() if isinstance(v, list)}
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        logger.warning(f"Could not load url_skip_patterns.yaml: {e}")
+        return {}
+
+
+# Loaded once at module import; zero overhead per-article.
+_URL_SKIP_PATTERNS: dict = _load_url_skip_patterns()
 
 
 # ===== Models and Enums from scraper.py =====
@@ -1065,6 +1089,16 @@ class NewsScraper:
                 self.session.increment_duplicates_previous_scrapes()
                 self.session.increment_failed_articles()
                 continue
+
+            # ── Layer 3b: per-outlet URL blocklist (data/outlets/url_skip_patterns.yaml)
+            # Skips non-news sections (e.g. BBC Maestro, Travel, Future) before
+            # any HTTP request is made. Patterns are substring matches on the URL.
+            skip_patterns = _URL_SKIP_PATTERNS.get(outletBrand, [])
+            if article_url and skip_patterns:
+                if any(pat in article_url for pat in skip_patterns):
+                    url_skipped += 1
+                    self.session.increment_failed_articles()
+                    continue
 
             # ── Layer 1: sequential download + scrape ────────────────────────
             try:

@@ -1,0 +1,37 @@
+# Per-outlet URL skip patterns (Messor scraper)
+#
+# Applied in process_outlet_articles() before any HTTP request is made.
+# Each entry is a substring match against the full article URL — if ANY
+# pattern appears in the URL, the article is skipped (no download, no parse).
+#
+# Keep patterns specific enough to avoid false positives.
+# All matches are case-sensitive substring checks (no regex overhead).
+#
+# Added: 2026-06-09 — Messor ADR-0016 follow-up (scraping quality)
+
+bbc:
+  # Non-news verticals — BBC Maestro learning, Travel, Future, Sport, Sounds, iPlayer
+  - /maestro/
+  - /travel/
+  - /future/
+  - /sounds/
+  - /iplayer/
+  - /sport/
+  # Section index pages (no article body) — identified by URL pattern
+  # Real BBC articles always contain /articles/ or a numeric slug
+  - /topics/
+  - /collections/
+
+theguardian:
+  # Crosswords, puzzles, games — surface from category pages but contain no news
+  - /crosswords/
+  - /games/
+  # Commercial/shopping content
+  - /guardian-masterclasses/
+  - /guardian-holidays/
+
+latimes:
+  # Games and puzzles
+  - /games/
+  # Entertainment listings
+  - /entertainment-arts/calendar/
