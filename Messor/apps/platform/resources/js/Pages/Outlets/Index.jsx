@@ -96,6 +96,7 @@ const emptyOutlet = {
     name: '',
     display_name: '',
     url: '',
+    feed_url: '',
     region: 'global',
     language: 'en',
     vertical: 'general',
@@ -189,6 +190,7 @@ export default function OutletsIndex({
             name: outlet.name,
             display_name: outlet.display_name,
             url: outlet.url,
+            feed_url: outlet.feed_url ?? '',
             region: outlet.region,
             language: outlet.language,
             vertical: outlet.vertical,
@@ -509,9 +511,24 @@ export default function OutletsIndex({
                                         <Typography
                                             variant="caption"
                                             color="text.secondary"
+                                            component="span"
                                         >
                                             {outlet.url}
                                         </Typography>
+                                        {outlet.feed_url && (
+                                            <Chip
+                                                label="RSS"
+                                                size="small"
+                                                color="success"
+                                                variant="outlined"
+                                                component="a"
+                                                href={outlet.feed_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                clickable
+                                                sx={{ ml: 1, height: 18, fontSize: 10 }}
+                                            />
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <Typography
@@ -704,6 +721,18 @@ export default function OutletsIndex({
                                 helperText={form.errors.url}
                                 fullWidth
                                 required
+                            />
+                            <TextField
+                                label="RSS / Atom feed URL"
+                                value={form.data.feed_url}
+                                onChange={set('feed_url')}
+                                error={Boolean(form.errors.feed_url)}
+                                helperText={
+                                    form.errors.feed_url ??
+                                    'Optional. When set, Messor uses this feed for URL discovery instead of homepage crawl.'
+                                }
+                                fullWidth
+                                placeholder="https://feeds.example.com/rss.xml"
                             />
                             <Stack direction="row" spacing={2}>
                                 <FormControl fullWidth>
