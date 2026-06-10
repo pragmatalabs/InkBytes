@@ -19,6 +19,15 @@
 
 set -uo pipefail
 
+# The app .venv pythons are universal binaries but their native wheels
+# (pydantic_core, …) are arm64-only. If this script is spawned from a translated
+# (x86_64/Rosetta) context — e.g. a background runner — child pythons inherit
+# x86_64 and crash on import. Re-exec the whole script natively on Apple Silicon
+# so every child inherits arm64.
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ] && [ "$(arch 2>/dev/null)" != "arm64" ]; then
+    exec arch -arm64 /bin/bash "$0" "$@"
+fi
+
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CURATOR="$ROOT/Curator/apps/curator"
 MESSOR="$ROOT/Messor/apps/scraper"
@@ -26,8 +35,13 @@ READER="$ROOT/Reader/apps/web"
 LOGDIR="/tmp/inkbytes-dev"
 mkdir -p "$LOGDIR"
 
-CUR_PY="$CURATOR/.venv/bin/python"
-MES_PY="$MESSOR/.venv/bin/python"
+# The .venv pythons are universal binaries but the native wheels (pydantic_core,
+# etc.) are arm64-only. A backgrounded/Rosetta launch can run the interpreter as
+# x86_64 → "incompatible architecture" on import. Pin to arm64 on Apple Silicon.
+ARCHCMD=""
+[ "$(uname -m)" = "arm64" ] && ARCHCMD="arch -arm64"
+CUR_PY="$ARCHCMD $CURATOR/.venv/bin/python"
+MES_PY="$ARCHCMD $MESSOR/.venv/bin/python"
 
 c_log="$LOGDIR/curator.log"
 m_log="$LOGDIR/messor.log"
@@ -47,11 +61,11 @@ up() {
 
     echo "[dev] 3/5 Curator (--consume, :8060)…"
     _port_pids 8060 | xargs -r kill -9 2>/dev/null; sleep 1
-    ( cd "$CURATOR" && nohup "$CUR_PY" main.py --config env.local.yaml --consume > "$c_log" 2>&1 & )
+    ( cd "$CURATOR" && nohup $CUR_PY main.py --config env.local.yaml --consume > "$c_log" 2>&1 & )
 
     echo "[dev] 4/5 Messor (--schedule, harvests every schedule_interval_minutes)…"
     _proc_pids "main.py env.local.yaml --schedule" | xargs -r kill 2>/dev/null
-    ( cd "$MESSOR" && nohup "$MES_PY" main.py env.local.yaml --schedule --no-browser > "$m_log" 2>&1 & )
+    ( cd "$MESSOR" && nohup $MES_PY main.py env.local.yaml --schedule --no-browser > "$m_log" 2>&1 & )
 
     echo "[dev] 5/5 Reader (npm run dev, :3000)…"
     if [ -z "$(_port_pids 3000)" ]; then
@@ -85,7 +99,7 @@ status() {
     printf "messor    : "; [ -n "$(_proc_pids 'main.py env.local.yaml --schedule')" ] && echo "up (--schedule)" || echo "DOWN"
     printf "reader    : "; [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ 2>/dev/null)" = "200" ] && echo "up (:3000)" || echo "DOWN"
     if curl -sf http://localhost:8060/status >/dev/null 2>&1; then
-        curl -s http://localhost:8060/status 2>/dev/null | "$CUR_PY" -c "import sys,json;d=json.load(sys.stdin);print('pipeline  : articles=%s pending=%s events=%s pages=%s processing=%s'%(d['articles_total'],d['articles_pending'],d['events_total'],d['pages_published'],d.get('processing_enabled')))" 2>/dev/null
+        curl -s http://localhost:8060/status 2>/dev/null | $CUR_PY -c "import sys,json;d=json.load(sys.stdin);print('pipeline  : articles=%s pending=%s events=%s pages=%s processing=%s'%(d['articles_total'],d['articles_pending'],d['events_total'],d['pages_published'],d.get('processing_enabled')))" 2>/dev/null
     fi
     echo "logs      : $LOGDIR/{curator,messor,reader}.log"
     echo "────────────────────────────────────────────────────────"
