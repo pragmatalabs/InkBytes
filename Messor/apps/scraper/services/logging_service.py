@@ -41,14 +41,21 @@ class LoggingService:
         
         logger = LoggerFactory.create_logger("Inkbytes.Messor", [log_config])
 
-        logging.getLogger('botocore').setLevel(logging.ERROR)  # Or use logging.INFO or logging.WARNING
+        # LoggerFactory never calls setLevel() on the logger itself, so the
+        # named logger inherits the root logger's WARNING default and silently
+        # drops INFO messages even when handlers are configured for INFO.
+        # Set the level explicitly so the logger gates at the configured level,
+        # not at Python's root-logger default.
+        logger.setLevel(log_config.log_level)
+
+        logging.getLogger('botocore').setLevel(logging.ERROR)
         # Add console handler for better visibility
         if 'console' in logging_config.destinations():
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(log_config.log_formatter)
             console_handler.setLevel(log_config.log_level)
             logger.addHandler(console_handler)
-        
+
         return logger
     
     def info(self, message: str, *args, **kwargs):

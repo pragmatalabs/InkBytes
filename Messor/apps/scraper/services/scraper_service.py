@@ -131,7 +131,7 @@ class ScraperService:
                         # Articles were staged but the file disappeared — real problem.
                         self.logger.warning(f"File not found (expected {successful} articles): {local_path}")
                     else:
-                        self.logger.info(f"No articles staged this run, skipping upload: {file_name}")
+                        self.logger.warning(f"No articles staged this run (0 new): {file_name}")
         except Exception as e:
             self.logger.error(f"Error handling completed session: {e}")
     
