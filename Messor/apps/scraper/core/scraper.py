@@ -466,16 +466,22 @@ def pre_process_article(article: newspaper.Article) -> newspaper.Article:
         logging.getLogger().warning(f"Download/parse failed for {getattr(article, 'url', '?')}: {type(e).__name__}: {e}")
 
 
-def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str) -> Article:
+def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str, min_word_count: int = None) -> Article:
     """Scrape a single article — download, parse, extract, then free HTML (ADR-0011 L2).
 
     Called sequentially (no executor) so only one article's HTML is in memory at a
     time per outlet thread.  After ``create_article_record()`` extracts what we need,
     the newspaper.Article's HTML + lxml parse tree are explicitly nullified so the
     garbage collector can reclaim them without waiting for a cyclic-GC pass.
+
+    Args:
+        article:        The newspaper.Article to scrape (URL populated, not yet downloaded).
+        newsPaperBrand: Outlet brand name used for article record creation.
+        min_word_count: Per-outlet minimum word count — passed through to
+                        build_newspaper_article; None → global config fallback.
     """
     try:
-        newspaperArticle = build_newspaper_article(article)
+        newspaperArticle = build_newspaper_article(article, min_word_count=min_word_count)
         if newspaperArticle and len(newspaperArticle.text) > 150:
             record = create_article_record(newspaperArticle, newsPaperBrand)
             # Layer 2: free the HTML + lxml tree immediately after extraction.
@@ -906,12 +912,14 @@ def create_article_record(article: newspaper.Article, newsPaperBrand: str) -> Ar
     return articleRecord
 
 
-def build_newspaper_article(article: newspaper.Article) -> newspaper.Article:
+def build_newspaper_article(article: newspaper.Article, min_word_count: int = None) -> newspaper.Article:
     """
     Build a newspaper article by processing it.
 
     Args:
-        article: The article to build.
+        article:        The article to build.
+        min_word_count: Per-outlet minimum word count threshold.  None falls
+                        back to the global config.scraper.min_word_count().
 
     Returns:
         newspaper.Article: The built article if successful, None otherwise.
@@ -924,12 +932,15 @@ def build_newspaper_article(article: newspaper.Article) -> newspaper.Article:
         # Count words instead of characters for a more meaningful content check
         word_count = len(article.text.split())
 
+        # Per-outlet threshold — falls back to the global config value so
+        # existing behaviour is unchanged when no outlet override is set.
+        effective_min = min_word_count if min_word_count is not None else config.scraper.min_word_count()
+
         # Only accept articles with a substantial number of words
-        # 50 words is approximately a short paragraph of meaningful content
-        if word_count >= config.scraper.min_word_count():
+        if word_count >= effective_min:
             return article
         else:
-            logger.info(f"Article {article.title} has too few words: {word_count} words")
+            logger.info(f"Article {article.title} has too few words: {word_count} words (min={effective_min})")
             return None
 
 
@@ -1042,7 +1053,10 @@ class NewsScraper:
                 f"({len(known_urls)} previously seen URLs)"
             )
 
-            self.process_outlet_articles(outlet.name, np_articles, known_urls)
+            self.process_outlet_articles(
+                outlet.name, np_articles, known_urls,
+                min_word_count=getattr(outlet, 'min_word_count', None),
+            )
 
         except Exception as e:
             self.logger.error(f"Error scraping {outlet}: {e}")
@@ -1051,7 +1065,7 @@ class NewsScraper:
         return self.session
 
     def process_outlet_articles(self, outletBrand: str, np_articles: list,
-                               known_urls: set) -> None:
+                               known_urls: set, min_word_count: int = None) -> None:
         """Sequential article processing — ADR-0011 Layers 1, 2, 3.
 
         Replaces the futures-based loop with a plain for-loop so only ONE article's
@@ -1060,11 +1074,13 @@ class NewsScraper:
         (Layer 2) prevent lxml garbage accumulation.
 
         Args:
-            outletBrand:  Outlet name used for staging file naming and logging.
-            np_articles:  List of ``newspaper.Article`` objects (URL populated,
-                          not yet downloaded).
-            known_urls:   Set of article URLs already seen in prior staging files
-                          (loaded once before this call — ADR-0011 Layer 3).
+            outletBrand:    Outlet name used for staging file naming and logging.
+            np_articles:    List of ``newspaper.Article`` objects (URL populated,
+                            not yet downloaded).
+            known_urls:     Set of article URLs already seen in prior staging files
+                            (loaded once before this call — ADR-0011 Layer 3).
+            min_word_count: Per-outlet minimum word count override.  None falls
+                            back to the global config.scraper.min_word_count().
         """
         # Per-RUN staging file (Messor ADR-0014).  Previously this used
         # generate_today_timestamp() (midnight UTC), so ONE file per outlet
@@ -1122,7 +1138,7 @@ class NewsScraper:
 
             # ── Layer 1: sequential download + scrape ────────────────────────
             try:
-                record = scrape_outlet_article(np_article, outletBrand)
+                record = scrape_outlet_article(np_article, outletBrand, min_word_count=min_word_count)
                 # scrape_outlet_article() nullifies html/clean_doc (Layer 2)
             except Exception as e:
                 parse_failed += 1

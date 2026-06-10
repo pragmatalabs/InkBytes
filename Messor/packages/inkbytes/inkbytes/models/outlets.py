@@ -39,6 +39,10 @@ class OutletsSource(BaseModel):
     publishedAt: str = None
     # RSS/Atom feed URL — None means no feed configured; scraper uses newspaper3k fallback.
     feed_url: str = None
+    # Per-outlet minimum word count threshold.  None → fall back to global
+    # config.scraper.min_word_count().  Override for outlets that publish
+    # legitimately short pieces (e.g. BBC news briefs: 25 words).
+    min_word_count: int = None
 
     # For compatibility with existing code that expects attributes field
     attributes: Attributes = None

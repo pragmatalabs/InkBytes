@@ -97,6 +97,7 @@ const emptyOutlet = {
     display_name: '',
     url: '',
     feed_url: '',
+    min_word_count: '',
     region: 'global',
     language: 'en',
     vertical: 'general',
@@ -191,6 +192,7 @@ export default function OutletsIndex({
             display_name: outlet.display_name,
             url: outlet.url,
             feed_url: outlet.feed_url ?? '',
+            min_word_count: outlet.min_word_count != null ? String(outlet.min_word_count) : '',
             region: outlet.region,
             language: outlet.language,
             vertical: outlet.vertical,
@@ -733,6 +735,20 @@ export default function OutletsIndex({
                                 }
                                 fullWidth
                                 placeholder="https://feeds.example.com/rss.xml"
+                            />
+                            <TextField
+                                label="Min word count"
+                                type="number"
+                                value={form.data.min_word_count}
+                                onChange={set('min_word_count')}
+                                error={Boolean(form.errors.min_word_count)}
+                                helperText={
+                                    form.errors.min_word_count ??
+                                    'Optional. Minimum words an article must have to be published. Leave blank to use the global default (40).'
+                                }
+                                inputProps={{ min: 1, max: 500 }}
+                                sx={{ width: 200 }}
+                                placeholder="e.g. 25"
                             />
                             <Stack direction="row" spacing={2}>
                                 <FormControl fullWidth>

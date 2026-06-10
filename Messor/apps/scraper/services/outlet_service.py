@@ -195,7 +195,7 @@ class OutletService:
             # Strapi integer — Curator returns string slugs (e.g. "bbc") in
             # the id field.  Map id → slug so --outlets=bbc matching works,
             # and strip everything the Pydantic model doesn't accept.
-            SCRAPER_FIELDS = {"name", "url", "active", "description", "slug", "logo", "feed_url"}
+            SCRAPER_FIELDS = {"name", "url", "active", "description", "slug", "logo", "feed_url", "min_word_count"}
             scraper_payload = []
             for o in raw:
                 if not o.get("active", True):
@@ -280,7 +280,7 @@ class OutletService:
             # OutletsSource.id is a Strapi integer ID — not used in our outlets.json
             # (where "id" is a string slug like "bbc"). Strip fields that would fail
             # Pydantic v1 type coercion so the model only sees what it understands.
-            SCRAPER_FIELDS = {'name', 'url', 'active', 'description', 'slug', 'logo', 'feed_url'}
+            SCRAPER_FIELDS = {'name', 'url', 'active', 'description', 'slug', 'logo', 'feed_url', 'min_word_count'}
             def _to_scraper_record(o: dict) -> dict:
                 rec = {k: v for k, v in o.items() if k in SCRAPER_FIELDS}
                 # outlets.json uses a string 'id' as the slug (e.g. "bbc").

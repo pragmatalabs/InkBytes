@@ -21,7 +21,8 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://feeds.bbci.co.uk/news/rss.xml"
+    "feed_url": "https://feeds.bbci.co.uk/news/rss.xml",
+    "min_word_count": 25
   },
   {
     "id": "bloomberg",
@@ -44,7 +45,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "min_word_count": 25
   },
   {
     "id": "elespectador",
@@ -127,7 +129,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "min_word_count": 25
   },
   {
     "id": "mileniomx",
@@ -151,7 +154,8 @@
     "vertical": "business",
     "active": true,
     "priority": 1,
-    "feed_url": "https://feeds.reuters.com/reuters/topNews"
+    "feed_url": "https://feeds.reuters.com/reuters/topNews",
+    "min_word_count": 25
   },
   {
     "id": "techcrunch",
@@ -198,7 +202,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "min_word_count": 25
   },
   {
     "id": "aljazeera",
@@ -210,7 +215,8 @@
     "vertical": "general",
     "active": true,
     "priority": 2,
-    "feed_url": "https://www.aljazeera.com/xml/rss/all.xml"
+    "feed_url": "https://www.aljazeera.com/xml/rss/all.xml",
+    "min_word_count": 25
   },
   {
     "id": "animalpolitico",
@@ -222,7 +228,8 @@
     "vertical": "politics",
     "active": true,
     "priority": 2,
-    "feed_url": "https://www.animalpolitico.com/feed"
+    "feed_url": "https://www.animalpolitico.com/feed",
+    "min_word_count": 30
   },
   {
     "id": "clarin",
@@ -257,7 +264,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "min_word_count": 25
   },
   {
     "id": "eldinerodr",
@@ -269,7 +277,8 @@
     "vertical": "business",
     "active": true,
     "priority": 2,
-    "feed_url": "https://eldinero.com.do/feed/"
+    "feed_url": "https://eldinero.com.do/feed/",
+    "min_word_count": 25
   },
   {
     "id": "elfinancierolatam",

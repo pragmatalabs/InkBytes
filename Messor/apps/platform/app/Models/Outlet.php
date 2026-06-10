@@ -37,6 +37,7 @@ class Outlet extends Model
         'display_name',
         'url',
         'feed_url',
+        'min_word_count',
         'region',
         'language',
         'vertical',
@@ -47,6 +48,7 @@ class Outlet extends Model
     protected $casts = [
         'active' => 'boolean',
         'priority' => 'integer',
+        'min_word_count' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
