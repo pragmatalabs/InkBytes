@@ -1,6 +1,6 @@
-# ADR-0013 — RSS/Atom-first scraping architecture (v2, deferred)
+# ADR-0013 — RSS/Atom-first scraping architecture (v2)
 
-> *Status: proposed · Owner: Julian · Date: 2026-06-07 · Target: post-v0*
+> *Status: implemented · Owner: Julian · Date: 2026-06-07 · Deployed: 2026-06-10*
 
 ## Context
 

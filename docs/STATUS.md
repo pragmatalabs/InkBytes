@@ -1,6 +1,6 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-08*
+> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-10*
 > *Pipeline proven end-to-end. 413+ published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
 > *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — restart-driven queue flood eliminated.*
 > *2026-06-08: ADR-0018 — `content_hash` made stable (normalized lede prefix); fixes the ADR-0015 fast-path that never fired. Tested locally, pending deploy.*
@@ -11,6 +11,7 @@
 > *2026-06-08: Messor — removed dead `process_found_articles` (no callers; pre-ADR-0011 thread-pool + ADR-0015-removed head+tail slicing). On branch `chore/remove-dead-process-found-articles`, **not yet pushed**.*
 > *2026-06-09: Curator ADR-0021 — lead-image must come from a cluster CORE member. A marginal/mis-clustered article (e.g. a Stevie Nicks/Fleetwood Mac photo at distance 0.47 on the "Michael Tilson Thomas, conductor, dies" obituary) was hijacking the hero because it was the freshest article with an image. The `/events` rollup now gates `cluster_distance <= 0.45` (attach threshold is 0.50); events whose only image is an outlier go text-only. Query-time rollup — no migration. Impact: 281 events → 270 keep hero, 8 go text-only, 39 switch to a more-core image.*
 > *2026-06-09: Curator ADR-0020 — promotional/commerce content filter. Affiliate clusters (e.g. The Guardian's shopping vertical → "Guardian Covers Top New Mom Gifts and Sonos Speaker Reviews") no longer publish: SynthesizeSkill skips a cluster whose article titles are a strict majority commercial, and refuses ad-style synthesized headlines. Deterministic `services/promo_filter.py`, tuned to 1/282 page headlines + 17/4000 article titles (zero false positives). Backfill un-publishes existing ad pages (`scripts/backfill_promo_pages.py`).*
+> *2026-06-10: Messor ADR-0013 (RSS-first harvesting) **implemented** — `feed_url` per outlet in DB (Curator migration 012 + Laravel migration 000001); `FeedScraper` / `get_articles_from_feed()` with 48h freshness gate + newspaper3k fallback; BBC, Al Jazeera, Reuters + 4 LATAM outlets seeded. Messor ADR-0016 — per-outlet scraper config pattern (`min_word_count`, Curator migration 013). Logger level bug fixed (INFO was silently dropped — `LoggingService` never called `logger.setLevel()`). arm64 architecture fix for Backoffice-triggered scrapes confirmed working. Deployed 2026-06-10.*
 
 ---
 
@@ -74,22 +75,22 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 
 `apnews · clarin · cnbc · cnn · diariolibree · elcaribedr · elespectador · elfinancierolatam · eltiempoco · eluniversalmx · gizmodo · ground-news · infobae · lanacionar · latimes · listindiario · mileniomx · npr · semana · techcrunch · theguardian · acentodr`
 
-### Disabled outlets (12) — reason
+### Disabled outlets — reason / status
 
-| Outlet | Reason |
-|---|---|
-| bbc | Geo-blocked on Hostinger IP; redirect loop (`Exceeded 30 redirects`) |
-| aljazeera | Rate-limited; parse success dropped to 1.4% on back-to-back runs |
-| bloomberg | Hard paywall — 0 articles harvested |
-| wsj | Hard paywall — 0 articles harvested |
-| reuters | Geo-blocked — 0 articles harvested |
-| theeconomist | Hard paywall — 0 articles harvested |
-| financialtimes | Soft paywall — 0 articles saved |
-| wired | JS-rendered / soft paywall — 0 articles saved |
-| foxbusiness | Broken newspaper3k parsing — 0.7% parse success |
-| polifact | Broken parsing — 0% parse success |
-| animalpolitico | Broken parsing — 0% parse success |
-| eldinerodr | Broken parsing — 3.4% parse success |
+| Outlet | Reason | RSS fix |
+|---|---|---|
+| bbc | Geo-blocked homepage crawl | ✅ `feed_url` seeded — re-enable in Backoffice |
+| aljazeera | Rate-limited homepage crawl | ✅ `feed_url` seeded — re-enable in Backoffice |
+| reuters | Geo-blocked homepage crawl | ✅ `feed_url` seeded — re-enable in Backoffice |
+| animalpolitico | Broken newspaper3k parsing | ✅ `feed_url` seeded — re-enable in Backoffice |
+| foxbusiness | Broken newspaper3k parsing | ✅ `feed_url` seeded — re-enable in Backoffice |
+| wired | JS-rendered / soft paywall | ✅ `feed_url` seeded — re-enable in Backoffice |
+| eldinerodr | Broken parsing — 3.4% success | ✅ `feed_url` seeded — re-enable in Backoffice |
+| bloomberg | Hard paywall | ❌ no public RSS |
+| wsj | Hard paywall | ❌ no public RSS |
+| theeconomist | Hard paywall | ❌ no public RSS |
+| financialtimes | Soft paywall | ❌ no public RSS |
+| polifact | Broken parsing — 0% success | ❌ investigate |
 
 ---
 
@@ -140,10 +141,11 @@ make shell-curator    # bash in curator-api container
 
 ### P1 — Scraping quality
 
-5. **RSS/Atom-first harvesting** — designed in `docs/roadmap.md`, not yet implemented. feedparser + trafilatura replaces newspaper3k homepage crawl. Expected: cycle time 28 min → 4-6 min.
-6. **Per-outlet `feed_url` in DB** — `ALTER TABLE public.outlets ADD COLUMN feed_url text;` — prerequisite for RSS-first.
-7. **trafilatura fallback parser** — when newspaper3k fails, try trafilatura. Better for modern JS sites.
-8. **Per-outlet config** — custom headers (Referer, Accept-Language) and rate-limit delays per outlet.
+5. ✅ **RSS/Atom-first harvesting** (Messor ADR-0013, 2026-06-10) — `feed_url` per outlet; `FeedScraper` with 48h freshness gate; newspaper3k fallback when feed absent/fails. BBC, Al Jazeera, Reuters, wired, foxbusiness, animalpolitico, eldinerodr + 3 LATAM dailies seeded. **Re-enable disabled outlets in Backoffice.**
+6. ✅ **Per-outlet `feed_url` in DB** — Curator migration 012 + Laravel migration 000001 (both deployed).
+7. ✅ **Per-outlet `min_word_count`** (Messor ADR-0016, 2026-06-10) — overrides global 40-word floor per outlet (BBC/Reuters/LATAM dailies set to 25).
+8. **trafilatura fallback parser** — when newspaper3k fails, try trafilatura. Better for modern JS sites.
+9. **Per-outlet rate-limit / custom headers** — follow the ADR-0016 pattern: one DB column + SCRAPER_FIELDS entry + Pydantic field.
 
 ### P2 — Reader
 
