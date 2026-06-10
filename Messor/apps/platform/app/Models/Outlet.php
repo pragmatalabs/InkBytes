@@ -36,6 +36,7 @@ class Outlet extends Model
         'name',
         'display_name',
         'url',
+        'feed_url',
         'region',
         'language',
         'vertical',

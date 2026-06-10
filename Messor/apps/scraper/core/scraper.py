@@ -38,6 +38,7 @@ from inkbytes.models.outlets import OutletsSource
 
 # v1: TinyDB was retired (INK-5). Per-cycle staging now uses a plain JSON store.
 from core.staging_store import StagingStore, article_id_exists_in_file, get_staged_content_hash, load_known_article_urls
+from core.feed_scraper import get_articles_from_feed
 
 # Module setup
 MODULE_NAME = get_module_name(2)
@@ -993,22 +994,41 @@ class NewsScraper:
                 self.logger.info(f"Invalid outlet URL {outlet.url}")
                 return self.session
 
-            # Build the newspaper (fetches homepage + categories).
-            paper = self.newspaper.build(outlet)
+            # ── URL discovery: RSS-first, newspaper3k fallback ────────────────
+            # If the outlet has a feed_url configured, use feedparser to get a
+            # clean, editorial list of fresh article URLs — no homepage crawl,
+            # no geo-block on the feed fetch itself.  Falls back to newspaper3k
+            # homepage build if: (a) no feed_url, (b) feed fetch returns None
+            # (network error / empty / malformed).
+            feed_url = getattr(outlet, 'feed_url', None)
+            np_articles = None
 
-            # Slice the article list BEFORE freeing the paper object.
-            # Head+tail strategy: first 300 (breaking) + last 300 (category depth).
-            np_articles = _slice_outlet_articles(paper.articles)
+            if feed_url:
+                window = int(config.articles.freshness_window_hours() or 48)
+                np_articles = get_articles_from_feed(
+                    feed_url,
+                    freshness_hours=window,
+                    max_articles=MAX_ARTICLES_PER_OUTLET,
+                )
+                if np_articles is None:
+                    self.logger.warning(
+                        "%s: RSS feed failed (%s) — falling back to newspaper3k",
+                        outlet.name, feed_url,
+                    )
+
+            if np_articles is None:
+                # newspaper3k homepage crawl (original path).
+                paper = self.newspaper.build(outlet)
+                np_articles = _slice_outlet_articles(paper.articles)
+                # Layer 2 / ADR-0011: free category HTML immediately.
+                try:
+                    paper.categories = []
+                    paper.category_urls = []
+                except Exception:
+                    pass
+                del paper
+
             self.session.total_articles = len(np_articles)
-
-            # Layer 2 / ADR-0011: free the paper's category-page HTML immediately —
-            # we only need the article URL list from here on.
-            try:
-                paper.categories = []
-                paper.category_urls = []
-            except Exception:
-                pass
-            del paper
 
             if not np_articles:
                 self.logger.info(f"No articles found from {outlet.name}")

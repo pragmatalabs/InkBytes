@@ -8,7 +8,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://rsshub.app/apnews/topics/ap-top-news"
   },
   {
     "id": "bbc",
@@ -19,7 +20,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://feeds.bbci.co.uk/news/rss.xml"
   },
   {
     "id": "bloomberg",
@@ -30,7 +32,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://feeds.bloomberg.com/markets/news.rss"
   },
   {
     "id": "diariolibree",
@@ -52,7 +55,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.elespectador.com/arc/outboundfeeds/rss/"
   },
   {
     "id": "eltiempoco",
@@ -63,7 +67,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.eltiempo.com/rss/justicia.xml"
   },
   {
     "id": "eluniversalmx",
@@ -74,7 +79,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.eluniversal.com.mx/rss.xml"
   },
   {
     "id": "financialtimes",
@@ -85,7 +91,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.ft.com/rss/home"
   },
   {
     "id": "infobae",
@@ -96,7 +103,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.infobae.com/feeds/rss/"
   },
   {
     "id": "lanacionar",
@@ -107,7 +115,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.lanacion.com.ar/rss/"
   },
   {
     "id": "listindiario",
@@ -129,7 +138,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.milenio.com/rss"
   },
   {
     "id": "reuters",
@@ -140,7 +150,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://feeds.reuters.com/reuters/topNews"
   },
   {
     "id": "techcrunch",
@@ -151,7 +162,8 @@
     "language": "en",
     "vertical": "tech",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://techcrunch.com/feed/"
   },
   {
     "id": "theeconomist",
@@ -162,7 +174,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://www.economist.com/rss/the_economist_full_rss.xml"
   },
   {
     "id": "wsj",
@@ -173,7 +186,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 1
+    "priority": 1,
+    "feed_url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
   },
   {
     "id": "acentodr",
@@ -195,7 +209,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://www.aljazeera.com/xml/rss/all.xml"
   },
   {
     "id": "animalpolitico",
@@ -206,7 +221,8 @@
     "language": "es",
     "vertical": "politics",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://www.animalpolitico.com/feed"
   },
   {
     "id": "clarin",
@@ -217,7 +233,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://www.clarin.com/rss/lo-ultimo/"
   },
   {
     "id": "cnbc",
@@ -228,7 +245,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://feeds.nbcnews.com/nbcnews/public/news"
   },
   {
     "id": "elcaribedr",
@@ -250,7 +268,8 @@
     "language": "es",
     "vertical": "business",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://eldinero.com.do/feed/"
   },
   {
     "id": "elfinancierolatam",
@@ -261,7 +280,8 @@
     "language": "es",
     "vertical": "business",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://www.elfinanciero.com.mx/rss/"
   },
   {
     "id": "theothers",
@@ -283,7 +303,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://feeds.npr.org/1001/rss.xml"
   },
   {
     "id": "semana",
@@ -294,7 +315,8 @@
     "language": "es",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://feeds.feedburner.com/revistasemana/vtTb"
   },
   {
     "id": "theguardian",
@@ -305,7 +327,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://www.theguardian.com/world/rss"
   },
   {
     "id": "wired",
@@ -316,7 +339,8 @@
     "language": "en",
     "vertical": "tech",
     "active": true,
-    "priority": 2
+    "priority": 2,
+    "feed_url": "https://www.wired.com/feed/rss"
   },
   {
     "id": "cnn",
@@ -327,7 +351,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 80
+    "priority": 80,
+    "feed_url": "https://rss.cnn.com/rss/cnn_topstories.rss"
   },
   {
     "id": "foxbusiness",
@@ -338,7 +363,8 @@
     "language": "en",
     "vertical": "business",
     "active": true,
-    "priority": 50
+    "priority": 50,
+    "feed_url": "https://feeds.foxbusiness.com/foxbusiness/latest"
   },
   {
     "id": "latimes",
@@ -349,7 +375,8 @@
     "language": "en",
     "vertical": "general",
     "active": true,
-    "priority": 50
+    "priority": 50,
+    "feed_url": "https://www.latimes.com/rss2.0.xml"
   },
   {
     "id": "gizmodo",
@@ -360,6 +387,7 @@
     "language": "en",
     "vertical": "tech",
     "active": true,
-    "priority": 50
+    "priority": 50,
+    "feed_url": "https://gizmodo.com/rss"
   }
 ]

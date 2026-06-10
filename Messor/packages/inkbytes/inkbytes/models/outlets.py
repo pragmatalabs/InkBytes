@@ -37,7 +37,9 @@ class OutletsSource(BaseModel):
     createdAt: str = None
     updatedAt: str = None
     publishedAt: str = None
-    
+    # RSS/Atom feed URL — None means no feed configured; scraper uses newspaper3k fallback.
+    feed_url: str = None
+
     # For compatibility with existing code that expects attributes field
     attributes: Attributes = None
     
