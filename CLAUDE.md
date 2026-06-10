@@ -116,17 +116,21 @@ bash orchestrator/scripts/up.sh
 # → Postgres :5432, RabbitMQ :5672 (UI :15672), MinIO :9000 (console :9001)
 ```
 
-**Full local PIPELINE as dev processes** (Messor harvest → RabbitMQ → Curator → Reader),
-running the apps against `env.local.yaml` instead of Docker (needs Ollama on :11434):
+**Full local STACK as dev processes** (Messor harvest → RabbitMQ → Curator → Reader,
+plus the Laravel Backoffice), running against `env.local.yaml` instead of Docker
+(needs Ollama on :11434). All infra lives under one compose project, `inkbytes-dev`:
 
 ```bash
-bash orchestrator/scripts/dev-pipeline.sh up      # infra + Curator(:8060) + Messor(--schedule) + Reader(:3000)
+bash orchestrator/scripts/dev-pipeline.sh up      # infra + Curator(:8060) + Messor(--schedule) + Reader(:3000) + Backoffice(:8000)
 bash orchestrator/scripts/dev-pipeline.sh status  # health + live pipeline counts
 bash orchestrator/scripts/dev-pipeline.sh logs    # tail all app logs
 bash orchestrator/scripts/dev-pipeline.sh down    # stop apps (infra stays)
 ```
-The script pins each app's `.venv/bin/python` — the macOS framework python lacks the
-deps (`aio_pika`/`pika`/`newspaper`), the #1 local-run trap.
+Gotchas the script handles: (1) pins each Python app to **arm64** — the `.venv`
+pythons are universal but their native wheels (`pydantic_core`) are arm64-only, so a
+Rosetta/background launch crashes on import; it re-execs under arm64. (2) the macOS
+framework python lacks `aio_pika`/`pika`/`newspaper` — it uses each app's `.venv`.
+Backoffice runs `php artisan serve` (:8000) + vite and applies pending migrations on up.
 
 Tear down:
 

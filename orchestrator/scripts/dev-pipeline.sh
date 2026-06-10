@@ -32,6 +32,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CURATOR="$ROOT/Curator/apps/curator"
 MESSOR="$ROOT/Messor/apps/scraper"
 READER="$ROOT/Reader/apps/web"
+BACKOFFICE="$ROOT/Messor/apps/platform"   # Laravel admin (Stop-Curator toggle, settings)
 LOGDIR="/tmp/inkbytes-dev"
 mkdir -p "$LOGDIR"
 
@@ -46,6 +47,8 @@ MES_PY="$ARCHCMD $MESSOR/.venv/bin/python"
 c_log="$LOGDIR/curator.log"
 m_log="$LOGDIR/messor.log"
 r_log="$LOGDIR/reader.log"
+b_log="$LOGDIR/backoffice.log"        # artisan serve
+bv_log="$LOGDIR/backoffice-vite.log"  # vite assets
 
 _port_pids() { lsof -ti :"$1" 2>/dev/null; }
 _proc_pids() { pgrep -f "$1" 2>/dev/null; }
@@ -67,12 +70,20 @@ up() {
     _proc_pids "main.py env.local.yaml --schedule" | xargs -r kill 2>/dev/null
     ( cd "$MESSOR" && nohup $MES_PY main.py env.local.yaml --schedule --no-browser > "$m_log" 2>&1 & )
 
-    echo "[dev] 5/5 Reader (npm run dev, :3000)…"
+    echo "[dev] 5/6 Reader (npm run dev, :3000)…"
     if [ -z "$(_port_pids 3000)" ]; then
         ( cd "$READER" && nohup npm run dev > "$r_log" 2>&1 & )
     else
         echo "      (already serving on :3000 — left as-is)"
     fi
+
+    echo "[dev] 6/6 Backoffice (Laravel admin :8000 + vite)…"
+    # PHP is fine as-is (no arm64-only wheels like Python). Apply any pending
+    # migrations, then serve + vite for the Inertia/React assets.
+    ( cd "$BACKOFFICE" && php artisan migrate --force >/dev/null 2>&1 || true )
+    _port_pids 8000 | xargs -r kill -9 2>/dev/null
+    ( cd "$BACKOFFICE" && nohup php artisan serve --port=8000 > "$b_log" 2>&1 & )
+    ( cd "$BACKOFFICE" && nohup npm run dev > "$bv_log" 2>&1 & )
 
     echo "[dev] waiting for Curator health…"
     for _ in $(seq 1 20); do curl -sf http://localhost:8060/healthz >/dev/null 2>&1 && break; sleep 2; done
@@ -87,6 +98,9 @@ down() {
     _proc_pids "main.py --config env.local.yaml --consume" | xargs -r kill 2>/dev/null
     # Reader (next dev) — kill the npm + next-server on :3000
     _port_pids 3000 | xargs -r kill 2>/dev/null
+    # Backoffice — artisan serve (:8000) + its vite
+    _port_pids 8000 | xargs -r kill 2>/dev/null
+    _proc_pids "artisan serve" | xargs -r kill 2>/dev/null
     sleep 1
     echo "[dev] done. (Infra still up — use orchestrator/scripts/down.sh to stop it.)"
 }
@@ -98,6 +112,7 @@ status() {
     printf "curator   : "; curl -sf http://localhost:8060/healthz >/dev/null 2>&1 && echo "up (:8060)" || echo "DOWN"
     printf "messor    : "; [ -n "$(_proc_pids 'main.py env.local.yaml --schedule')" ] && echo "up (--schedule)" || echo "DOWN"
     printf "reader    : "; [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ 2>/dev/null)" = "200" ] && echo "up (:3000)" || echo "DOWN"
+    printf "backoffice: "; c=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/ 2>/dev/null); [ "$c" = "200" ] || [ "$c" = "302" ] && echo "up (:8000)" || echo "DOWN"
     if curl -sf http://localhost:8060/status >/dev/null 2>&1; then
         curl -s http://localhost:8060/status 2>/dev/null | $CUR_PY -c "import sys,json;d=json.load(sys.stdin);print('pipeline  : articles=%s pending=%s events=%s pages=%s processing=%s'%(d['articles_total'],d['articles_pending'],d['events_total'],d['pages_published'],d.get('processing_enabled')))" 2>/dev/null
     fi
