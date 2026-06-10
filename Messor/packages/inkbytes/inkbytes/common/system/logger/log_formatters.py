@@ -185,14 +185,23 @@ class NormalEnhancedSyslogFormatter(logging.Formatter):
 
     def format(self, record):
         record.app_name = self.app_name
-        # Include record.levelname to show the log level (e.g., INFO, ERROR)
         level_name = record.levelname
-        extra_details = (f"{getattr(record, 'custom_funcName', 'unknown')} in "
-                         f"{getattr(record, 'custom_module', 'unknown')} "
-                         f"(args: {getattr(record, 'custom_args', '-')})")
+        # Only prepend decorator context when the record actually carries it.
+        # Plain logger.warning() calls have no custom_funcName, so omitting
+        # the prefix stops the `unknown in unknown (args: -)` noise on every
+        # regular log line (P5 fix, 2026-06-10).
+        custom_func = getattr(record, 'custom_funcName', None)
+        if custom_func:
+            extra_details = (
+                f"{custom_func} in "
+                f"{getattr(record, 'custom_module', 'unknown')} "
+                f"(args: {getattr(record, 'custom_args', '-')}) - "
+            )
+        else:
+            extra_details = ""
         syslog_header = f"{self.formatTime(record, self.datefmt)} {self.app_name}:"
         formatted_message = super().format(record)
-        return f"{syslog_header} [{level_name}] {extra_details} - {formatted_message}"
+        return f"{syslog_header} [{level_name}] {extra_details}{formatted_message}"
 
 
 class EnhancedSyslogFormatter(logging.Formatter):

@@ -124,7 +124,14 @@ class ScraperService:
                         else:
                             self.logger.warning(f"Failed to upload file to S3: {file_name}")
                 else:
-                    self.logger.warning(f"File not found: {local_path}")
+                    # If the scrape produced 0 new articles StagingStore never
+                    # writes to disk — the missing file is expected, not an error.
+                    successful = (session_info.get("data") or {}).get("successful_articles", 0)
+                    if successful > 0:
+                        # Articles were staged but the file disappeared — real problem.
+                        self.logger.warning(f"File not found (expected {successful} articles): {local_path}")
+                    else:
+                        self.logger.debug(f"No articles staged this run, skipping upload: {file_name}")
         except Exception as e:
             self.logger.error(f"Error handling completed session: {e}")
     
