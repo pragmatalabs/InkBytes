@@ -74,6 +74,7 @@ InkBytes/                              ← repo root
 | `pages.media_rail` content | **Videos only** (YouTube + future direct outlet video) — Bing image fetcher parked 2026-06-08 (ADR-0014). Images caused off-topic editorial/product photos to appear in the media drawer. |
 | Corpus chat assistant | Curator `POST /ask` (`skills/assistant.py`, `prompts/assistant.md`) + Reader floating button/overlay (`components/chat-assistant.tsx` → `/api/ask` proxy). Grounded digests + RAG Q&A over **published events only**; cites `[n]` → `/event/{id}`; reuses the synthesis LLM engine. Curator ADR-0022. |
 | Curator kill-switch | "Stop Curator" toggle on the Backoffice Settings page → `curator_settings.processing_enabled` (persistent). Curator polls it (~30s) and pauses the enrich→cluster→synthesize pipeline — articles requeue in RabbitMQ (no loss), API stays up. Curator ADR-0023. |
+| Editorial service (design) | Daily per-theme editorial persona — **separate service, NOT a Curator skill** (ADR-0008, 2026-06-11). Provider-pluggable LLM (`ollama \| deepseek \| anthropic`). Bake-off: **gemma4 12B = Spanish quality floor**, 4B-class fails. Dev = local gemma4 (Mac); prod = DeepSeek until the 16 GB droplet upgrade, then local. Themes from `articles.theme` (8 verticals) — `events.topic` is empty, don't use it. |
 
 ## State of the world right now
 
