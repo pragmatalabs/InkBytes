@@ -72,26 +72,33 @@ The full v0 pipeline runs end-to-end on real infrastructure:
 
 ---
 
-## Active outlets (22)
+## Active outlets (65 — all active as of 2026-06-11)
 
-`apnews · clarin · cnbc · cnn · diariolibree · elcaribedr · elespectador · elfinancierolatam · eltiempoco · eluniversalmx · gizmodo · ground-news · infobae · lanacionar · latimes · listindiario · mileniomx · npr · semana · techcrunch · theguardian · acentodr`
+All outlets in `public.outlets` are active. 22 have a droplet-verified `feed_url`
+(RSS-first); the rest use newspaper3k homepage crawl. Check live health with
+`make soak-report`.
 
-### Disabled outlets — reason / status
+### Outlets with verified RSS feeds (backfilled 2026-06-11)
 
-| Outlet | Reason | RSS fix |
-|---|---|---|
-| bbc | Geo-blocked homepage crawl | ✅ `feed_url` seeded — re-enable in Backoffice |
-| aljazeera | Rate-limited homepage crawl | ✅ `feed_url` seeded — re-enable in Backoffice |
-| reuters | Geo-blocked homepage crawl | ✅ `feed_url` seeded — re-enable in Backoffice |
-| animalpolitico | Broken newspaper3k parsing | ✅ `feed_url` seeded — re-enable in Backoffice |
-| foxbusiness | Broken newspaper3k parsing | ✅ `feed_url` seeded — re-enable in Backoffice |
-| wired | JS-rendered / soft paywall | ✅ `feed_url` seeded — re-enable in Backoffice |
-| eldinerodr | Broken parsing — 3.4% success | ✅ `feed_url` seeded — re-enable in Backoffice |
-| bloomberg | Hard paywall | ❌ no public RSS |
-| wsj | Hard paywall | ❌ no public RSS |
-| theeconomist | Hard paywall | ❌ no public RSS |
-| financialtimes | Soft paywall | ❌ no public RSS |
-| polifact | Broken parsing — 0% success | ❌ investigate |
+`bbc · aljazeera · eldinerodr · npr · theguardian · latimes · gizmodo · clarin ·
+cnbc · wired · foxbusiness · bloomberg · financialtimes · elfinancierolatam ·
+eluniversalmx · infobae · lanacionar · theeconomist · semana · techcrunch · wsj ·
+eltiempoco`
+
+### No working feed found (probed 2026-06-11 — stay on newspaper3k)
+
+| Outlet | Probe result |
+|---|---|
+| apnews | rsshub proxy 403; no official RSS |
+| cnn | rss.cnn.com discontinued |
+| reuters | feeds.reuters.com discontinued |
+| elespectador | 404 on all known paths (incl. Arc outboundfeeds) |
+| animalpolitico | 404 on /feed, /rss, /rss.xml |
+| mileniomx | 403 (bot-blocked) on /rss |
+
+Note: paywalled outlets (bloomberg/wsj/economist/FT) have working *feeds* but
+article-page fetches may still hit the paywall — watch their parse_pct in the
+soak report before judging.
 
 ---
 
