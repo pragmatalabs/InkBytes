@@ -38,6 +38,7 @@ class Outlet extends Model
         'url',
         'feed_url',
         'min_word_count',
+        'pulse',
         'region',
         'language',
         'vertical',
@@ -49,6 +50,7 @@ class Outlet extends Model
         'active' => 'boolean',
         'priority' => 'integer',
         'min_word_count' => 'integer',
+        'pulse' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

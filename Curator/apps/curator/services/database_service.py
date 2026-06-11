@@ -119,6 +119,12 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'outlets' "
                 "AND column_name = 'min_word_count')"
             ),
+            "014_breaking_news.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'events' "
+                "AND column_name = 'breaking_at')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -520,6 +526,7 @@ class DatabaseService:
                     o.active, o.priority,
                     o.feed_url,
                     o.min_word_count,
+                    o.pulse,
                     COUNT(a.id)              AS article_count,
                     MAX(a.scraped_at)        AS last_seen,
                     COUNT(DISTINCT a.event_id)
@@ -529,7 +536,7 @@ class DatabaseService:
                 LEFT JOIN articles a ON a.outlet_id = o.id
                 GROUP BY o.id, o.name, o.display_name, o.url,
                          o.region, o.language, o.vertical, o.active, o.priority,
-                         o.feed_url, o.min_word_count
+                         o.feed_url, o.min_word_count, o.pulse
                 ORDER BY o.priority ASC, o.display_name ASC
                 """
             )

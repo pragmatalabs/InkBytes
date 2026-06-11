@@ -75,7 +75,30 @@ class Config:
             return max(0, int(val))
         except (AttributeError, ValueError, TypeError):
             return 0
-    
+
+    def get_pulse_interval_minutes(self) -> int:
+        """Breaking-news pulse interval (Messor ADR-0017).
+
+        Every N minutes, scrape only pulse-flagged outlets via RSS and publish
+        their articles at AMQP priority 9.  0 disables the pulse lane.
+        Priority: MESSOR_PULSE_INTERVAL_MINUTES env var → env.yaml
+        (scraping.pulse_interval_minutes) → 5.
+        """
+        import os
+        env_val = os.environ.get("MESSOR_PULSE_INTERVAL_MINUTES")
+        if env_val is not None:
+            try:
+                return max(0, int(env_val))
+            except (ValueError, TypeError):
+                pass
+        try:
+            val = getattr(self._config.scraping, 'pulse_interval_minutes', 5)
+            if hasattr(val, 'value'):
+                return max(0, int(val.value))
+            return max(0, int(val))
+        except (AttributeError, ValueError, TypeError):
+            return 5
+
     @property
     def curator_api(self):
         """Curator API config (primary outlet source — always available)."""

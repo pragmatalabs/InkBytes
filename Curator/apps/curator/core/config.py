@@ -159,6 +159,12 @@ class ClusterCfg(BaseModel):
     # are marked 'concluded' and archived to story_arcs.  0 = disabled (default
     # until first paying user validates the feature).
     conclude_after_days: int = 0
+    # Breaking-news detector (ADR-0024): an event is breaking when ≥2 distinct
+    # pulse outlets (outlets.pulse) publish into it within breaking_window_minutes
+    # of the cluster's first sighting.  The flag auto-expires breaking_ttl_hours
+    # later.  breaking_window_minutes = 0 disables detection.
+    breaking_window_minutes: int = 60
+    breaking_ttl_hours: int = 2
 
 
 class DbCfg(BaseModel):

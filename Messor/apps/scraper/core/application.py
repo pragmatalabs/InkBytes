@@ -333,17 +333,32 @@ class Application:
             print(f"⏳ Startup delay {startup_delay} min — first cycle at {first_run_str}\n")
             time.sleep(startup_delay * 60)
 
+        # Breaking-news pulse lane (ADR-0017): a daemon thread polling
+        # pulse-flagged outlets via RSS every few minutes, alongside this loop.
+        self._start_pulse_thread()
+
         try:
             while True:
                 # Execute scraping
                 start_time = time.time()
                 self.logger.info("Starting scheduled scraping cycle")
                 print(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting scraping cycle...")
-                
+
                 try:
-                    success = self.execute_scraping_with_lock(scrape_args)
+                    # Retry the lock a few times: a pulse run (<60 s) holding it
+                    # at this exact moment must delay the cycle, not skip it
+                    # entirely (skipping = a full interval with no harvest).
+                    success = False
+                    for attempt in range(5):
+                        success = self.execute_scraping_with_lock(scrape_args)
+                        if success:
+                            break
+                        self.logger.info(
+                            f"Cycle lock busy (attempt {attempt + 1}/5) — retrying in 60s"
+                        )
+                        time.sleep(60)
                     duration = time.time() - start_time
-                    
+
                     if success:
                         self.logger.info(f"Scraping cycle completed in {duration:.2f} seconds")
                         print(f"✅ Scraping cycle completed in {duration:.2f} seconds")
@@ -373,6 +388,60 @@ class Application:
             print(f"Error in scheduled mode: {e}")
             raise
     
+    def _start_pulse_thread(self):
+        """Start the breaking-news pulse daemon thread (ADR-0017).
+
+        No-op when the pulse interval is 0 (disabled) or the thread is
+        already running.
+        """
+        import threading
+
+        interval = self.config.get_pulse_interval_minutes()
+        if interval <= 0:
+            self.logger.info("Pulse lane disabled (pulse_interval_minutes=0)")
+            return
+        if getattr(self, '_pulse_thread', None) and self._pulse_thread.is_alive():
+            return
+
+        self._pulse_thread = threading.Thread(
+            target=self._run_pulse_loop, args=(interval,),
+            daemon=True, name="messor-pulse",
+        )
+        self._pulse_thread.start()
+        self.logger.info(f"Pulse lane active: every {interval} min, RSS-only, priority 9")
+        print(f"⚡ Pulse lane active: every {interval} min (pulse outlets, RSS-only)")
+
+    def _run_pulse_loop(self, interval_minutes: int):
+        """Pulse loop body — sleep first so startup isn't a thundering herd."""
+        import time as _time
+        while True:
+            _time.sleep(interval_minutes * 60)
+            try:
+                self.execute_pulse_with_lock()
+            except Exception as e:
+                self.logger.error(f"Pulse run failed: {e}")
+
+    def execute_pulse_with_lock(self) -> bool:
+        """Run one pulse tick (pulse outlets, RSS-only, priority publish).
+
+        Shares the global scraping lock with the full cycle, non-blocking:
+        if a cycle is running, the tick is skipped — the cycle harvests the
+        pulse outlets anyway, only the priority hint is lost (ADR-0017).
+        """
+        if not self._scraping_lock.acquire(blocking=False):
+            self.logger.info("Pulse tick skipped — scraping lock busy (full cycle running)")
+            return False
+        try:
+            self._scraping_active = True
+            self.command_processor.scraper_service.execute_scraping_process(pulse=True)
+            return True
+        except Exception as e:
+            self.logger.error(f"Error during pulse run: {e}")
+            raise
+        finally:
+            self._scraping_active = False
+            self._scraping_lock.release()
+
     def is_scraping_active(self):
         """Check if a scraping process is currently active."""
         return self._scraping_active

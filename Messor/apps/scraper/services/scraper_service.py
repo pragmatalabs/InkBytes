@@ -33,11 +33,17 @@ class ScraperService:
         # concurrency knob.
         self.num_threads = config.get_thread_count()
     
-    def create_outlet_scraping_session(self, outlet: OutletsSource):
+    def create_outlet_scraping_session(self, outlet: OutletsSource,
+                                       feed_only: bool = False,
+                                       priority: int = 0):
         """
         Extract articles from a single outlet and handle file upload and messaging.
-        
+
         Now with enhanced duplicate detection across scraping sessions.
+
+        ``feed_only``/``priority`` are the pulse-lane knobs (ADR-0017):
+        RSS-only URL discovery + AMQP message priority on the per-article
+        events. Defaults preserve the normal cycle behaviour exactly.
         """
         self.logger.info(f"Starting create_outlet_scraping_session: {outlet}")
         try:
@@ -45,14 +51,15 @@ class ScraperService:
                 outlet,
                 agent=self.config.scraping.agent.default(),
                 headers=self.config.scraping.headers.default(),
-                languages=self.config.articles.supported_languages()
+                languages=self.config.articles.supported_languages(),
+                feed_only=feed_only,
             )
             session_info = scraping_session.to_json()
-            
+
             # If we have a file path in the session, handle it
             if session_info.get("data") and session_info["data"].get("results_staging_file_name"):
                 # Handle the completed session (upload to S3 and send to RabbitMQ)
-                self._handle_completed_session(session_info)
+                self._handle_completed_session(session_info, priority=priority)
                 
                 # Log details about duplicate filtering
                 successful = session_info["data"]["successful_articles"]
@@ -81,12 +88,12 @@ class ScraperService:
             self.logger.error(f"Error in create_outlet_scraping_session: {outlet}: {e}")
             return None
     
-    def _handle_completed_session(self,  session_info):
+    def _handle_completed_session(self,  session_info, priority: int = 0):
         """Handle a completed scraping session by saving, publishing event, and moving file."""
         try:
             # Save session data if storage service is available
             if self.storage_service:
-                self.storage_service.save_scraping_session(session_info)
+                self.storage_service.save_scraping_session(session_info, priority=priority)
                 
                 # Get file path information
                 file_name = session_info["data"]["results_staging_file_name"]
@@ -215,12 +222,16 @@ class ScraperService:
     # but limits damage and lets the rest of the pool continue.
     OUTLET_TIMEOUT_SECONDS = 300
 
-    def generate_outlets_scraping_sessions(self, outlets: List[OutletsSource]) -> Generator:
+    def generate_outlets_scraping_sessions(self, outlets: List[OutletsSource],
+                                           feed_only: bool = False,
+                                           priority: int = 0) -> Generator:
         """Scrape multiple outlets concurrently using a thread pool."""
         self.logger.info("Starting perform_concurrent_scraping")
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_threads) as executor:
-                futures = {executor.submit(self.create_outlet_scraping_session, outlet): outlet for outlet in outlets}
+                futures = {executor.submit(self.create_outlet_scraping_session,
+                                           outlet, feed_only, priority): outlet
+                           for outlet in outlets}
                 for future in concurrent.futures.as_completed(futures, timeout=self.OUTLET_TIMEOUT_SECONDS * len(outlets)):
                     outlet = futures[future]
                     try:
@@ -287,7 +298,8 @@ class ScraperService:
         )
         return filtered
 
-    def execute_scraping_process(self, limit=None, custom_outlet=None, slugs=None):
+    def execute_scraping_process(self, limit=None, custom_outlet=None, slugs=None,
+                                 pulse: bool = False):
         """
         Execute the scraping process for outlets.
 
@@ -296,6 +308,9 @@ class ScraperService:
             custom_outlet: Optional custom outlet definition (dict with name and url)
             slugs: Optional list of catalogue outlet slugs to restrict the harvest
                 to. Unknown slugs are ignored. Ignored when custom_outlet is set.
+            pulse: Breaking-news pulse run (ADR-0017) — restrict to outlets with
+                pulse=true AND a feed_url, scrape RSS-only (no newspaper3k
+                fallback), and publish per-article events at AMQP priority 9.
 
         Returns:
             List of scraping session results
@@ -320,6 +335,22 @@ class ScraperService:
                     self.logger.warning("No outlets found")
                     self.logger.info("Completed execute_scraping_process")
                     return []
+
+                # Pulse run (ADR-0017): only pulse-flagged outlets with a feed.
+                if pulse:
+                    outlets = [
+                        o for o in outlets
+                        if getattr(o, 'pulse', False) and getattr(o, 'feed_url', None)
+                    ]
+                    if not outlets:
+                        self.logger.info(
+                            "Pulse run: no outlets with pulse=true + feed_url — nothing to do"
+                        )
+                        return []
+                    self.logger.info(
+                        f"Pulse run: {len(outlets)} outlets "
+                        f"({', '.join(sorted(getattr(o, 'name', '?') for o in outlets))})"
+                    )
 
                 # Restrict to the requested subset of outlets, if any. Applied
                 # before --limit so the limit caps the chosen subset, not the
@@ -351,7 +382,11 @@ class ScraperService:
             # Emit one session per outlet as soon as it completes so Curator
             # and the Backoffice update in real-time instead of waiting for the
             # entire 23-outlet sweep to finish.
-            for scraping_session in self.generate_outlets_scraping_sessions(outlets):
+            for scraping_session in self.generate_outlets_scraping_sessions(
+                outlets,
+                feed_only=pulse,
+                priority=9 if pulse else 0,
+            ):
                 result.append(scraping_session)
                 outlet_stats = self._outlet_stats_from_session(scraping_session)
                 if not outlet_stats:

@@ -83,7 +83,31 @@ class MessageService:
         exchange = await self.channel.declare_exchange(
             self.cfg.consume_exchange, aio_pika.ExchangeType.TOPIC, durable=True
         )
-        queue = await self.channel.declare_queue(self.cfg.consume_queue, durable=True)
+        # Priority queue (ADR-0024): pulse-lane articles arrive with AMQP
+        # priority 9 and must jump the backlog. RabbitMQ refuses to redeclare
+        # an existing queue with different arguments (PRECONDITION_FAILED), so
+        # on a pre-existing non-priority queue we fall back transparently —
+        # drain + delete the queue, restart the worker, and the next declare
+        # creates it priority-enabled (see ADR-0024 §migration).
+        try:
+            queue = await self.channel.declare_queue(
+                self.cfg.consume_queue, durable=True,
+                arguments={"x-max-priority": 10},
+            )
+        except aio_pika.exceptions.ChannelPreconditionFailed:
+            logger.warning(
+                "Queue %s exists without x-max-priority — running WITHOUT "
+                "priority intake. To enable: drain + delete the queue, then "
+                "restart this worker (ADR-0024).",
+                self.cfg.consume_queue,
+            )
+            # The failed declare closed the channel — reopen and redo QoS.
+            self.channel = await self.connection.channel()  # type: ignore[union-attr]
+            await self.channel.set_qos(prefetch_count=1)
+            exchange = await self.channel.declare_exchange(
+                self.cfg.consume_exchange, aio_pika.ExchangeType.TOPIC, durable=True
+            )
+            queue = await self.channel.declare_queue(self.cfg.consume_queue, durable=True)
         await queue.bind(exchange, routing_key=self.cfg.consume_routing_key)
 
         async def _on_msg(msg: AbstractIncomingMessage) -> None:

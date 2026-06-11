@@ -98,6 +98,7 @@ const emptyOutlet = {
     url: '',
     feed_url: '',
     min_word_count: '',
+    pulse: false,
     region: 'global',
     language: 'en',
     vertical: 'general',
@@ -193,6 +194,7 @@ export default function OutletsIndex({
             url: outlet.url,
             feed_url: outlet.feed_url ?? '',
             min_word_count: outlet.min_word_count != null ? String(outlet.min_word_count) : '',
+            pulse: Boolean(outlet.pulse),
             region: outlet.region,
             language: outlet.language,
             vertical: outlet.vertical,
@@ -821,6 +823,20 @@ export default function OutletsIndex({
                                     />
                                 }
                                 label="Active"
+                            />
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={Boolean(form.data.pulse)}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'pulse',
+                                                e.target.checked
+                                            )
+                                        }
+                                    />
+                                }
+                                label="Breaking-news pulse (5-min RSS poll — requires a feed URL)"
                             />
                         </Stack>
                     </DialogContent>

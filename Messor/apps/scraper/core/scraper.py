@@ -196,7 +196,8 @@ class ScraperResults(BaseModel):
 
 # ===== Functions from newsscraper.py =====
 
-def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> ScrapingSession:
+def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None,
+                  feed_only=False) -> ScrapingSession:
     """Scrape articles from a given outlet — sequential article processing (ADR-0011).
 
     The ``num_workers`` parameter is kept for API compatibility but is no longer used.
@@ -206,6 +207,10 @@ def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> Scra
 
     Outlet-level parallelism is still provided by ScraperService's outer pool
     (max_threads outlets run concurrently).
+
+    ``feed_only=True`` (pulse lane, ADR-0017): URL discovery uses the outlet's
+    RSS feed exclusively — a failed/absent feed skips the outlet instead of
+    falling back to the (slow) newspaper3k homepage crawl.
     """
     if languages is None:
         languages = ['en']
@@ -219,7 +224,7 @@ def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None) -> Scra
 
     try:
         newsScraper = NewsScraper(outlet, newsPaper, session=session, languages=languages)
-        newsScraper.scrape_news_outlet(outlet)
+        newsScraper.scrape_news_outlet(outlet, feed_only=feed_only)
         return newsScraper.session
     except Exception as e:
         logger.error(f"Scraping articles from: {outlet.name} failed with error: {e}")
@@ -997,11 +1002,16 @@ class NewsScraper:
         self.session = session or ScrapingSession()
         self.languages = languages
 
-    def scrape_news_outlet(self, executor_or_outlet=None, outlet=None) -> ScrapingSession:
+    def scrape_news_outlet(self, executor_or_outlet=None, outlet=None,
+                           feed_only: bool = False) -> ScrapingSession:
         """Scrape articles from a news outlet — sequential, no inner thread pool (ADR-0011).
 
         Signature accepts the old two-arg form ``(executor, outlet)`` and the new
         single-arg form ``(outlet)`` so callers don't need to be updated atomically.
+
+        ``feed_only=True`` (pulse lane, ADR-0017): never fall back to the
+        newspaper3k homepage crawl — no feed (or a failed feed) means the
+        outlet is skipped this run.
         """
         # Accept both (executor, outlet) and (outlet,) call signatures.
         if outlet is None:
@@ -1035,6 +1045,16 @@ class NewsScraper:
                         "%s: RSS feed failed (%s) — falling back to newspaper3k",
                         outlet.name, feed_url,
                     )
+
+            if np_articles is None and feed_only:
+                # Pulse lane (ADR-0017): no feed, or feed failed — skip this
+                # outlet rather than crawl the homepage (30–90 s would wreck
+                # the 5-minute cadence).
+                self.logger.warning(
+                    "%s: feed_only run with no usable feed (feed_url=%r) — skipping",
+                    outlet.name, feed_url,
+                )
+                return self.session
 
             if np_articles is None:
                 # newspaper3k homepage crawl (original path).

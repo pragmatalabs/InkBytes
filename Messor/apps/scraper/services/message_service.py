@@ -290,11 +290,16 @@ class MessageService:
         
         return self.publish_message(self._articles_scraped_queue, message)
 
-    def publish_article_event(self, article_dict: Dict[str, Any], session_id: str, spaces_key: str = "") -> bool:
+    def publish_article_event(self, article_dict: Dict[str, Any], session_id: str, spaces_key: str = "",
+                              priority: int = 0) -> bool:
         """Publish one inkbytes.article.v1 event per article to the messor topic exchange.
 
         Curator's --consume mode subscribes to this exchange on routing key
         event.article.scraped.  Maps Messor's Article fields to ArticleV1.
+
+        ``priority`` (pulse lane, ADR-0017): AMQP message priority — 9 for
+        pulse runs so Curator's priority queue processes them first.  Transport
+        metadata only; the inkbytes.article.v1 payload is unchanged.
         """
         outlet_name = article_dict.get("article_source") or "unknown"
 
@@ -342,7 +347,13 @@ class MessageService:
             return False
 
         body = json.dumps(payload, default=str)
-        props = pika.BasicProperties(delivery_mode=2, content_type='application/json')
+        props = pika.BasicProperties(
+            delivery_mode=2,
+            content_type='application/json',
+            # Pulse-lane messages (ADR-0017) carry priority 9 so Curator's
+            # x-max-priority queue (Curator ADR-0024) delivers them first.
+            priority=priority if priority else None,
+        )
         try:
             self.channel.basic_publish(
                 exchange=self._article_exchange,

@@ -111,6 +111,37 @@ class ClusterSkill:
                     new_source_count = await conn.fetchval(
                         "SELECT source_count FROM events WHERE id = $1", row["event_id"]
                     )
+
+                    # Breaking-news detector (ADR-0024): a young cluster that
+                    # ≥2 distinct pulse outlets have published into is breaking.
+                    # Fires at most once per event (breaking_at IS NULL guard);
+                    # only an attach can trigger it — a 1-source seed can't.
+                    if self.cfg.breaking_window_minutes > 0:
+                        flagged = await conn.fetchval(
+                            """
+                            UPDATE events e
+                               SET breaking_at    = NOW(),
+                                   breaking_until = NOW() + ($2 || ' hours')::interval
+                             WHERE e.id = $1
+                               AND e.breaking_at IS NULL
+                               AND e.first_seen_at > NOW() - ($3 || ' minutes')::interval
+                               AND (SELECT COUNT(DISTINCT a.outlet_id)
+                                      FROM articles a
+                                      JOIN outlets o ON o.id = a.outlet_id
+                                     WHERE a.event_id = e.id AND o.pulse) >= 2
+                            RETURNING e.id
+                            """,
+                            row["event_id"],
+                            str(self.cfg.breaking_ttl_hours),
+                            str(self.cfg.breaking_window_minutes),
+                        )
+                        if flagged:
+                            logger.info(
+                                "BREAKING event %s — ≥2 pulse outlets within %d min "
+                                "(demotes in %dh)",
+                                flagged, self.cfg.breaking_window_minutes,
+                                self.cfg.breaking_ttl_hours,
+                            )
                     logger.info(
                         "CLUSTER attach %s -> %s (distance=%.3f, overlap=%d, sources=%d)",
                         article_id, row["event_id"], row["distance"], len(overlap), int(new_source_count),

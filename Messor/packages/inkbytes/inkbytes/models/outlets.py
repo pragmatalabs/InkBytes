@@ -43,6 +43,9 @@ class OutletsSource(BaseModel):
     # config.scraper.min_word_count().  Override for outlets that publish
     # legitimately short pieces (e.g. BBC news briefs: 25 words).
     min_word_count: int = None
+    # Breaking-news pulse lane (Messor ADR-0017): polled every ~5 min via
+    # feed_url only (never newspaper3k).  Requires feed_url to be set.
+    pulse: bool = False
 
     # For compatibility with existing code that expects attributes field
     attributes: Attributes = None

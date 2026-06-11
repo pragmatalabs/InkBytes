@@ -22,7 +22,8 @@
     "active": true,
     "priority": 1,
     "feed_url": "https://feeds.bbci.co.uk/news/rss.xml",
-    "min_word_count": 25
+    "min_word_count": 25,
+    "pulse": true
   },
   {
     "id": "bloomberg",
@@ -82,7 +83,8 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.eluniversal.com.mx/arc/outboundfeeds/rss/?outputType=xml"
+    "feed_url": "https://www.eluniversal.com.mx/arc/outboundfeeds/rss/?outputType=xml",
+    "pulse": true
   },
   {
     "id": "financialtimes",
@@ -106,7 +108,8 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml"
+    "feed_url": "https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml",
+    "pulse": true
   },
   {
     "id": "lanacionar",
@@ -118,7 +121,8 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml"
+    "feed_url": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml",
+    "pulse": true
   },
   {
     "id": "listindiario",
@@ -216,7 +220,8 @@
     "active": true,
     "priority": 2,
     "feed_url": "https://www.aljazeera.com/xml/rss/all.xml",
-    "min_word_count": 25
+    "min_word_count": 25,
+    "pulse": true
   },
   {
     "id": "animalpolitico",
@@ -241,7 +246,8 @@
     "vertical": "general",
     "active": true,
     "priority": 2,
-    "feed_url": "https://www.clarin.com/rss/lo-ultimo/"
+    "feed_url": "https://www.clarin.com/rss/lo-ultimo/",
+    "pulse": true
   },
   {
     "id": "cnbc",
@@ -253,7 +259,8 @@
     "vertical": "business",
     "active": true,
     "priority": 2,
-    "feed_url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+    "feed_url": "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+    "pulse": true
   },
   {
     "id": "elcaribedr",
@@ -313,7 +320,8 @@
     "vertical": "general",
     "active": true,
     "priority": 2,
-    "feed_url": "https://feeds.npr.org/1001/rss.xml"
+    "feed_url": "https://feeds.npr.org/1001/rss.xml",
+    "pulse": true
   },
   {
     "id": "semana",
@@ -337,7 +345,8 @@
     "vertical": "general",
     "active": true,
     "priority": 2,
-    "feed_url": "https://www.theguardian.com/world/rss"
+    "feed_url": "https://www.theguardian.com/world/rss",
+    "pulse": true
   },
   {
     "id": "wired",
@@ -385,7 +394,8 @@
     "vertical": "general",
     "active": true,
     "priority": 50,
-    "feed_url": "https://www.latimes.com/rss2.0.xml"
+    "feed_url": "https://www.latimes.com/rss2.0.xml",
+    "pulse": true
   },
   {
     "id": "gizmodo",

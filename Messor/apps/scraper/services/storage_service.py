@@ -38,8 +38,12 @@ class StorageService:
             self.config.digitalocean.endpoint_url()
         )
     
-    def save_scraping_session(self, scraping_session):
-        """Save scraping session data based on configured saving mode."""
+    def save_scraping_session(self, scraping_session, priority: int = 0):
+        """Save scraping session data based on configured saving mode.
+
+        ``priority`` (pulse lane, Messor ADR-0017) rides through to the
+        per-article RabbitMQ publish — 9 for pulse runs, 0 otherwise.
+        """
         self.logger.info("Starting save_scraping_session")
         file_path = "scraping_session.json"
         
@@ -60,12 +64,12 @@ class StorageService:
             
             result = False
             if session_saving_mode == SessionSavingMode.SAVE_TO_FILE.value:
-                result = self.save_session_to_file(scraping_session, file_path)
+                result = self.save_session_to_file(scraping_session, file_path, priority=priority)
             elif session_saving_mode == SessionSavingMode.SEND_TO_API.value:
                 result = self.send_session_to_api(scraping_session, file_path)
             else:
                 self.logger.error(f"Invalid session saving mode: {session_saving_mode}")
-                result = self.save_session_to_file(scraping_session, file_path)
+                result = self.save_session_to_file(scraping_session, file_path, priority=priority)
                 
             self.logger.info("Completed save_scraping_session")
             return result
@@ -73,7 +77,7 @@ class StorageService:
             self.logger.error(f"Error in save_scraping_session: {e}")
             return self.save_session_to_file(scraping_session, file_path)
 
-    def save_session_to_file(self, scraping_session, file_path):
+    def save_session_to_file(self, scraping_session, file_path, priority: int = 0):
         """Save the scraping session to a local file."""
         self.logger.info(f"Starting save_session_to_file: {file_path}")
         try:
@@ -102,7 +106,7 @@ class StorageService:
                         staging_file,
                     )
                     self._publish_articles_from_staging_file(
-                        staging_path, session_id=staging_file
+                        staging_path, session_id=staging_file, priority=priority
                     )
 
             self.logger.info(f"Completed save_session_to_file: {file_path}")
@@ -112,7 +116,8 @@ class StorageService:
             return False
 
     def _publish_articles_from_staging_file(
-        self, staging_file_path: str, session_id: str, s3_key: str = ""
+        self, staging_file_path: str, session_id: str, s3_key: str = "",
+        priority: int = 0,
     ) -> int:
         """Read articles from a staging file and emit one RabbitMQ event per article.
 
@@ -157,7 +162,7 @@ class StorageService:
         published = 0
         for article_dict in articles:
             if isinstance(article_dict, dict):
-                if self.message_service.publish_article_event(article_dict, session_id, s3_key):
+                if self.message_service.publish_article_event(article_dict, session_id, s3_key, priority=priority):
                     published += 1
 
         self.logger.info(
