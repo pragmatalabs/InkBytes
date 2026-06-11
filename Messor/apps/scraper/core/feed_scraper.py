@@ -15,10 +15,12 @@ Why feed-first?
 Design (ADR-0015 follow-up, 2026-06-10):
   1. fetch feed with feedparser (no browser, no JS)
   2. filter entries to freshness window (same 48h as newspaper3k path)
-  3. return _FeedArticleStub objects — have .url, nothing else pre-populated
-  4. caller (scrape_news_outlet) passes stubs to process_outlet_articles()
-     which downloads + parses each URL with newspaper3k as usual
-  5. if feed fetch fails → caller falls back to newspaper3k homepage crawl
+  3. return real newspaper.Article objects (undownloaded) — the downstream
+     pipeline (process_outlet_articles → scrape_outlet_article →
+     pre_process_article) calls .download()/.parse() on each one, so a
+     bare URL stub is NOT enough (2026-06-11 prod incident: every feed
+     article failed with AttributeError on a __slots__ stub)
+  4. if feed fetch fails → caller falls back to newspaper3k homepage crawl
 """
 
 import logging
@@ -27,6 +29,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import feedparser
+import newspaper
 
 logger = logging.getLogger(__name__)
 
@@ -37,22 +40,21 @@ _UA = (
 )
 
 
-class _FeedArticleStub:
-    """Minimal newspaper3k-compatible article object produced from a feed entry.
+def _make_article(url: str) -> newspaper.Article:
+    """Build an undownloaded newspaper.Article for a feed entry URL.
 
-    ``process_outlet_articles`` only reads ``.url`` from each article before
-    calling ``scrape_outlet_article(np_article, ...)``, which calls
-    ``np_article.download()`` / ``np_article.parse()`` itself.  So we only
-    need to expose ``.url``.
+    Config kwargs must use real ``newspaper.Configuration`` attribute names —
+    ``extend_config`` silently drops unknown keys (``agent`` and
+    ``MAX_REDIRECTS`` in NewsPaper.build() are dropped this way).
     """
-
-    __slots__ = ("url",)
-
-    def __init__(self, url: str):
-        self.url = url
-
-    def __repr__(self):
-        return f"<FeedArticleStub url={self.url!r}>"
+    return newspaper.Article(
+        url,
+        memoize_articles=False,
+        follow_meta_refresh=False,
+        http_success_only=False,
+        request_timeout=30,
+        browser_user_agent=_UA,
+    )
 
 
 def get_articles_from_feed(
@@ -68,8 +70,9 @@ def get_articles_from_feed(
         max_articles:     Cap on returned stubs (matches MAX_ARTICLES_PER_OUTLET).
 
     Returns:
-        List of _FeedArticleStub on success, or None if the feed could not be
-        fetched (caller should fall back to newspaper3k homepage crawl).
+        List of undownloaded newspaper.Article on success, or None if the feed
+        could not be fetched (caller should fall back to newspaper3k homepage
+        crawl).
     """
     logger.info("RSS fetch: %s", feed_url)
     try:
@@ -97,7 +100,7 @@ def get_articles_from_feed(
     if freshness_hours > 0:
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=freshness_hours)
 
-    stubs: list[_FeedArticleStub] = []
+    stubs: list[newspaper.Article] = []
     stale = 0
     no_url = 0
 
@@ -117,7 +120,7 @@ def get_articles_from_feed(
             except Exception:
                 pass  # malformed date — let it through rather than silently drop
 
-        stubs.append(_FeedArticleStub(url))
+        stubs.append(_make_article(url))
         if len(stubs) >= max_articles:
             break
 
