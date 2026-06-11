@@ -484,6 +484,15 @@ def scrape_outlet_article(article: newspaper.Article, newsPaperBrand: str, min_w
         newspaperArticle = build_newspaper_article(article, min_word_count=min_word_count)
         if newspaperArticle and len(newspaperArticle.text) > 150:
             record = create_article_record(newspaperArticle, newsPaperBrand)
+            # RSS pubDate fallback: newspaper3k can't extract a byline date from
+            # some outlets (BBC), and the strict freshness gate (ADR-0015) drops
+            # undated records.  The feed entry's pubDate (set by feed_scraper)
+            # is outlet-authoritative — at least as trustworthy as a byline.
+            if (
+                str(record.publish_date).strip().lower() in ("", "none", "null")
+                and getattr(article, "_feed_published", None)
+            ):
+                record.publish_date = article._feed_published
             # Layer 2: free the HTML + lxml tree immediately after extraction.
             # newspaper.Article holds article.html (1–3 MB) and clean_doc (lxml
             # etree with ~50 k circular-ref nodes).  Nullifying them here lets

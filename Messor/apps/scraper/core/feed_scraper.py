@@ -110,17 +110,28 @@ def get_articles_from_feed(
             no_url += 1
             continue
 
-        # Freshness gate — use published_parsed (UTC struct_time) when available.
-        if cutoff is not None and hasattr(entry, "published_parsed") and entry.published_parsed:
+        # Entry pubDate — outlet-authoritative (RSS/Atom), unlike newspaper3k's
+        # byline extraction which fails entirely on some outlets (BBC).
+        pub: Optional[datetime] = None
+        if hasattr(entry, "published_parsed") and entry.published_parsed:
             try:
                 pub = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                if pub < cutoff:
-                    stale += 1
-                    continue
             except Exception:
-                pass  # malformed date — let it through rather than silently drop
+                pub = None  # malformed date — let it through rather than silently drop
 
-        stubs.append(_make_article(url))
+        # Freshness gate on the feed date.
+        if cutoff is not None and pub is not None and pub < cutoff:
+            stale += 1
+            continue
+
+        art = _make_article(url)
+        if pub is not None:
+            # Survives .download()/.parse(); scrape_outlet_article() uses it as
+            # the publish_date fallback so the strict ADR-0015 freshness gate
+            # doesn't drop feed articles newspaper3k can't date (BBC → 29/29
+            # dropped as "undated", 2026-06-11).
+            art._feed_published = pub.isoformat()
+        stubs.append(art)
         if len(stubs) >= max_articles:
             break
 
