@@ -83,7 +83,9 @@ up() {
     ( cd "$BACKOFFICE" && php artisan migrate --force >/dev/null 2>&1 || true )
     _port_pids 8000 | xargs -r kill -9 2>/dev/null
     ( cd "$BACKOFFICE" && nohup php artisan serve --port=8000 > "$b_log" 2>&1 & )
-    ( cd "$BACKOFFICE" && nohup npm run dev > "$bv_log" 2>&1 & )
+    # VITE_APP_ORIGIN must match the artisan serve origin — vite.config.js
+    # defaults it to :18080 (Docker dev), which CORS-blocks every asset on :8000.
+    ( cd "$BACKOFFICE" && VITE_APP_ORIGIN=http://localhost:8000 nohup npm run dev > "$bv_log" 2>&1 & )
 
     echo "[dev] waiting for Curator health…"
     for _ in $(seq 1 20); do curl -sf http://localhost:8060/healthz >/dev/null 2>&1 && break; sleep 2; done
