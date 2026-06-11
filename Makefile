@@ -119,6 +119,11 @@ status-do: ## Show container status + memory on DigitalOcean
 	  echo ''; \
 	  docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}' \$$(docker ps --filter 'name=inkbytes-' -q) 2>/dev/null | sort"
 
+soak-report: ## 24h soak report: per-outlet parse success + pipeline output (DO)
+	ssh -i $(DEPLOY_KEY_DO) $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO) \
+	  "docker exec -i inkbytes-postgres psql -U inkbytes -d inkbytes" \
+	  < infra/scripts/soak-report.sql
+
 shell-do: ## SSH into DigitalOcean server
 	ssh -i $(DEPLOY_KEY_DO) -t $(DEPLOY_USER_DO)@$(DEPLOY_HOST_DO)
 
@@ -171,4 +176,4 @@ help: ## Show this help
         shell-php shell-db shell-curator health network validate-prod help \
         watch logs logs-messor logs-curator logs-backoffice shell \
         deploy-hostinger deploy-do deploy-all deploy-build-do \
-        status-do shell-do logs-messor-do logs-curator-do logs-do
+        status-do shell-do logs-messor-do logs-curator-do logs-do soak-report
