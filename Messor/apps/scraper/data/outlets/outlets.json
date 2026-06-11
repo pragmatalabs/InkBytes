@@ -9,7 +9,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://rsshub.app/apnews/topics/ap-top-news"
+    "feed_url": null
   },
   {
     "id": "bbc",
@@ -58,7 +58,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.elespectador.com/arc/outboundfeeds/rss/"
+    "feed_url": null
   },
   {
     "id": "eltiempoco",
@@ -70,7 +70,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.eltiempo.com/rss/justicia.xml"
+    "feed_url": "https://www.eltiempo.com/rss/colombia.xml"
   },
   {
     "id": "eluniversalmx",
@@ -82,7 +82,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.eluniversal.com.mx/rss.xml"
+    "feed_url": "https://www.eluniversal.com.mx/arc/outboundfeeds/rss/?outputType=xml"
   },
   {
     "id": "financialtimes",
@@ -106,7 +106,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.infobae.com/feeds/rss/"
+    "feed_url": "https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml"
   },
   {
     "id": "lanacionar",
@@ -118,7 +118,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.lanacion.com.ar/rss/"
+    "feed_url": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml"
   },
   {
     "id": "listindiario",
@@ -142,7 +142,7 @@
     "vertical": "general",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.milenio.com/rss"
+    "feed_url": null
   },
   {
     "id": "reuters",
@@ -154,7 +154,7 @@
     "vertical": "business",
     "active": true,
     "priority": 1,
-    "feed_url": "https://feeds.reuters.com/reuters/topNews",
+    "feed_url": null,
     "min_word_count": 25
   },
   {
@@ -179,7 +179,7 @@
     "vertical": "business",
     "active": true,
     "priority": 1,
-    "feed_url": "https://www.economist.com/rss/the_economist_full_rss.xml"
+    "feed_url": "https://www.economist.com/latest/rss.xml"
   },
   {
     "id": "wsj",
@@ -228,7 +228,7 @@
     "vertical": "politics",
     "active": true,
     "priority": 2,
-    "feed_url": "https://www.animalpolitico.com/feed",
+    "feed_url": null,
     "min_word_count": 30
   },
   {
@@ -253,7 +253,7 @@
     "vertical": "business",
     "active": true,
     "priority": 2,
-    "feed_url": "https://feeds.nbcnews.com/nbcnews/public/news"
+    "feed_url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"
   },
   {
     "id": "elcaribedr",
@@ -325,7 +325,7 @@
     "vertical": "general",
     "active": true,
     "priority": 2,
-    "feed_url": "https://feeds.feedburner.com/revistasemana/vtTb"
+    "feed_url": "https://www.semana.com/arc/outboundfeeds/rss/?outputType=xml"
   },
   {
     "id": "theguardian",
@@ -361,7 +361,7 @@
     "vertical": "general",
     "active": true,
     "priority": 80,
-    "feed_url": "https://rss.cnn.com/rss/cnn_topstories.rss"
+    "feed_url": null
   },
   {
     "id": "foxbusiness",
