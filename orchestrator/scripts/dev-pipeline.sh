@@ -49,6 +49,7 @@ m_log="$LOGDIR/messor.log"
 r_log="$LOGDIR/reader.log"
 b_log="$LOGDIR/backoffice.log"        # artisan serve
 bv_log="$LOGDIR/backoffice-vite.log"  # vite assets
+q_log="$LOGDIR/backoffice-queue.log"  # artisan queue:work (scrape triggers)
 
 _port_pids() { lsof -ti :"$1" 2>/dev/null; }
 _proc_pids() { pgrep -f "$1" 2>/dev/null; }
@@ -86,6 +87,10 @@ up() {
     # VITE_APP_ORIGIN must match the artisan serve origin — vite.config.js
     # defaults it to :18080 (Docker dev), which CORS-blocks every asset on :8000.
     ( cd "$BACKOFFICE" && VITE_APP_ORIGIN=http://localhost:8000 nohup npm run dev > "$bv_log" 2>&1 & )
+    # Queue worker — Backoffice scrape triggers (RunScrapingWorker) sit in the
+    # `scraping` queue forever without it (QUEUE_CONNECTION=database).
+    _proc_pids "artisan queue:work" | xargs -r kill 2>/dev/null
+    ( cd "$BACKOFFICE" && nohup php artisan queue:work --queue=scraping,default --tries=1 --timeout=3600 > "$q_log" 2>&1 & )
 
     echo "[dev] waiting for Curator health…"
     for _ in $(seq 1 20); do curl -sf http://localhost:8060/healthz >/dev/null 2>&1 && break; sleep 2; done
@@ -100,9 +105,10 @@ down() {
     _proc_pids "main.py --config env.local.yaml --consume" | xargs -r kill 2>/dev/null
     # Reader (next dev) — kill the npm + next-server on :3000
     _port_pids 3000 | xargs -r kill 2>/dev/null
-    # Backoffice — artisan serve (:8000) + its vite
+    # Backoffice — artisan serve (:8000) + its vite + queue worker
     _port_pids 8000 | xargs -r kill 2>/dev/null
     _proc_pids "artisan serve" | xargs -r kill 2>/dev/null
+    _proc_pids "artisan queue:work" | xargs -r kill 2>/dev/null
     sleep 1
     echo "[dev] done. (Infra still up — use orchestrator/scripts/down.sh to stop it.)"
 }
