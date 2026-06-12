@@ -53,11 +53,12 @@ class MessageService:
     async def connect(self) -> None:
         self.connection = await aio_pika.connect_robust(self.cfg.url)
         self.channel = await self.connection.channel()
-        # prefetch_count=1: process one article at a time so we never send
-        # concurrent embedding requests to Ollama (CPU-only bge-m3 saturates
-        # under concurrent load → timeouts). Throughput is slower but reliable.
-        # Raise if/when Ollama moves to GPU or a dedicated embedding server.
-        await self.channel.set_qos(prefetch_count=1)
+        # prefetch_count governs how many articles are in flight concurrently.
+        # The enrich LLM call (8-17s of network wait) parallelises freely; the
+        # CPU-Ollama embed and the cluster-attach are serialised by dedicated
+        # locks in Application._handle_event, so raising this no longer risks
+        # concurrent embedding requests (the original reason it was 1).
+        await self.channel.set_qos(prefetch_count=self.cfg.prefetch_count)
         logger.info("RabbitMQ connected: %s", _scrub(self.cfg.url))
 
     async def close(self) -> None:
@@ -103,7 +104,7 @@ class MessageService:
             )
             # The failed declare closed the channel — reopen and redo QoS.
             self.channel = await self.connection.channel()  # type: ignore[union-attr]
-            await self.channel.set_qos(prefetch_count=1)
+            await self.channel.set_qos(prefetch_count=self.cfg.prefetch_count)
             exchange = await self.channel.declare_exchange(
                 self.cfg.consume_exchange, aio_pika.ExchangeType.TOPIC, durable=True
             )

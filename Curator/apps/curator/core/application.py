@@ -72,6 +72,17 @@ class Application:
         self.assistant = AssistantSkill(self.llm, self.db, self.embed, cfg.llm)
         # Concurrency gate — article pipeline
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
+        # Embed serialisation: CPU-only Ollama bge-m3 saturates (and times out)
+        # under concurrent requests — this semaphore is what makes a
+        # prefetch_count > 1 consumer safe, replacing the old global
+        # prefetch_count=1 serialisation. Raise to 2+ only if Ollama moves to
+        # GPU or a dedicated embedding server.
+        self._embed_sem = asyncio.Semaphore(1)
+        # Cluster-attach serialisation: two same-story articles clustering
+        # concurrently would each see "no neighbour" and seed duplicate events.
+        # The attach decision is fast (~1s: one ANN query + two UPDATEs), so a
+        # global lock here costs little and keeps clustering race-free.
+        self._cluster_lock = asyncio.Lock()
         # IllustrateSkill concurrency gate: cap at 1 concurrent browser pair.
         # Each run opens 2 Chromium instances (~400 MB combined); the worker has
         # a 1.5 GB limit on DO.  Excess calls queue and run serially after the
@@ -411,7 +422,8 @@ class Application:
             nonlocal done
             async with sem:
                 text = f"{r['title']}\n\n{(r['body_text'] or '')[:4000]}"
-                vec = await self.embed.embed(text)
+                async with self._embed_sem:
+                    vec = await self.embed.embed(text)
                 await self.db.set_article_embedding(r["id"], vec)
                 done += 1
                 if done % 200 == 0:
@@ -554,6 +566,30 @@ class Application:
                 return
 
             article = event.article
+
+            # Stale-message intake gate: the Reader feed window is 48h (Messor
+            # ADR-0015), so an article whose harvest is older than
+            # max_article_age_hours can never surface — ack-and-drop it BEFORE
+            # spending an LLM call. Protects against queue floods (the 105k-msg
+            # incident of 2026-06-09) and bounds worst-case backlog damage.
+            max_age_h = self.cfg.application.max_article_age_hours
+            if max_age_h > 0 and article.scraped_at is not None:
+                try:
+                    scraped = article.scraped_at
+                    if isinstance(scraped, str):
+                        scraped = datetime.fromisoformat(scraped.replace("Z", "+00:00"))
+                    if scraped.tzinfo is None:
+                        scraped = scraped.replace(tzinfo=timezone.utc)
+                    age_h = (datetime.now(timezone.utc) - scraped).total_seconds() / 3600
+                    if age_h > max_age_h:
+                        logger.info(
+                            "DROP stale message %s (%s) — scraped %.1fh ago (gate=%dh)",
+                            article.id, article.outlet.name, age_h, max_age_h,
+                        )
+                        return
+                except (ValueError, TypeError):
+                    pass  # unparseable date — process normally rather than drop
+
             logger.info(
                 "→ event %s | outlet=%s | title=%s",
                 article.id, article.outlet.name, article.title[:80],
@@ -598,11 +634,15 @@ class Application:
                 )
                 return
 
-            # 1. ENRICH
+            # 1. ENRICH — the slow stage (8-17s of LLM network wait); runs
+            # concurrently across messages up to max_concurrent_articles.
             enrichment = await self.enrich.run(article)
-            embedding = await self.embed.embed(
-                f"{article.title}\n\n{article.text[:4000]}"
-            )
+            # Embed is serialised (_embed_sem): CPU-only Ollama times out under
+            # concurrent load. ~0.2-1s per call, so the lock is cheap.
+            async with self._embed_sem:
+                embedding = await self.embed.embed(
+                    f"{article.title}\n\n{article.text[:4000]}"
+                )
             await self.db.write_enrichment(
                 article.id,
                 theme=enrichment.theme,
@@ -615,15 +655,18 @@ class Application:
                 entities=[e.model_dump() for e in enrichment.entities],
             )
 
-            # 2. CLUSTER
-            cluster_result = await self.cluster.run(
-                article_id=article.id,
-                embedding=embedding,
-                entities=[e.model_dump() for e in enrichment.entities],
-                outlet_id=article.outlet.id,
-                language=article.language,
-                scraped_at=article.scraped_at,
-            )
+            # 2. CLUSTER — serialised (_cluster_lock): two same-story articles
+            # clustering concurrently would both see "no neighbour" and seed
+            # duplicate events.
+            async with self._cluster_lock:
+                cluster_result = await self.cluster.run(
+                    article_id=article.id,
+                    embedding=embedding,
+                    entities=[e.model_dump() for e in enrichment.entities],
+                    outlet_id=article.outlet.id,
+                    language=article.language,
+                    scraped_at=article.scraped_at,
+                )
 
             # 3. SYNTHESIZE — only when the event has enough distinct sources
             # and only when source_count has grown since the last synthesis.
@@ -730,8 +773,9 @@ class Application:
         # 1. ENRICH
         enrichment = await self.enrich.run(article)
 
-        # 2. EMBED
-        embedding = await self.embed.embed(f"{article.title}\n\n{article.text[:4000]}")
+        # 2. EMBED — serialised: CPU Ollama times out under concurrent load.
+        async with self._embed_sem:
+            embedding = await self.embed.embed(f"{article.title}\n\n{article.text[:4000]}")
 
         # 3. Write enrichment to DB
         await self.db.write_enrichment(

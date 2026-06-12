@@ -84,7 +84,18 @@ class AppCfg(BaseModel):
     version: str = "0.1.0"
     mode: str = "development"
     log_level: str = "INFO"
-    max_concurrent_articles: int = 4
+    # Concurrent in-flight articles in the live consume path AND the batch
+    # reprocess paths. The slow stage is the enrich LLM call (8-17s of network
+    # wait on DeepSeek), which parallelises freely; the embed (CPU Ollama) and
+    # cluster-attach stages are serialised by dedicated locks regardless of
+    # this value (see Application._embed_sem / _cluster_lock).
+    max_concurrent_articles: int = 8
+    # Stale-message intake gate: ack-and-drop a queued article whose scraped_at
+    # is older than this many hours, BEFORE spending an LLM call. The Reader
+    # feed window is 48h (Messor ADR-0015), so older articles can't surface
+    # anyway. Protects against queue floods (105k-msg incident, 2026-06-09).
+    # 0 disables the gate.
+    max_article_age_hours: int = 48
     # How often (seconds) the consumer re-reads backoffice.curator_settings so
     # an admin change takes effect without a redeploy. 0 disables polling.
     config_refresh_seconds: int = 30
@@ -178,6 +189,11 @@ class RmqCfg(BaseModel):
     consume_exchange: str = "messor"
     consume_queue: str = "curator.articles-scraped"
     consume_routing_key: str = "event.article.scraped"
+    # Unacked messages delivered concurrently to the article consumer. With 1
+    # (the pre-2026-06-11 value) the whole pipeline is serial and throughput is
+    # capped by the enrich LLM round-trip (~4 articles/min → a permanent
+    # multi-hour queue backlog). Should be >= application.max_concurrent_articles.
+    prefetch_count: int = 8
     # Scrape-session run summaries (B12.1 / ADR-0006). Messor emits one event
     # per harvest run on the same `messor` exchange; Curator upserts
     # public.scrape_sessions. Bound on a dedicated queue so it never competes
