@@ -1,5 +1,5 @@
-import { getEvents } from "@/lib/api";
-import type { EventSummary } from "@/lib/types";
+import { getEvents, getTrendingTopics } from "@/lib/api";
+import type { EventSummary, TrendingTopic } from "@/lib/types";
 import FeedClient from "./feed-client";
 
 // force-dynamic: pages calling internal Docker services must never use ISR —
@@ -12,19 +12,36 @@ export const dynamic = "force-dynamic";
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams?: Promise<{ search?: string }>;
+  searchParams?: Promise<{ search?: string; topic?: string }>;
 }) {
   const params = await (searchParams ?? Promise.resolve({} as Record<string, string>));
   const focusSearch = (params as Record<string, string>).search === "1";
+  // Trending-topic drill-down (ADR-0027): ?topic= server-filters the feed via
+  // the Curator ?topic= param (article-level EXISTS — same semantics as the
+  // trending count, so the chip's number matches what the reader sees).
+  const topic = ((params as Record<string, string>).topic ?? "").trim() || null;
 
   let events: EventSummary[] = [];
+  let trending: TrendingTopic[] = [];
   let error: string | null = null;
 
   try {
-    events = await getEvents();
+    // Trending is best-effort — a failure must not blank the feed.
+    [events, trending] = await Promise.all([
+      getEvents(500, topic ? { topic } : undefined),
+      getTrendingTopics().catch(() => [] as TrendingTopic[]),
+    ]);
   } catch {
     error = "Could not reach the Curator service. Is it running on port 8060?";
   }
 
-  return <FeedClient events={events} error={error} focusSearch={focusSearch} />;
+  return (
+    <FeedClient
+      events={events}
+      trending={trending}
+      activeTopic={topic}
+      error={error}
+      focusSearch={focusSearch}
+    />
+  );
 }

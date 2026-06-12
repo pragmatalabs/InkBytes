@@ -13,6 +13,13 @@ export interface Outlet {
   events_contributed: number;
 }
 
+/** A trending story topic from /topics/trending (ADR-0027). */
+export interface TrendingTopic {
+  topic: string;
+  event_count: number;
+  article_count: number;
+}
+
 export interface EventSummary {
   id: string;
   headline: string;

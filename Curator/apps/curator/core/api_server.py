@@ -411,15 +411,17 @@ def build_app(app: Application) -> FastAPI:
             f"AND lower(a.topic) NOT LIKE ${i + 3}"
             for i in range(len(_JUNK_TOPIC_PATTERNS))
         )
+        # Count over events that have a PUBLISHED PAGE (same population as
+        # /events?topic=) so a chip's number matches the drill-down result.
         sql = f"""
             SELECT a.topic,
                    COUNT(DISTINCT a.event_id) AS event_count,
                    COUNT(*)                   AS article_count
               FROM articles a
-              JOIN events e ON e.id = a.event_id
+              JOIN pages pg ON pg.event_id = a.event_id
+                           AND pg.published_at IS NOT NULL
              WHERE a.topic IS NOT NULL AND TRIM(a.topic) <> ''
                AND a.scraped_at > NOW() - ($1 || ' hours')::interval
-               AND e.status = 'published'
                {junk_clause}
              GROUP BY a.topic
              ORDER BY event_count DESC, article_count DESC

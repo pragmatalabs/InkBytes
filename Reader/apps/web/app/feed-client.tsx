@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
-import type { EventSummary } from "@/lib/types";
+import type { EventSummary, TrendingTopic } from "@/lib/types";
 import { CategoryIcon } from "@/components/icons";
 import { DailySplash } from "@/components/daily-splash";
 
@@ -368,6 +368,10 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
 
 interface Props {
   events: EventSummary[];
+  trending?: TrendingTopic[];
+  /** Active trending topic from ?topic= — the feed `events` are already
+   *  server-filtered to it (ADR-0027); we only drive chip state + navigation. */
+  activeTopic?: string | null;
   error: string | null;
   focusSearch?: boolean;
 }
@@ -377,7 +381,7 @@ const CAT_KEY  = "inkbytes-cat";
 
 const LANG_LABELS: Record<Lang, string> = { all: "All", en: "EN", es: "ES" };
 
-export default function FeedClient({ events, error, focusSearch }: Props) {
+export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch }: Props) {
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [lang, setLangState]                = useState<Lang>("all");
@@ -414,6 +418,20 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
     setActiveCategory(c);
     localStorage.setItem(CAT_KEY, c);
     setStreamExpanded(false);
+    // If a server-side topic filter is active, clicking a theme chip drops it
+    // (theme is the primary feed facet; topic is the trending drill-down).
+    if (activeTopic && c !== "all") startTransition(() => router.push("/"));
+  }
+  // Trending-topic drill-down (ADR-0027): navigate to ?topic= so the server
+  // filters the feed via the Curator ?topic= param (article-level — matches the
+  // trending count). Toggling the active topic clears it. Theme is a separate
+  // client filter that composes on top; we reset it so the two don't surprise.
+  function toggleTopic(t: string) {
+    setActiveCategory("all");
+    localStorage.setItem(CAT_KEY, "all");
+    setStreamExpanded(false);
+    const next = activeTopic === t ? "/" : `/?topic=${encodeURIComponent(t)}`;
+    startTransition(() => router.push(next));
   }
 
   useEffect(() => {
@@ -423,12 +441,14 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
     }
   }, [focusSearch]);
 
-  const hasFilter = lang !== "all" || activeCategory !== "all" || !!search.trim();
+  const hasFilter = lang !== "all" || activeCategory !== "all" || !!activeTopic || !!search.trim();
 
   const filtered = useMemo(() => {
     let list = events;
     if (lang !== "all")           list = list.filter((e) => e.language === lang);
     if (activeCategory !== "all") list = list.filter((e) => (e.category ?? "world") === activeCategory);
+    // NB: topic filtering is done server-side (events arrive pre-filtered to
+    // ?topic=); no client-side topic filter here.
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -446,7 +466,10 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
     [filtered],
   );
 
-  function clearAll() { setSearch(""); setCat("all"); setLang("all"); }
+  function clearAll() {
+    setSearch(""); setCat("all"); setLang("all");
+    if (activeTopic) startTransition(() => router.push("/"));  // drop ?topic=
+  }
 
   const showLangChip = lang === "all";
 
@@ -572,6 +595,36 @@ export default function FeedClient({ events, error, focusSearch }: Props) {
                   <CategoryIcon category={c.key} className="w-3.5 h-3.5 shrink-0 opacity-80" />
                 )}
                 {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Trending topics (ADR-0027) ──────────────────────────────────────── */}
+      {!error && trending.length > 0 && (
+        <div className="mb-4 -mx-1 px-1 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-1.5 flex-nowrap pb-1">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--accent)] whitespace-nowrap pr-1">
+              <span className="developing-dot shrink-0" aria-hidden="true" />
+              Trending
+            </span>
+            {trending.map((t) => (
+              <button
+                key={t.topic}
+                onClick={() => toggleTopic(t.topic)}
+                aria-pressed={activeTopic === t.topic}
+                title={`${t.event_count} stories · ${t.article_count} articles`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
+                  activeTopic === t.topic
+                    ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                    : "bg-white border-[var(--border)] text-[var(--ink-muted)] hover:border-gray-400 hover:text-[var(--ink)]"
+                }`}
+              >
+                {t.topic}
+                <span className={activeTopic === t.topic ? "text-white/70" : "text-[var(--ink-muted)] opacity-60"}>
+                  {t.event_count}
+                </span>
               </button>
             ))}
           </div>

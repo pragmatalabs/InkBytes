@@ -1,4 +1,4 @@
-import type { EventSummary, EventPage, RelatedEvent, GraphData } from "./types";
+import type { EventSummary, EventPage, RelatedEvent, GraphData, TrendingTopic } from "./types";
 
 const BASE = process.env.CURATOR_API_URL ?? "http://localhost:8060";
 
@@ -33,12 +33,30 @@ export function getRelatedEvents(
   );
 }
 
-export function getEvents(limit = 500): Promise<EventSummary[]> {
-  return apiFetch<EventSummary[]>(`/events?limit=${limit}`, 60);
+export function getEvents(
+  limit = 500,
+  filters?: { theme?: string; topic?: string; category?: string },
+): Promise<EventSummary[]> {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (filters?.theme)    qs.set("theme", filters.theme);
+  if (filters?.topic)    qs.set("topic", filters.topic);
+  if (filters?.category) qs.set("category", filters.category);
+  return apiFetch<EventSummary[]>(`/events?${qs.toString()}`, 60);
 }
 
 export function getEvent(id: string): Promise<EventPage> {
   return apiFetch<EventPage>(`/events/${id}`, 300);
+}
+
+/** Trending story topics over the last `windowHours` (ADR-0027). */
+export function getTrendingTopics(
+  limit = 12,
+  windowHours = 48,
+): Promise<TrendingTopic[]> {
+  return apiFetch<TrendingTopic[]>(
+    `/topics/trending?limit=${limit}&window_hours=${windowHours}`,
+    120, // revalidate every 2 min — trending shifts as new events publish
+  );
 }
 
 export function getStatus(): Promise<{
