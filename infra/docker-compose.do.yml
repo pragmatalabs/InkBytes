@@ -18,10 +18,15 @@ services:
     security_opt:
       - seccomp:unconfined  # Docker's default seccomp blocks clone() flags Chromium needs → SIGTRAP
     environment:
-      # On DO, Ollama runs as infra-ollama (infra-shared network).
-      # infra-ollama is connected to inkbytes-internal at deploy time (see deploy.sh).
+      # Embeddings offloaded to the Hostinger Ollama box (Curator ADR-0026,
+      # 2026-06-11). The DO droplet's CPU-only Ollama embedded bge-m3 in ~15s
+      # under scrape-time contention, serialized through _embed_sem → ~4/min
+      # pipeline ceiling → permanent queue backlog. The Hostinger box
+      # (82.112.250.139, 16GB, idle) runs the SAME bge-m3 (same 1024-dim vector
+      # space → zero re-embed) at ~2.2s warm → ~27/min. Port 32768 is firewalled
+      # to this droplet's IP only. OpenAI-compatible /v1 endpoint.
       EMBEDDINGS_PROVIDER: ollama
-      EMBEDDINGS_BASE_URL: "http://infra-ollama:11434/v1"
+      EMBEDDINGS_BASE_URL: "${EMBEDDINGS_BASE_URL:-http://82.112.250.139:32768/v1}"
       EMBEDDINGS_MODEL: bge-m3
 
   inkbytes-curator-api:
