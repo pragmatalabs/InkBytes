@@ -64,3 +64,21 @@ Port 32768 is firewalled to this droplet's IP only (DOCKER-USER iptables,
   Acceptable; Editorial is a once-daily batch.
 - DO `infra-ollama` stays running (no other consumer today) but is no longer on
   the critical path; can be removed later to reclaim its ~1 GB.
+
+## Addendum (2026-06-12): keep `_embed_sem` at 1 — concurrency thrashes
+
+Benchmarked serial vs concurrent embeds against the Hostinger box:
+
+| | per-embed | throughput |
+|---|---|---|
+| serial | 3.2 s | 19/min |
+| 2 concurrent | 4.5 s | 21/min |
+| 3 concurrent | 7.2 s | 18/min |
+| 4 concurrent | 7.1 s | 22/min |
+
+The box is CPU-bound (a single bge-m3 embed already saturates the cores), so
+parallel requests just contend — latency balloons, throughput stays flat at
+~19/min. **Do NOT raise `_embed_sem`.** ~19/min comfortably exceeds the ~4/min
+average inflow (the overnight drain from 3,700→405 confirms it keeps up). If
+true zero-lag is ever required, the lever is a GPU embedding box or an API
+embedder (~100+/min) — NOT CPU concurrency.
