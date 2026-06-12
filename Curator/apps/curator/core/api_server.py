@@ -72,6 +72,26 @@ _CATEGORY_RULES: list[tuple[str, list[str]]] = [
 ]
 _CATCH_ALL = "world"
 
+# The 8 canonical themes written by ENRICH (migration 007). Used to validate
+# the ?theme= filter so a bad value is ignored rather than returning [].
+_VALID_THEMES: frozenset[str] = frozenset({
+    "politics", "culture", "world", "sports",
+    "business", "technology", "health", "environment",
+})
+
+# Junk topic labels excluded from /topics/trending — enrichment artifacts from
+# error pages / generic outlet boilerplate (not real stories). Matched
+# case-insensitively as full-string or prefix patterns (see the query).
+_JUNK_TOPIC_PATTERNS: list[str] = [
+    "browser error",
+    "cnn breaking news%",
+    "cnn news headlines",
+    "cnn news%",
+    "%error page%",
+    "page not found",
+    "access denied",
+]
+
 
 def _derive_category(topic: str | None) -> str:
     """Map a story-level topic string to one of the broad category keys.
@@ -190,8 +210,31 @@ def build_app(app: Application) -> FastAPI:
         }
 
     @api.get("/events")
-    async def list_events(response: Response, limit: int = 500) -> list[dict[str, Any]]:
+    async def list_events(
+        response: Response,
+        limit: int = 500,
+        theme: str | None = None,
+        category: str | None = None,
+        topic: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List published events, newest-first (global-first ranking, ADR-0017).
+
+        Optional taxonomy filters (task 6a / ADR-0027), all AND-combined:
+          theme=    one of the 8 canonical themes; matches the event's
+                    majority-vote article theme. Invalid values are ignored.
+          category= a raw outlet section (articles.article_category); event
+                    matches if any of its articles carries that section.
+          topic=    a story topic label (articles.topic); event matches if any
+                    article carries it (used by the trending-topics drill-down).
+        """
         limit = min(limit, _MAX_EVENTS_LIMIT)  # ADR-0006 §D1
+        # Ignore an unknown theme rather than silently returning [] — keeps the
+        # Reader resilient to a stale/typo'd chip.
+        theme_filter = theme if theme in _VALID_THEMES else None
+        category_filter = (category or "").strip() or None
+        topic_filter = (topic or "").strip() or None
+        # Filtered responses vary by query string; keep the short TTL but mark
+        # them private-ish so a CDN doesn't serve one theme's page for another.
         response.headers["Cache-Control"] = "public, max-age=30"
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
@@ -216,17 +259,12 @@ def build_app(app: Application) -> FastAPI:
                              LIMIT 1)
                        ) AS topic,
 
-                       -- Theme: majority-vote across article-level LLM themes.
-                       -- Falls back to NULL when articles pre-date migration 007
-                       -- (legacy rows); api_server then calls _derive_category().
-                       (SELECT a.theme
-                          FROM articles a
-                         WHERE a.event_id = e.id
-                           AND a.theme IS NOT NULL
-                         GROUP BY a.theme
-                         ORDER BY COUNT(*) DESC
-                         LIMIT 1
-                       ) AS theme,
+                       -- Theme: majority-vote across article-level LLM themes
+                       -- (computed in the `th` LATERAL join below so it can be
+                       -- referenced in WHERE for the ?theme= filter). Falls back
+                       -- to NULL for legacy rows pre-migration 007 →
+                       -- _derive_category() in Python.
+                       th.theme AS theme,
 
                        -- Outlet avatar stack (up to 5 distinct names)
                        ARRAY(
@@ -312,8 +350,25 @@ def build_app(app: Application) -> FastAPI:
                              AND o_gf.region = 'global'
                       ) AS has_global_outlet
                   ) gflag ON true
+                  -- Majority-vote theme, lifted out of SELECT so the ?theme=
+                  -- filter in WHERE can reference it.
+                  LEFT JOIN LATERAL (
+                      SELECT a.theme
+                        FROM articles a
+                       WHERE a.event_id = e.id AND a.theme IS NOT NULL
+                       GROUP BY a.theme
+                       ORDER BY COUNT(*) DESC
+                       LIMIT 1
+                  ) th ON true
                  WHERE p.published_at IS NOT NULL
                    AND e.status = 'published'
+                   AND ($2::text IS NULL OR th.theme = $2)
+                   AND ($3::text IS NULL OR EXISTS (
+                         SELECT 1 FROM articles a
+                          WHERE a.event_id = e.id AND a.article_category = $3))
+                   AND ($4::text IS NULL OR EXISTS (
+                         SELECT 1 FROM articles a
+                          WHERE a.event_id = e.id AND a.topic = $4))
                  ORDER BY (
                      p.freshness_at
                      + CASE WHEN gflag.has_global_outlet
@@ -323,7 +378,7 @@ def build_app(app: Application) -> FastAPI:
                  ) DESC NULLS LAST
                  LIMIT $1
                 """,
-                limit,
+                limit, theme_filter, category_filter, topic_filter,
             )
         result = []
         for r in rows:
@@ -335,6 +390,47 @@ def build_app(app: Application) -> FastAPI:
             d["category"] = raw_theme if raw_theme else _derive_category(d.get("topic"))
             result.append(d)
         return result
+
+    @api.get("/topics/trending")
+    async def trending_topics(
+        response: Response, window_hours: int = 48, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Top story topics over the last `window_hours`, by distinct-event count.
+
+        Powers the Reader "Trending" surface (task 6b). Ranked by how many
+        distinct published events carry the topic (breadth of coverage), then
+        article volume. Junk enrichment artifacts (error pages, generic outlet
+        boilerplate) are excluded via _JUNK_TOPIC_PATTERNS. Each topic is
+        drill-down-able via /events?topic=<label>.
+        """
+        window_hours = min(max(window_hours, 1), 168)  # clamp 1h–7d
+        limit = min(max(limit, 1), 100)
+        # Build "topic NOT ILIKE p1 AND topic NOT ILIKE p2 ..." from the
+        # blocklist; patterns use % so prefix/substring forms work.
+        junk_clause = " ".join(
+            f"AND lower(a.topic) NOT LIKE ${i + 3}"
+            for i in range(len(_JUNK_TOPIC_PATTERNS))
+        )
+        sql = f"""
+            SELECT a.topic,
+                   COUNT(DISTINCT a.event_id) AS event_count,
+                   COUNT(*)                   AS article_count
+              FROM articles a
+              JOIN events e ON e.id = a.event_id
+             WHERE a.topic IS NOT NULL AND TRIM(a.topic) <> ''
+               AND a.scraped_at > NOW() - ($1 || ' hours')::interval
+               AND e.status = 'published'
+               {junk_clause}
+             GROUP BY a.topic
+             ORDER BY event_count DESC, article_count DESC
+             LIMIT $2
+        """
+        response.headers["Cache-Control"] = "public, max-age=120"
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                sql, str(window_hours), limit, *_JUNK_TOPIC_PATTERNS
+            )
+        return [dict(r) for r in rows]
 
     @api.get("/outlets")
     async def list_outlets() -> list[dict[str, Any]]:
