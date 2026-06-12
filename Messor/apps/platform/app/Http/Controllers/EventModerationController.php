@@ -32,6 +32,9 @@ class EventModerationController extends Controller
 
     private const STATUSES = ['published', 'draft', 'dropped'];
 
+    /** The 8 canonical enrichment themes (Curator migration 007 / ADR-0027). */
+    private const THEMES = ['politics', 'culture', 'world', 'sports', 'business', 'technology', 'health', 'environment'];
+
     /** Event columns the moderation list may sort on. */
     private const SORTABLE = ['status', 'topic', 'language', 'source_count', 'article_count', 'last_updated_at'];
 
@@ -45,6 +48,13 @@ class EventModerationController extends Controller
         $perPage = $this->resolvePerPage($request, 25);
         $status = (string) $request->query('status', '');
         $q = trim((string) $request->query('q', ''));
+        // Taxonomy filters (ADR-0027 / 6c). theme + category match events with
+        // ≥1 article carrying that value; topic is a contains-search on article
+        // topics. All filter via public.articles (theme/category/topic live
+        // there, not on events).
+        $theme = (string) $request->query('theme', '');
+        $category = trim((string) $request->query('category', ''));
+        $topic = trim((string) $request->query('topic', ''));
 
         // Read Curator's pipeline tables cross-schema (search_path =
         // backoffice,public). Defensive: if `public.events`/`public.pages` are
@@ -65,6 +75,29 @@ class EventModerationController extends Controller
             if ($q !== '') {
                 $needle = '%'.$q.'%';
                 $query->whereHas('page', fn ($p) => $p->where('headline', 'like', $needle));
+            }
+
+            // Taxonomy filters — correlated EXISTS against public.articles, same
+            // defensive style as the headline search (no hard JOIN that 500s if
+            // the public schema is absent).
+            if (in_array($theme, self::THEMES, true)) {
+                $query->whereExists(fn ($sub) => $sub->selectRaw('1')
+                    ->from('public.articles as a')
+                    ->whereColumn('a.event_id', 'public.events.id')
+                    ->where('a.theme', $theme));
+            }
+            if ($category !== '') {
+                $query->whereExists(fn ($sub) => $sub->selectRaw('1')
+                    ->from('public.articles as a')
+                    ->whereColumn('a.event_id', 'public.events.id')
+                    ->where('a.article_category', $category));
+            }
+            if ($topic !== '') {
+                $topicNeedle = '%'.$topic.'%';
+                $query->whereExists(fn ($sub) => $sub->selectRaw('1')
+                    ->from('public.articles as a')
+                    ->whereColumn('a.event_id', 'public.events.id')
+                    ->where('a.topic', 'like', $topicNeedle));
             }
 
             $this->applySort($query, $sort, $dir);
@@ -94,8 +127,12 @@ class EventModerationController extends Controller
             'stats' => $stats,
             'filters' => $this->listState($request, $sort, $dir, $perPage) + [
                 'status' => in_array($status, self::STATUSES, true) ? $status : '',
+                'theme' => in_array($theme, self::THEMES, true) ? $theme : '',
+                'category' => $category,
+                'topic' => $topic,
             ],
             'statuses' => self::STATUSES,
+            'themes' => self::THEMES,
         ]);
     }
 

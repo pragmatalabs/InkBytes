@@ -24,6 +24,7 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    TextField,
     Tooltip,
     Typography,
 } from '@mui/material';
@@ -40,14 +41,18 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
 export default function ModerationIndex({
     events = { data: [], total: 0, per_page: 25, current_page: 1 },
     stats = {},
-    filters = { q: '', sort: 'last_updated_at', dir: 'desc', per_page: 25, status: '' },
+    filters = { q: '', sort: 'last_updated_at', dir: 'desc', per_page: 25, status: '', theme: '', category: '', topic: '' },
     statuses = [],
+    themes = [],
 }) {
     const { isOperator } = useAuthRole();
     const [busy, setBusy] = useState(null); // `${kind}:${id}` while a command is in-flight
 
     const list = useListQuery('moderation.index', filters, {
         status: filters.status ?? '',
+        theme: filters.theme ?? '',
+        category: filters.category ?? '',
+        topic: filters.topic ?? '',
     });
 
     const rows = events.data ?? [];
@@ -82,7 +87,7 @@ export default function ModerationIndex({
             </Stack>
 
             <Grid container spacing={2} sx={{ mb: 2.5 }}>
-                <Grid size={{ xs: 12, sm: 7, md: 6 }}>
+                <Grid size={{ xs: 12, sm: 7, md: 5 }}>
                     <ListSearchField
                         value={filters.q}
                         onSearch={list.search}
@@ -90,7 +95,7 @@ export default function ModerationIndex({
                         placeholder="Headline contains… (press Enter)"
                     />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 5, md: 4 }}>
+                <Grid size={{ xs: 6, sm: 5, md: 3 }}>
                     <FormControl fullWidth size="small">
                         <InputLabel id="mod-status-label">Status</InputLabel>
                         <Select
@@ -111,6 +116,61 @@ export default function ModerationIndex({
                             ))}
                         </Select>
                     </FormControl>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 6, md: 4 }}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel id="mod-theme-label">Theme</InputLabel>
+                        <Select
+                            labelId="mod-theme-label"
+                            label="Theme"
+                            value={filters.theme ?? ''}
+                            onChange={(event) =>
+                                list.setExtra({ theme: event.target.value })
+                            }
+                        >
+                            <MenuItem value="">
+                                <em>All themes</em>
+                            </MenuItem>
+                            {themes.map((t) => (
+                                <MenuItem key={t} value={t}>
+                                    {t}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                {/* Topic (contains) + raw outlet category — Enter to apply. */}
+                <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        label="Topic contains"
+                        placeholder="e.g. Iran Missile Attack (press Enter)"
+                        defaultValue={filters.topic ?? ''}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') list.setExtra({ topic: e.target.value.trim() });
+                        }}
+                        onBlur={(e) => {
+                            if ((e.target.value.trim()) !== (filters.topic ?? ''))
+                                list.setExtra({ topic: e.target.value.trim() });
+                        }}
+                    />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        label="Outlet category"
+                        placeholder="Raw outlet section, exact (press Enter)"
+                        defaultValue={filters.category ?? ''}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') list.setExtra({ category: e.target.value.trim() });
+                        }}
+                        onBlur={(e) => {
+                            if ((e.target.value.trim()) !== (filters.category ?? ''))
+                                list.setExtra({ category: e.target.value.trim() });
+                        }}
+                    />
                 </Grid>
             </Grid>
 
