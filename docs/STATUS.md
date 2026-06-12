@@ -197,6 +197,7 @@ make shell-curator    # bash in curator-api container
 12. **GitHub Actions CI/CD** — auto-build and deploy on `git push master`. Set secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_KEY`.
 13. **Curator config default** — change `embeddings_base_url` default to `http://ollama:11434/v1` (currently `localhost:11434` breaks after `migrate:fresh`).
 14. **Approach B entity embeddings** — event-level pgvector for related-events at >1000 events scale.
+15. **Reader traffic analytics in Backoffice** ("Reader Hits") — surface per-request hits to the Reader (top events, by country, over time) in the Backoffice. Design note (incl. GDPR/PII handling — salted IP hash, GeoIP-then-discard): [`docs/reader-traffic-analytics.md`](./reader-traffic-analytics.md). Leading approach: Reader middleware → RabbitMQ `reader.hit.v1` → aggregate table. **Design only, not built.**
 
 ---
 
