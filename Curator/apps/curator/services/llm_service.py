@@ -149,7 +149,11 @@ class LlmService:
         self.cfg = cfg
         self._stub_mode = _is_stub_mode(cfg)
         self._signature = _signature(cfg)
-        self.meter = CostMeter(cfg.price_in_per_mtok, cfg.price_out_per_mtok)
+        self.meter = CostMeter(
+            cfg.price_in_per_mtok,
+            cfg.price_out_per_mtok,
+            getattr(cfg, "price_cache_hit_per_mtok", None),
+        )
         if self._stub_mode:
             logger.warning(
                 "LlmService running in STUB mode (no API key for provider=%s)",
@@ -315,8 +319,21 @@ class LlmService:
                            or getattr(usage, "prompt_tokens",  0)
                     out_tok = getattr(usage, "output_tokens", None) \
                            or getattr(usage, "completion_tokens", 0)
+                    # Cache-hit input tokens, billed ~50x cheaper (ADR-0028).
+                    # DeepSeek: usage.prompt_cache_hit_tokens (native).
+                    # OpenAI-compat: usage.prompt_tokens_details.cached_tokens.
+                    # Anthropic: usage.cache_read_input_tokens.
+                    details = getattr(usage, "prompt_tokens_details", None)
+                    cache_hit = (
+                        getattr(usage, "prompt_cache_hit_tokens", None)
+                        if getattr(usage, "prompt_cache_hit_tokens", None) is not None
+                        else getattr(details, "cached_tokens", None)
+                        if details is not None
+                        else getattr(usage, "cache_read_input_tokens", None)
+                    ) or 0
                     self.meter.record(
                         label, in_tok, out_tok,
+                        cache_hit_tokens=int(cache_hit),
                         model=model, event_id=event_id,
                     )
                 except Exception:

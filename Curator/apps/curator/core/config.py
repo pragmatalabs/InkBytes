@@ -134,11 +134,15 @@ class LlmCfg(BaseModel):
     # Custom base URL for OpenAI-compatible providers (Groq, Together, DeepSeek, etc.).
     # When set via Backoffice, overrides the provider's built-in default endpoint.
     base_url: str | None = None
-    # Standard list prices for cost accounting. Defaults = Claude Haiku 4.5
-    # ($1/M input, $5/M output). Override in env if you use batch (~50% off)
-    # or switch models. Verify against platform.claude.com/docs pricing.
-    price_in_per_mtok: float = 1.0
-    price_out_per_mtok: float = 5.0
+    # Per-Mtok list prices for cost accounting (ADR-0028). Defaults =
+    # deepseek-v4-flash, the production model as of 2026-06 (verified against
+    # the DeepSeek invoice). DeepSeek bills CACHED input tokens ~50x cheaper
+    # than uncached, so input is split: price_in_per_mtok is the cache-MISS
+    # (uncached) rate, price_cache_hit_per_mtok the cache-HIT rate. Ignoring the
+    # split previously overstated cost ~13x. Override in env per provider/model.
+    price_in_per_mtok: float = 0.14            # cache-miss input  ($0.14/M)
+    price_cache_hit_per_mtok: float = 0.0028   # cache-hit input   ($0.0028/M)
+    price_out_per_mtok: float = 0.28           # output            ($0.28/M)
 
 
 class EmbedCfg(BaseModel):
