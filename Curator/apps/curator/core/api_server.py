@@ -93,6 +93,48 @@ _JUNK_TOPIC_PATTERNS: list[str] = [
 ]
 
 
+# Trending near-duplicate collapsing (ADR-0027). The LLM emits free-text topic
+# labels, so one story fragments across variants ("Pope Leo XIV Visit to
+# Barcelona / Madrid / Spain"). We collapse same-language variants by token
+# overlap, keeping the highest-coverage variant as the representative (so its
+# count still matches its ?topic= drill-down — no mismatch). Cross-language
+# dupes (EN vs ES) don't share tokens and remain separate — acceptable for a
+# bilingual product; a deeper fix is topic normalization at enrichment time.
+_TOPIC_STOPWORDS: frozenset[str] = frozenset({
+    "the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "with",
+    "from", "by", "vs", "over", "amid", "as", "after", "before",
+    "de", "la", "el", "en", "y", "los", "las", "del", "un", "una", "por",
+    "con", "para", "tras", "ante", "su", "al",
+})
+
+
+def _topic_tokens(topic: str) -> set[str]:
+    import re
+    return {
+        w for w in re.findall(r"[a-z0-9áéíóúñü]+", topic.lower())
+        if len(w) > 1 and w not in _TOPIC_STOPWORDS
+    }
+
+
+def _dedupe_trending(rows: list[dict], limit: int, threshold: float = 0.5) -> list[dict]:
+    """Collapse near-duplicate topic labels; keep top `limit` distinct concepts.
+
+    Input is ordered by event_count DESC, so the first variant seen for a
+    concept is its highest-coverage label — we keep it and drop later variants
+    whose token-set Jaccard ≥ threshold.
+    """
+    kept: list[tuple[set[str], dict]] = []
+    for d in rows:
+        toks = _topic_tokens(d["topic"])
+        if any(toks and ks and len(toks & ks) / len(toks | ks) >= threshold
+               for ks, _ in kept):
+            continue
+        kept.append((toks, d))
+        if len(kept) >= limit:
+            break
+    return [d for _, d in kept]
+
+
 def _derive_category(topic: str | None) -> str:
     """Map a story-level topic string to one of the broad category keys.
 
@@ -405,6 +447,9 @@ def build_app(app: Application) -> FastAPI:
         """
         window_hours = min(max(window_hours, 1), 168)  # clamp 1h–7d
         limit = min(max(limit, 1), 100)
+        # Over-fetch so near-duplicate collapsing (_dedupe_trending) still
+        # leaves `limit` distinct concepts.
+        candidate_limit = min(limit * 4, 200)
         # Build "topic NOT ILIKE p1 AND topic NOT ILIKE p2 ..." from the
         # blocklist; patterns use % so prefix/substring forms work.
         junk_clause = " ".join(
@@ -430,9 +475,10 @@ def build_app(app: Application) -> FastAPI:
         response.headers["Cache-Control"] = "public, max-age=120"
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
-                sql, str(window_hours), limit, *_JUNK_TOPIC_PATTERNS
+                sql, str(window_hours), candidate_limit, *_JUNK_TOPIC_PATTERNS
             )
-        return [dict(r) for r in rows]
+        # Collapse same-story label variants, then trim to the requested limit.
+        return _dedupe_trending([dict(r) for r in rows], limit)
 
     @api.get("/outlets")
     async def list_outlets() -> list[dict[str, Any]]:
