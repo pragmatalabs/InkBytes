@@ -94,12 +94,12 @@ class Application:
         # N-articles-in-one-event → N synthesis calls explosion during batch
         # reprocessing (each call costs ~$0.05-0.06 and rewrites the same page).
         self._synth_locks: dict[str, asyncio.Lock] = {}
-        # Track the source_count at the time synthesis last ran for each event.
-        # Re-synthesis is only triggered when a NEW distinct source (outlet) joins
-        # the event — new articles from existing outlets don't warrant a full
-        # rewrite.  Dict is in-memory: on restart Curator synthesizes once per
-        # qualifying event on the next incoming article (acceptable cold-start).
-        self._last_synth_source_count: dict[str, int] = {}
+        # The source_count at last synthesis lives in
+        # events.last_synth_source_count (migration 015) — persistent, so a
+        # worker restart no longer re-synthesizes every qualifying event on
+        # its next article. The in-memory dict it replaces caused the
+        # 2026-06-12 post-deploy synthesis storm (restart + 3.7k backlog →
+        # hundreds of reasoner calls hogging the pipeline slots).
         # Background settings-refresh task (started in run_consumer).
         self._config_task: asyncio.Task | None = None
         # Embedding live-reconfigure status (ADR-0004), surfaced on /status:
@@ -508,7 +508,7 @@ class Application:
         """
         from contracts.page_v1 import PageV1
 
-        last = self._last_synth_source_count.get(event_id, 0)
+        last = await self.db.get_last_synth_source_count(event_id)
         if source_count > 0 and source_count <= last:
             logger.debug(
                 "SYNTHESIZE %s skipped — source_count=%d unchanged since last synth (last=%d)",
@@ -525,7 +525,9 @@ class Application:
         page: PageV1 | None = None
         async with lock:
             page = await self.synthesize.run(event_id)
-            self._last_synth_source_count[event_id] = source_count
+            # Persist the watermark (migration 015) so the "new outlet only"
+            # re-synthesis gate survives worker restarts.
+            await self.db.set_last_synth_source_count(event_id, source_count)
         # Prune the lock entry — synthesis just completed and no one else can
         # be waiting (callers skip when lock.locked(), and asyncio is
         # single-threaded: no await between lock release and pop, so no new

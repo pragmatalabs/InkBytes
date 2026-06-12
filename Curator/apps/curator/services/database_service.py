@@ -125,6 +125,12 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'events' "
                 "AND column_name = 'breaking_at')"
             ),
+            "015_events_synth_watermark.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'events' "
+                "AND column_name = 'last_synth_source_count')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -513,6 +519,27 @@ class DatabaseService:
             await conn.execute(
                 "UPDATE events SET hero_image = $1 WHERE id = $2",
                 url, event_id,
+            )
+
+    async def get_last_synth_source_count(self, event_id: str) -> int:
+        """Distinct-outlet count at the event's last synthesis (migration 015).
+
+        Persistent replacement for the in-memory _last_synth_source_count dict
+        that was wiped on every restart and caused post-deploy synthesis storms.
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            val = await conn.fetchval(
+                "SELECT last_synth_source_count FROM events WHERE id = $1",
+                event_id,
+            )
+            return int(val or 0)
+
+    async def set_last_synth_source_count(self, event_id: str, count: int) -> None:
+        """Record the source_count at the moment synthesis completed."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE events SET last_synth_source_count = $2 WHERE id = $1",
+                event_id, count,
             )
 
     async def get_outlets_with_stats(self) -> list[dict[str, Any]]:
