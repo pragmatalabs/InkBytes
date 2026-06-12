@@ -461,7 +461,11 @@ def build_app(app: Application) -> FastAPI:
         sql = f"""
             SELECT a.topic,
                    COUNT(DISTINCT a.event_id) AS event_count,
-                   COUNT(*)                   AS article_count
+                   COUNT(*)                   AS article_count,
+                   -- Representative theme for the chip's color accent: the most
+                   -- common article-level theme among this topic's articles.
+                   MODE() WITHIN GROUP (ORDER BY a.theme)
+                     FILTER (WHERE a.theme IS NOT NULL) AS theme
               FROM articles a
               JOIN pages pg ON pg.event_id = a.event_id
                            AND pg.published_at IS NOT NULL

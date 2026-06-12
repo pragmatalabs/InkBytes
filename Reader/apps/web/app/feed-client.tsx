@@ -56,6 +56,18 @@ const CAT_STYLES: Record<string, string> = {
   world:       "bg-gray-100  text-gray-500",
 };
 
+// Left-accent border color per theme for the trending pills (ADR-0027 6b).
+const TREND_ACCENT: Record<string, string> = {
+  politics:    "border-l-red-500",
+  business:    "border-l-blue-500",
+  technology:  "border-l-violet-500",
+  sports:      "border-l-green-500",
+  health:      "border-l-pink-500",
+  environment: "border-l-emerald-500",
+  culture:     "border-l-amber-500",
+  world:       "border-l-gray-400",
+};
+
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
 const OUTLET_COLORS = [
@@ -609,24 +621,33 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               <span className="developing-dot shrink-0" aria-hidden="true" />
               Trending
             </span>
-            {trending.map((t) => (
-              <button
-                key={t.topic}
-                onClick={() => toggleTopic(t.topic)}
-                aria-pressed={activeTopic === t.topic}
-                title={`${t.event_count} stories · ${t.article_count} articles`}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
-                  activeTopic === t.topic
-                    ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-                    : "bg-white border-[var(--border)] text-[var(--ink-muted)] hover:border-gray-400 hover:text-[var(--ink)]"
-                }`}
-              >
-                {t.topic}
-                <span className={activeTopic === t.topic ? "text-white/70" : "text-[var(--ink-muted)] opacity-60"}>
-                  {t.event_count}
-                </span>
-              </button>
-            ))}
+            {trending.map((t) => {
+              const active = activeTopic === t.topic;
+              const accent = TREND_ACCENT[t.theme ?? "world"] ?? "border-l-gray-400";
+              return (
+                <button
+                  key={t.topic}
+                  onClick={() => toggleTopic(t.topic)}
+                  aria-pressed={active}
+                  title={`${t.event_count} stories · ${t.article_count} articles`}
+                  className={`group flex flex-col items-start gap-0.5 pl-2.5 pr-3 py-1.5 rounded-r-lg rounded-l-sm border border-l-[3px] ${accent} text-left whitespace-nowrap transition-colors ${
+                    active
+                      ? "bg-[var(--accent)] border-[var(--accent)] border-l-[3px] text-white"
+                      : "bg-white border-[var(--border)] hover:border-gray-400"
+                  }`}
+                >
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold ${active ? "text-white" : "text-[var(--ink)]"}`}>
+                    <svg viewBox="0 0 24 24" className="w-3 h-3 shrink-0" fill="currentColor" aria-hidden="true">
+                      <path d="M12 2c.5 3-1.5 4.5-2.8 6.2C7.7 10.2 7 11.9 7 13.8 7 17.2 9.7 20 13 20s6-2.6 6-6c0-3.4-2.2-5.2-3.6-7.2-.9 1-1.7 1.6-2.6 1.2C13.6 6.6 13.4 4 12 2z"/>
+                    </svg>
+                    {t.topic}
+                  </span>
+                  <span className={`text-[10px] tabular-nums ${active ? "text-white/75" : "text-[var(--ink-muted)]"}`}>
+                    {t.event_count} {t.event_count === 1 ? "story" : "stories"} · {t.article_count} articles
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

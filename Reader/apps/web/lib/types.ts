@@ -18,6 +18,9 @@ export interface TrendingTopic {
   topic: string;
   event_count: number;
   article_count: number;
+  /** Representative theme (most common among the topic's articles) — drives
+   *  the chip's color accent. May be null for legacy/unthemed topics. */
+  theme: string | null;
 }
 
 export interface EventSummary {
