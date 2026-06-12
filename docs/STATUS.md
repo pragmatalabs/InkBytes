@@ -1,6 +1,8 @@
 # InkBytes — Overall Status
 
-> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-10*
+> *Status: v0 live on DigitalOcean · Owner: Julian · Last updated: 2026-06-12*
+> *2026-06-12: morning maintenance — REINDEX embedding index (recall + space); embed concurrency benchmarked → keep `_embed_sem=1` (Hostinger bge-m3 CPU-bound ~19/min, concurrency thrashes, ADR-0026 addendum); cost persistence confirmed healthy (was a query-schema mistake). Overnight: queue drained 3,700→~400, lag 10h→~30min.*
+> *2026-06-12: **Taxonomy navigation shipped** (Curator ADR-0027, all 3 surfaces) — 6a Curator API: `/events?theme=/?category=/?topic=` filters + `/topics/trending` (junk-excluded, page-aligned counts); 6b Reader: trending-topic strip + `?topic=` server-filtered drill-down (shareable URL, count==result); 6c Backoffice: theme/category/topic filters on the moderation view. Makes the previously-idle taxonomy indexes earn their keep. Committed locally, NOT yet pushed/deployed.*
 > *Pipeline proven end-to-end. 413+ published pages. 22 active outlets. Continuous 12×/day harvest cycle.*
 > *2026-06-08: ADR-0015 (synthesis cost cap + dedup fast-path) + Messor ADR-0012 (persistent staging volume) deployed — restart-driven queue flood eliminated.*
 > *2026-06-08: ADR-0018 — `content_hash` made stable (normalized lede prefix); fixes the ADR-0015 fast-path that never fired. Tested locally, pending deploy.*
