@@ -1,6 +1,6 @@
 # Curator ADR-0030 — Pre-enrich triage gate (local model)
 
-> *Status: accepted (shadow) · Owner: Julian · Date: 2026-06-13*
+> *Status: accepted · ENFORCING in prod (shadow=false) since 2026-06-13 · Owner: Julian · Date: 2026-06-13*
 
 ## Context
 
@@ -109,3 +109,16 @@ showed no eviction storm — `OLLAMA_MAX_LOADED_MODELS` (unset → 1 on CPU) has
 bitten yet. If the error rate climbs once volume rises, set
 `OLLAMA_MAX_LOADED_MODELS=2` on `ollama-ifkx-ollama-1` so bge-m3 + the triage
 model stay co-resident (~3 GB combined, 13 GB free).
+
+## Enforcement (2026-06-13)
+
+Shadow ran clean — **50 verdicts, 2 drops, 0 false positives, 0 errors** (4.0%
+drop rate; both drops were a daily horoscope + a `vidente` tabloid prediction).
+Flipped `TRIAGE_SHADOW=false` in the droplet `infra/.env` (env-only, worker
+recreated, no rebuild). Junk is now dropped before enrich: log line
+`TRIAGE DROP …` (no `shadow-` prefix), the message is acked, the raw article is
+still stored, and enrich/cluster/synth are skipped. Drop rate is lower than the
+15-25% estimate because the sports-betting category was removed for precision —
+that filler is still caught at synthesis (ADR-0021), just not pre-enrich.
+**To revert:** set `TRIAGE_SHADOW=true` (back to log-only) or `TRIAGE_ENABLED=false`
+(full off) in `infra/.env` + `docker compose up -d inkbytes-curator-worker`.
