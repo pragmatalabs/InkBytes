@@ -41,7 +41,7 @@ uniform sampler2D uPrev;
 uniform vec2 uRes;
 uniform float uTime, uSpeed, uDissip, uFlow, uInit;
 uniform vec2 uMouse, uMouseVel; uniform float uMouseStr;
-uniform vec2 uEmit; uniform float uEmitStr, uAmbient;
+uniform vec2 uEmit, uEmit2; uniform float uEmitStr, uAmbient;
 ${NOISE}
 
 vec2 curl(vec2 p){
@@ -77,19 +77,27 @@ void main(){
   vec4 prev = texture2D(uPrev, prevUv);
   vec4 col = prev * uDissip;
 
+  // primary drifting emitter → alpha (the indigo ink stream)
   vec2 de = (uv-uEmit)*vec2(asp,1.0);
   float ed = exp(-dot(de,de)*78.0);
   ed *= 0.62 + 0.38*fbm(p*6.0 + uTime*0.3);
   col.a += ed * uEmitStr;
-  col.r += ed * uEmitStr;
 
+  // secondary drifting emitter on a different path → green channel (warm ink)
+  vec2 de2 = (uv-uEmit2)*vec2(asp,1.0);
+  float ed2 = exp(-dot(de2,de2)*88.0);
+  ed2 *= 0.60 + 0.40*fbm(p*5.5 - uTime*0.26 + 14.0);
+  col.g += ed2 * uEmitStr;
+
+  // ambient flowing ribbons — primary + a phase-shifted secondary
   float amb = smoothstep(0.48, 0.82, fbm(p*1.7 + vec2(uTime*0.05, uTime*0.085)));
   col.a += amb * uAmbient;
-  col.r += amb * uAmbient;
+  float amb2 = smoothstep(0.52, 0.86, fbm(p*1.5 + vec2(-uTime*0.062, uTime*0.05) + 23.0));
+  col.g += amb2 * uAmbient * 0.8;
 
+  // pointer ink injection (primary stream)
   float inj = md * uMouseStr;
   col.a += inj;
-  col.r += inj;
 
   col = clamp(col, 0.0, 1.4);
   gl_FragColor = col;
@@ -133,17 +141,13 @@ vec3 ramp(int pal, float d, float flow, vec2 uv){
     return mix(bg, irid, smoothstep(0.05,0.55,d));
   }
   if(pal==5){
-    // InkBytes brand — deep navy field, luminous indigo ink, vermillion peak.
-    // Tuned to --accent #1a1a2e / --accent-dot #e05c5c so the splash reads as
-    // an extension of the brand, and kept dark-dominant so white foreground
-    // text stays legible: ink only brightens at higher density, vermillion is
-    // a thin accent at the very densest ribbons.
+    // InkBytes brand — deep navy field, luminous indigo ink. The warm
+    // (coral) tone is a SEPARATE drifting stream applied in main() from the
+    // green channel, so the two colours move independently. Kept dark-dominant
+    // so white foreground text stays legible.
     vec3 bg=vec3(0.043,0.043,0.082);          // ~#0b0b15, just under --accent
     vec3 indigo=vec3(0.235,0.282,0.64);       // luminous indigo ink
-    vec3 verm=vec3(0.878,0.361,0.361);        // --accent-dot highlight
-    vec3 c=mix(bg, indigo, smoothstep(0.12,0.9,d));
-    c=mix(c, verm, smoothstep(0.9,1.0,d)*0.6);
-    return c;
+    return mix(bg, indigo, smoothstep(0.12,0.9,d));
   }
   // pal 4 — vermillion editorial
   vec3 paper=vec3(0.965,0.937,0.890);
@@ -157,6 +161,15 @@ void main(){
   float d = st.a;
   float flow = fbm(vUv*4.0 + uTime*0.05);
   vec3 col = ramp(uPalette, d, flow, vUv);
+
+  // Second colour motion (palette 5): a warm coral ink stream from the green
+  // channel that drifts on its own path, blended over the indigo primary.
+  if(uPalette==5){
+    float d2 = clamp(st.g, 0.0, 1.0);
+    vec3 second = vec3(0.91, 0.39, 0.42);   // coral, --accent-dot family
+    col = mix(col, col*0.32 + second, smoothstep(0.06, 0.78, d2) * 0.70);
+    col += second * d2 * 0.14;              // soft warm glow
+  }
 
   if(uPalette==2 || uPalette==3 || uPalette==5){
     col += col * d * 0.38;
@@ -363,6 +376,11 @@ export class InkWall {
     const ex = 0.5 + 0.33 * Math.sin(time * 0.5 + this.opts.palette);
     const ey = 0.5 + 0.37 * Math.cos(time * 0.39 + this.opts.palette * 2.0);
     gl.uniform2f(this.U(this.simP, 'uEmit'), ex, ey);
+    // Second emitter — different frequencies + phase so the warm ink stream
+    // drifts on an independent Lissajous path from the indigo primary.
+    const ex2 = 0.5 + 0.34 * Math.sin(time * 0.33 + 2.1);
+    const ey2 = 0.5 + 0.30 * Math.cos(time * 0.47 + 4.2);
+    gl.uniform2f(this.U(this.simP, 'uEmit2'), ex2, ey2);
     gl.uniform1f(this.U(this.simP, 'uEmitStr'), o.emit);
     gl.uniform1f(this.U(this.simP, 'uAmbient'), o.ambient || 0.0);
     this._draw(this.simP);
