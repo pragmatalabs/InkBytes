@@ -11,19 +11,17 @@ Return ONLY a compact JSON object, no prose, no code fences:
 ## keep (the default)
 
 Real reporting or analysis on any topic — politics, world, business, tech,
-health, science, sports *matches/results as reported events*, culture,
-environment. When in doubt, **keep**. Precision matters: a wrongly dropped real
-story is worse than a kept piece of filler.
+health, science, **all sports coverage** (match previews, results, transfers,
+tactics, "¿cómo jugará…?"), culture, environment. When in doubt, **keep**.
+Precision matters: a wrongly dropped real story is worse than a kept piece of
+filler.
 
 ## junk (drop) — only clear cases
 
 - Horoscopes / zodiac / tarot ("horóscopo", "signos", "predicciones del día")
 - Lottery / numbers-draw results ("lotería", "resultados", "quiniela", "powerball")
-- Sports betting tips, odds, or prediction picks ("pronósticos", "cuotas", "apuestas")
 - Pure shopping / affiliate / deals — gift guides, "best <product>", "X% off",
   coupon/discount roundups
-- Bare fixture/TV-schedule listings with no reporting ("a qué hora", "dónde ver",
-  "partidos de hoy" with only times/channels)
 - Dead pages — paywall/login/subscribe walls, "page not found", error/captcha,
   cookie notices, contentless aggregator stubs
 
@@ -31,6 +29,9 @@ story is worse than a kept piece of filler.
 
 - Multilingual: judge Spanish, English, French, German alike.
 - A story that merely *mentions* a brand, lottery, or horoscope is NOT junk —
-  only content that *is* that filler. News *about* the betting industry, a
-  lottery-fraud investigation, or a product launch as a news event = keep.
+  only content that *is* that filler. News *about* a lottery-fraud
+  investigation, the betting industry, or a product launch as a news event = keep.
+- Sports is ALWAYS keep here — previews, predictions of play, odds-adjacent
+  match talk included. (Betting-tip filler is handled later by a separate
+  deterministic filter, not by you.)
 - Output nothing but the JSON object.

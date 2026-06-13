@@ -201,7 +201,7 @@ services:
       TRIAGE_ENABLED: ${TRIAGE_ENABLED:-false}
       TRIAGE_SHADOW: ${TRIAGE_SHADOW:-true}
       TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-http://ollama:11434/v1}
-      TRIAGE_MODEL: ${TRIAGE_MODEL:-qwen2.5:3b}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.2:3b}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
@@ -246,7 +246,7 @@ services:
       TRIAGE_ENABLED: ${TRIAGE_ENABLED:-false}
       TRIAGE_SHADOW: ${TRIAGE_SHADOW:-true}
       TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-http://ollama:11434/v1}
-      TRIAGE_MODEL: ${TRIAGE_MODEL:-qwen2.5:3b}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.2:3b}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}

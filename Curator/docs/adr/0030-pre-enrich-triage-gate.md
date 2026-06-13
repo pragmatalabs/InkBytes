@@ -82,3 +82,30 @@ Shadow mode measures the real rate + precision before any article is dropped.
   `OLLAMA_MAX_LOADED_MODELS`/`keep_alive` on the box, or a smaller model.
 - **Precision**: `TRIAGE shadow-DROP` lines are the audit log — confirm no real
   stories before flipping `shadow=false`.
+
+## Addendum — first shadow batch (2026-06-13)
+
+The first live cycle exposed two things, exactly what shadow mode is for:
+
+1. **Wrong model shipped.** The model validated locally (6/6) was `llama3.2:3b`,
+   but `qwen2.5:3b` was deployed. qwen produced 2/2 **false** drops on its first
+   two verdicts — "King Charles birthday" → *horoscope*, a World-Cup **preview**
+   → *betting tips*. Switched the default to **`llama3.2:3b`** (warm ~0.7 s on
+   the box; fixes the birthday nonsense).
+2. **3B can't resolve sports-preview vs betting-tip.** Both 3B models flag
+   "¿cómo jugará Brasil…?" as betting. That boundary is too fine for a 3B model,
+   so the **sports-betting and bare-fixture categories were removed from the
+   triage prompt** — the prompt now says *sports is ALWAYS keep*. No coverage
+   lost: betting/noise filler is still gated deterministically at synthesis
+   (`content_filter`, ADR-0021). Triage now only judges the categories 3B nails:
+   horoscopes, lottery, shopping/deals, dead pages.
+
+**Bigger models are not viable here** (measured on the box): `mistral:7b` ~81 s,
+`gemma4:12b` HTTP 500 @ 37 s — both blow the 12 s timeout → fail-open no-op. The
+CPU box's ceiling for an inline pre-enrich gate is the 3B class.
+
+**Thrash watch:** the first batch showed **0 `TRIAGE error`** and `ollama ps`
+showed no eviction storm — `OLLAMA_MAX_LOADED_MODELS` (unset → 1 on CPU) has not
+bitten yet. If the error rate climbs once volume rises, set
+`OLLAMA_MAX_LOADED_MODELS=2` on `ollama-ifkx-ollama-1` so bge-m3 + the triage
+model stay co-resident (~3 GB combined, 13 GB free).

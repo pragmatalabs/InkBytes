@@ -172,7 +172,7 @@ class TriageCfg(BaseModel):
     shadow: bool = True
     provider: str = "ollama"
     base_url: str | None = "http://localhost:11434/v1"
-    model: str = "qwen2.5:3b"
+    model: str = "llama3.2:3b"
     # Tolerant timeout: a warm 3B classify is ~1-3s, but the shared CPU box can
     # be busy with embeddings or cold-load the model (~20s). On timeout the gate
     # fails OPEN (keep), so a high cap only delays; it never drops wrongly.
