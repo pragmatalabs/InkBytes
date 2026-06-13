@@ -131,6 +131,12 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'events' "
                 "AND column_name = 'last_synth_source_count')"
             ),
+            "016_scrape_session_lane.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scrape_sessions' "
+                "AND column_name = 'lane')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -584,6 +590,7 @@ class DatabaseService:
         duration_seconds: float | None,
         outlets: list[dict[str, Any]],
         total_outlets: int,
+        lane: str = "cycle",
     ) -> None:
         """Persist one Messor harvest run into `public.scrape_sessions` (B12.1).
 
@@ -609,8 +616,8 @@ class DatabaseService:
                     (session_id, started_at, ended_at, total_articles,
                      successful_articles, failed_articles, duplicates_total,
                      success_rate, duration_seconds, outlets, total_outlets,
-                     created_at, updated_at)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,NOW(),NOW())
+                     lane, created_at, updated_at)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,NOW(),NOW())
                 ON CONFLICT (session_id) DO UPDATE SET
                     started_at          = EXCLUDED.started_at,
                     ended_at            = EXCLUDED.ended_at,
@@ -622,12 +629,14 @@ class DatabaseService:
                     duration_seconds    = EXCLUDED.duration_seconds,
                     outlets             = EXCLUDED.outlets,
                     total_outlets       = EXCLUDED.total_outlets,
+                    lane                = EXCLUDED.lane,
                     updated_at          = NOW()
                 """,
                 session_id, started_dt, ended_dt, int(total_articles),
                 int(successful_articles), int(failed_articles),
                 int(duplicates_total), float(success_rate), duration_seconds,
                 json.dumps(outlets or []), int(total_outlets),
+                (lane if lane in ("pulse", "cycle") else "cycle"),
             )
 
     # ─────────────────────────────────────────── article CRUD ──────

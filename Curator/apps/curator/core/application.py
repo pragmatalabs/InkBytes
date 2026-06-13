@@ -354,6 +354,7 @@ class Application:
                 ),
                 outlets=outlets,
                 total_outlets=int(data.get("total_outlets") or len(outlets)),
+                lane=str(data.get("lane") or "cycle"),
             )
             logger.info(
                 "✓ scrape_sessions upsert %s | outlets=%d total=%d new=%d dup=%d",

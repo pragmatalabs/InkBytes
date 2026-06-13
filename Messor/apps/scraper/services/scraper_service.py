@@ -177,11 +177,15 @@ class ScraperService:
         }
 
     def _emit_session_completed(self, run_id: str, started_at, ended_at,
-                                duration: float, per_outlet: List[Dict[str, Any]]) -> None:
+                                duration: float, per_outlet: List[Dict[str, Any]],
+                                lane: str = "cycle") -> None:
         """Aggregate per-outlet stats into a run-level summary and emit it.
 
         Emit-only (ADR-0006): Curator consumes and persists. Best-effort — a
         publish failure is logged and never aborts the harvest.
+
+        ``lane`` ('pulse' | 'cycle') tags 5-min RSS pulse ticks vs the full
+        2-hour cycle so the Backoffice can filter them apart (Messor ADR-0017).
         """
         if not self.message_service:
             return
@@ -210,6 +214,7 @@ class ScraperService:
             "success_rate":        round(success_rate, 4),
             "outlets":             outlets_payload,
             "total_outlets":       len(per_outlet),
+            "lane":                lane,
         }
         try:
             self.message_service.publish_scrape_session_completed(session)
@@ -414,6 +419,7 @@ class ScraperService:
                     self._emit_session_completed(
                         outlet_session_id, outlet_start, outlet_end,
                         outlet_duration, [outlet_stats],
+                        lane="pulse" if pulse else "cycle",
                     )
                     self.logger.info(
                         f"Session emitted for {slug}: {outlet_stats.get('successful', 0)} new articles"
