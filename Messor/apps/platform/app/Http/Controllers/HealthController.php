@@ -44,7 +44,6 @@ class HealthController extends Controller
     /** Queues we care about for the Messor -> Curator pipeline. */
     private const KEY_QUEUES = [
         'curator.articles-scraped',
-        'articles-scraped',
         'curator.commands',
     ];
 

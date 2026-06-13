@@ -101,18 +101,16 @@ class ScraperService:
                 
                 # Check if file exists before proceeding
                 if os.path.exists(local_path):
-                    # Publish event to RabbitMQ
-                    if self.message_service and self.message_service.connection and self.message_service.connection.is_open:
-                        bucket_name = self.config.digitalocean.spaces.buckets.main.name()
-                        s3_path = f"{self.config.digitalocean.spaces.buckets.main.folders.scraping()}/{file_name}"
-                        
-                        self.message_service.publish_articles_scraped_event(
-                            session_info,
-                            bucket_name,
-                            s3_path
-                        )
-                        self.logger.info(f"Published event for file: {file_name}")
-                    
+                    # NOTE: the legacy file-level `articles_scraped` event
+                    # (publish_articles_scraped_event → the unprefixed
+                    # `articles-scraped` queue) is intentionally NOT published.
+                    # Curator consumes per-article events from the `messor` topic
+                    # exchange (curator.articles-scraped) + run summaries from
+                    # curator.scrape-sessions; nothing ever consumed the
+                    # file-pointer event, so it just piled up an orphan queue.
+                    # Per-article publishing happens in storage_service
+                    # (_publish_articles_from_staging_file). (2026-06-13 cleanup)
+
                     # Move file to Digital Ocean S3
                     if hasattr(self.storage_service, 'digital_ocean_handler'):
                         bucket = self.config.digitalocean.spaces.buckets.main.name()

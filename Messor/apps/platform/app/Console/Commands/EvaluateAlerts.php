@@ -55,7 +55,6 @@ class EvaluateAlerts extends Command
     /** Queues whose combined depth counts toward the pipeline backlog (B6). */
     private const KEY_QUEUES = [
         'curator.articles-scraped',
-        'articles-scraped',
         'curator.commands',
     ];
 
