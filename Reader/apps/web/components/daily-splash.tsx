@@ -14,6 +14,7 @@
  */
 import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/logo";
+import { InkShaderBg } from "@/components/ink-shader-bg";
 import type { EventSummary } from "@/lib/types";
 import {
   splashGate,
@@ -80,9 +81,23 @@ export function DailySplash({ events }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label="Daily briefing"
-      className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[var(--accent)] text-white safe-top md:hidden animate-splash-in"
+      className="fixed inset-0 z-[60] overflow-hidden bg-[var(--accent)] text-white safe-top md:hidden animate-splash-in"
     >
-      <div className="flex flex-1 flex-col px-7 pb-8 pt-2 min-h-0">
+      {/* Animated ink/smoke background (WebGL). Drag anywhere open to stir it.
+          Falls back to the solid --accent bg if WebGL/reduced-motion. */}
+      <InkShaderBg palette={5} className="absolute inset-0 h-full w-full" />
+      {/* Legibility scrims so the white foreground reads over the ink. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "radial-gradient(140% 95% at 50% 46%, transparent 50%, rgba(26,26,46,0.55) 100%), linear-gradient(180deg, rgba(26,26,46,0.45) 0%, transparent 28% 64%, rgba(26,26,46,0.62) 100%)",
+        }}
+      />
+      {/* Content sits above the ink; the wrapper is transparent to pointers so
+          drags reach the canvas, while the interactive controls opt back in. */}
+      <div className="pointer-events-none relative z-10 flex h-full flex-col px-7 pb-8 pt-2 min-h-0">
         {/* Header: brand lockup + close */}
         <div className="flex items-center justify-between pt-2">
           <span className="inline-flex items-center gap-2">
@@ -93,7 +108,7 @@ export function DailySplash({ events }: Props) {
             type="button"
             onClick={dismiss}
             aria-label="Close"
-            className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white/[0.14] backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+            className="pointer-events-auto flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white/[0.14] backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
           >
             <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
               <path d="M2 2l11 11M13 2L2 13" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
@@ -154,7 +169,7 @@ export function DailySplash({ events }: Props) {
           <button
             type="button"
             onClick={dismiss}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-[17px] font-semibold text-[var(--accent)] transition hover:brightness-[1.06] active:translate-y-[0.5px] active:scale-[0.99]"
+            className="pointer-events-auto flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-[17px] font-semibold text-[var(--accent)] transition hover:brightness-[1.06] active:translate-y-[0.5px] active:scale-[0.99]"
           >
             Read now
             <svg width="17" height="14" viewBox="0 0 17 14" aria-hidden="true">
@@ -171,7 +186,7 @@ export function DailySplash({ events }: Props) {
           <button
             type="button"
             onClick={never}
-            className="mt-1.5 w-full py-3 text-[13px] font-medium text-white/55 transition hover:text-white/75"
+            className="pointer-events-auto mt-1.5 w-full py-3 text-[13px] font-medium text-white/55 transition hover:text-white/75"
           >
             Don&rsquo;t show again
           </button>
