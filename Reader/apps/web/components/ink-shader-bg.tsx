@@ -29,9 +29,9 @@ export function InkShaderBg({ palette = 5, className }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Honor reduced-motion by NOT animating — but still show the ink as a
-    // single static frame (the engine warms up the field on construction, so
-    // one render() paints a still ink image). Full motion otherwise.
+    // Everyone gets a gentle, slow ink drift (product decision: a frozen frame
+    // felt dead). reduced-motion still gets the animation but slower/calmer as
+    // a courtesy — this is a soft ambient drift, not vestibular parallax/zoom.
     const reduce = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     let wall:
@@ -44,23 +44,19 @@ export function InkShaderBg({ palette = 5, className }: Props) {
         }
       | null = null;
     try {
-      // Animated path: tuned for a SUBTLE backdrop — steady-state field density
-      // ≈ ambient/(1−dissip) ≈ 0.0028/0.027 ≈ 0.10, dark-dominant (white text
-      // legible) with thin luminous ribbons from the drifting emitter + drag.
-      // Reduced-motion path: a single STATIC frame, but with a stronger emitter
-      // during the constructor warm-up so the still image carries visible ink
-      // ribbons (the gentle steady-state alone is nearly imperceptible). Higher
-      // emit (concentrated strokes) + low ambient keeps dark gaps for text.
-      wall = new InkWall(
-        canvas,
-        reduce
-          ? { palette, speed: 0.0024, dissip: 0.982, flow: 2.6, emit: 0.03, ambient: 0.004 }
-          : { palette, speed: 0.0024, dissip: 0.973, flow: 2.6, emit: 0.006, ambient: 0.0028 }
-      );
-      if (reduce) {
-        wall!.render(); // static frame, no rAF loop, no pointer stir
-        return () => wall?.destroy();
-      }
+      // Gentle/slow but always clearly visible: a strong drifting emitter
+      // (emit) lays luminous ink ribbons that the curl flow keeps refreshing,
+      // so the field never empties out the way a thin ambient-only field does;
+      // a low advection `speed` keeps the drift calm. reduced-motion drifts
+      // even slower. (Earlier thin tuning looked empty at low-density frames.)
+      wall = new InkWall(canvas, {
+        palette,
+        speed: reduce ? 0.001 : 0.0017,
+        dissip: 0.981,
+        flow: 2.6,
+        emit: 0.022,
+        ambient: 0.0045,
+      });
       wall!.start();
     } catch {
       return; // WebGL unavailable / context failure → solid background fallback
