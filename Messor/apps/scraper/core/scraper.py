@@ -997,7 +997,14 @@ class NewsScraper:
         self.processed_articles = ArticleCollection()
         self.outlet = outlet
         self.executor = executor          # retained for compat; unused internally
-        self.logger = logging.getLogger(self.__class__.__name__)
+        # Child of the configured "Inkbytes.Messor" logger (LoggingService) so
+        # it inherits the INFO level + handlers. A bare getLogger("NewsScraper")
+        # is a top-level logger that inherits root's WARNING default, which
+        # silently dropped the per-stage breakdown (Processing/Progress/
+        # "Completed <outlet>: new=… stale-skip=… parse-fail=…") — the exact
+        # lines that diagnose why an outlet harvests 0 (e.g. all-undated →
+        # freshness-gate drops). 2026-06-12.
+        self.logger = logging.getLogger(f"Inkbytes.Messor.{self.__class__.__name__}")
         self.stats = ScrapingStats()
         self.session = session or ScrapingSession()
         self.languages = languages
