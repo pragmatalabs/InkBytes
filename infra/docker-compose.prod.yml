@@ -112,9 +112,31 @@ services:
       # moderation commands (re-embed, re-synthesize, publish/unpublish).
       # Default is localhost:15672 which doesn't work inside Docker.
       RABBITMQ_MANAGEMENT_URL: http://inkbytes-rabbitmq:15672
+      # Runtime Monitor — reach Docker through the read-only socket proxy, NOT
+      # the raw host socket (that would grant host-root to this public admin
+      # app). The proxy only exposes GET /containers + /info.
+      RUNTIME_MONITOR_PROJECT: inkbytes
+      RUNTIME_MONITOR_DOCKER_HOST: http://docker-socket-proxy:2375
     depends_on:
       inkbytes-postgres: { condition: service_healthy }
       inkbytes-rabbitmq: { condition: service_healthy }
+
+  # ── INTERNAL: read-only Docker API proxy for the Runtime Monitor ─────────────
+  # Hardened gateway so the public Backoffice never touches the raw host socket
+  # (which is host-root). Exposes ONLY GET /containers + /info over TCP on the
+  # internal network; all mutating verbs are denied (POST=0, default-deny).
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.2.0
+    container_name: inkbytes-docker-proxy
+    restart: unless-stopped
+    networks: [inkbytes-internal]
+    mem_limit: 64m
+    environment:
+      CONTAINERS: "1"   # GET /containers/json, /{id}/json, /{id}/stats, /{id}/top
+      INFO: "1"         # GET /info (compose project detection)
+      POST: "0"         # deny all writes (also the default)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   # ── INTERNAL: Messor harvester (schedule + API) ──────────────────────────────
   inkbytes-messor:

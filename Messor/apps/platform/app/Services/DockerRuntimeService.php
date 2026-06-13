@@ -24,13 +24,16 @@ class DockerRuntimeService
             );
         }
 
+        // Reachable either via the read-only TCP socket proxy (preferred in
+        // prod — see runtime_monitor.docker_host) or the raw unix socket.
+        $dockerHost = (string) config('runtime_monitor.docker_host');
         $socketPath = (string) config('runtime_monitor.socket_path');
 
-        if ($socketPath === '' || !file_exists($socketPath)) {
+        if ($dockerHost === '' && ($socketPath === '' || !file_exists($socketPath))) {
             return $this->unavailableSnapshot(
                 $project,
                 $updatedAt,
-                "Docker socket is not available at {$socketPath}."
+                "Docker API unavailable (no socket proxy configured and no socket at {$socketPath})."
             );
         }
 
@@ -230,16 +233,22 @@ class DockerRuntimeService
 
     private function dockerRequest(string $path, array $query = []): mixed
     {
-        $socketPath = (string) config('runtime_monitor.socket_path');
+        $dockerHost = (string) config('runtime_monitor.docker_host');
+        $timeout = (int) config('runtime_monitor.timeout_seconds');
 
-        $response = Http::timeout((int) config('runtime_monitor.timeout_seconds'))
-            ->withOptions([
-                'curl' => [
-                    CURLOPT_UNIX_SOCKET_PATH => $socketPath,
-                ],
-            ])
-            ->acceptJson()
-            ->get(self::DOCKER_HOST . $path, $query);
+        if ($dockerHost !== '') {
+            // TCP via the read-only socket proxy — plain HTTP, no unix socket.
+            $response = Http::timeout($timeout)
+                ->acceptJson()
+                ->get(rtrim($dockerHost, '/') . $path, $query);
+        } else {
+            // Raw unix socket (local/dev).
+            $socketPath = (string) config('runtime_monitor.socket_path');
+            $response = Http::timeout($timeout)
+                ->withOptions(['curl' => [CURLOPT_UNIX_SOCKET_PATH => $socketPath]])
+                ->acceptJson()
+                ->get(self::DOCKER_HOST . $path, $query);
+        }
 
         $response->throw();
 
