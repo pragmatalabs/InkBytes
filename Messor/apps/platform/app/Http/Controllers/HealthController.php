@@ -31,6 +31,16 @@ class HealthController extends Controller
     /** Per-component external call budget (seconds). Keeps the page snappy. */
     private const TIMEOUT = 2;
 
+    /**
+     * Messor gets a more generous budget. It's a single uvicorn process that
+     * shares the GIL with its scraping threads, so during an active harvest
+     * (now frequent: the 5-min breaking pulse + the cycle, Messor ADR-0017)
+     * even a trivial health route can take >2s to get CPU. A short timeout made
+     * the dashboard flap to "unreachable" mid-scrape even though harvesting was
+     * healthy. 6s rides over those windows without making the page sluggish.
+     */
+    private const MESSOR_TIMEOUT = 6;
+
     /** Queues we care about for the Messor -> Curator pipeline. */
     private const KEY_QUEUES = [
         'curator.articles-scraped',
@@ -141,9 +151,11 @@ class HealthController extends Controller
         $started = microtime(true);
 
         try {
-            $response = Http::timeout(self::TIMEOUT)
+            // Hit the lightweight root liveness route, not /api/scrapesessions
+            // (which does session work) — we only need "is the API serving?".
+            $response = Http::timeout(self::MESSOR_TIMEOUT)
                 ->acceptJson()
-                ->get($base.'/api/scrapesessions', ['page' => 1, 'limit' => 1]);
+                ->get($base.'/');
 
             return [
                 'status' => $response->successful() ? 'up' : 'down',
