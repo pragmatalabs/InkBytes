@@ -19,6 +19,7 @@ from services.message_service import MessageService, ProcessingPausedError
 from skills.assistant import AssistantSkill
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
+from skills.triage import TriageSkill
 from skills.illustrate import IllustrateSkill
 from skills.synthesize import SynthesizeSkill
 
@@ -60,6 +61,9 @@ class Application:
         )
         # Skills
         self.enrich = EnrichSkill(self.llm, cfg.llm)
+        # Pre-enrich triage gate (ADR-0030): small local model drops junk before
+        # the paid DeepSeek enrich. No-op when cfg.triage.enabled is False.
+        self.triage = TriageSkill(cfg.triage)
         self.cluster = ClusterSkill(self.db, cfg.clustering)
         self.synthesize = SynthesizeSkill(
             self.llm, self.db, cfg.llm,
@@ -78,6 +82,10 @@ class Application:
         # prefetch_count=1 serialisation. Raise to 2+ only if Ollama moves to
         # GPU or a dedicated embedding server.
         self._embed_sem = asyncio.Semaphore(1)
+        # Triage gate concurrency (ADR-0030): bound parallel local-model calls so
+        # the shared CPU box isn't hit by max_concurrent_articles generations at
+        # once (same reasoning as _embed_sem).
+        self._triage_sem = asyncio.Semaphore(max(1, cfg.triage.max_concurrent))
         # Cluster-attach serialisation: two same-story articles clustering
         # concurrently would each see "no neighbour" and seed duplicate events.
         # The attach decision is fast (~1s: one ANN query + two UPDATEs), so a
@@ -653,6 +661,27 @@ class Application:
                     article.id, article.outlet.name,
                 )
                 return
+
+            # Pre-enrich triage gate (ADR-0030): a small local model drops junk
+            # (horoscopes, lottery/betting, deals, dead pages) before the paid
+            # DeepSeek enrich. Runs only on articles that would actually be
+            # enriched (after the dedup fast-path). Shadow mode logs the verdict
+            # without dropping, so we can measure precision before enforcing.
+            if self.cfg.triage.enabled:
+                async with self._triage_sem:
+                    tv = await self.triage.run(article)
+                if tv.drop:
+                    if self.cfg.triage.shadow:
+                        logger.info(
+                            "TRIAGE shadow-DROP %s (%s) — %s | %s",
+                            article.id, article.outlet.name, tv.reason, article.title[:80],
+                        )
+                    else:
+                        logger.info(
+                            "TRIAGE DROP %s (%s) — %s | %s",
+                            article.id, article.outlet.name, tv.reason, article.title[:80],
+                        )
+                        return  # ack; skip enrich/cluster/synth (raw article kept)
 
             # 1. ENRICH — the slow stage (8-17s of LLM network wait); runs
             # concurrently across messages up to max_concurrent_articles.

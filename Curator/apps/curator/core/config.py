@@ -159,6 +159,29 @@ class EmbedCfg(BaseModel):
     base_url: str | None = "http://localhost:11434/v1"
 
 
+class TriageCfg(BaseModel):
+    # Pre-enrich triage gate (ADR-0030): a small LOCAL model (Hostinger Ollama)
+    # classifies each to-be-enriched article as keep | junk, so obvious filler
+    # (horoscopes, lottery/betting, pure deals/affiliate, error/login pages,
+    # contentless stubs) is dropped BEFORE the paid DeepSeek enrich call.
+    # Off by default; enable in prod once the model is pulled.
+    enabled: bool = False
+    # Shadow mode: run + LOG the verdict but DO NOT actually drop — measure
+    # precision against real enrich for a day before enforcing. When False, a
+    # `junk` verdict skips enrich/cluster/synth (the article stays stored raw).
+    shadow: bool = True
+    provider: str = "ollama"
+    base_url: str | None = "http://localhost:11434/v1"
+    model: str = "qwen2.5:3b"
+    # Tolerant timeout: a warm 3B classify is ~1-3s, but the shared CPU box can
+    # be busy with embeddings or cold-load the model (~20s). On timeout the gate
+    # fails OPEN (keep), so a high cap only delays; it never drops wrongly.
+    timeout_s: float = 12.0
+    # Bound concurrent triage calls so 8 in-flight articles don't hammer the
+    # 4-CPU box with 8 parallel generations (same lesson as _embed_sem).
+    max_concurrent: int = 2
+
+
 class ClusterCfg(BaseModel):
     # Tuned for bge-m3 (Ollama, 1024-dim, ADR-0017): 72h of production data
     # showed articles with ≥0.50 cosine similarity are effectively the same
@@ -243,6 +266,7 @@ class CuratorConfig(BaseModel):
     rabbitmq: RmqCfg = RmqCfg()
     spaces: SpacesCfg = SpacesCfg()
     api: ApiCfg = ApiCfg()
+    triage: TriageCfg = TriageCfg()
 
     @classmethod
     def load(cls, path: str | Path) -> "CuratorConfig":
@@ -336,6 +360,12 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         "S3_BUCKET":         ("spaces", "bucket"),
         "CURATOR_LOG_LEVEL": ("application", "log_level"),
         "CURATOR_MODE":      ("application", "mode"),
+        # Pre-enrich triage gate (ADR-0030). Enable + point at the Hostinger
+        # Ollama in prod via infra/.env; bool/str coerced by re-validation.
+        "TRIAGE_ENABLED":    ("triage", "enabled"),
+        "TRIAGE_SHADOW":     ("triage", "shadow"),
+        "TRIAGE_BASE_URL":   ("triage", "base_url"),
+        "TRIAGE_MODEL":      ("triage", "model"),
     }
     data = cfg.model_dump()
     for env_var, (section, key) in overrides.items():
