@@ -112,33 +112,48 @@ class ClusterSkill:
                         "SELECT source_count FROM events WHERE id = $1", row["event_id"]
                     )
 
-                    # Breaking-news detector (ADR-0024): a young cluster that
-                    # ≥2 distinct pulse outlets have published into is breaking.
-                    # Fires at most once per event (breaking_at IS NULL guard);
-                    # only an attach can trigger it — a 1-source seed can't.
+                    # Breaking-news detector (ADR-0024 + 2026-06-12 velocity fix):
+                    # an event is breaking when ≥2 distinct pulse outlets have
+                    # articles whose scraped_at fall within breaking_window_minutes
+                    # OF EACH OTHER (a coverage surge), measured back from the most
+                    # recent pulse article — NOT the event's age at processing time
+                    # (which pipeline lag made impossible to satisfy). scraped_at is
+                    # harvest time, so this is lag-immune. The recency guard stops
+                    # reprocessing from retro-flagging an old surge. Fires once
+                    # (breaking_at IS NULL); only an attach can trigger it.
                     if self.cfg.breaking_window_minutes > 0:
                         flagged = await conn.fetchval(
                             """
+                            WITH pulse_arts AS (
+                                SELECT a.outlet_id, a.scraped_at
+                                  FROM articles a
+                                  JOIN outlets o ON o.id = a.outlet_id
+                                 WHERE a.event_id = $1 AND o.pulse
+                            ),
+                            latest AS (SELECT MAX(scraped_at) AS mx FROM pulse_arts)
                             UPDATE events e
                                SET breaking_at    = NOW(),
                                    breaking_until = NOW() + ($2 || ' hours')::interval
                              WHERE e.id = $1
                                AND e.breaking_at IS NULL
-                               AND e.first_seen_at > NOW() - ($3 || ' minutes')::interval
-                               AND (SELECT COUNT(DISTINCT a.outlet_id)
-                                      FROM articles a
-                                      JOIN outlets o ON o.id = a.outlet_id
-                                     WHERE a.event_id = e.id AND o.pulse) >= 2
+                               AND (SELECT mx FROM latest) > NOW() - ($4 || ' hours')::interval
+                               AND (
+                                     SELECT COUNT(DISTINCT pa.outlet_id)
+                                       FROM pulse_arts pa, latest
+                                      WHERE pa.scraped_at
+                                            > latest.mx - ($3 || ' minutes')::interval
+                                   ) >= 2
                             RETURNING e.id
                             """,
                             row["event_id"],
                             str(self.cfg.breaking_ttl_hours),
                             str(self.cfg.breaking_window_minutes),
+                            str(self.cfg.breaking_recency_hours),
                         )
                         if flagged:
                             logger.info(
                                 "BREAKING event %s — ≥2 pulse outlets within %d min "
-                                "(demotes in %dh)",
+                                "of each other (demotes in %dh)",
                                 flagged, self.cfg.breaking_window_minutes,
                                 self.cfg.breaking_ttl_hours,
                             )
