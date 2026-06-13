@@ -5,6 +5,7 @@ import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outl
 import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem } from "@/lib/types";
 import ShareButton from "./share-button";
 import MediaRailDrawer from "./media-rail-drawer";
+import { NewsMarkdown } from "@/components/news-markdown";
 
 export const revalidate = 300;
 
@@ -54,30 +55,6 @@ export async function generateMetadata(
   } catch {
     return { title: "Event" };
   }
-}
-
-/** Split synthesis text by citation markers for inline highlighting. */
-function renderSynthesis(text: string) {
-  const paragraphs = text.trim().split(/\n\n+/);
-  return paragraphs.map((para, i) => {
-    const parts = para.split(/(\[(?:Source|Fuente): [^\]]+\])/g);
-    return (
-      <p key={i} className="mb-5 last:mb-0">
-        {parts.map((part, j) =>
-          /^\[(?:Source|Fuente):/.test(part) ? (
-            <span
-              key={j}
-              className="inline-block text-[10px] font-mono font-medium text-[var(--ink-muted)] bg-gray-100 rounded px-1 py-px mx-0.5 align-middle leading-none"
-            >
-              {part.replace(/^\[|\]$/g, "")}
-            </span>
-          ) : (
-            part
-          )
-        )}
-      </p>
-    );
-  });
 }
 
 export default async function EventPage(
@@ -240,9 +217,9 @@ export default async function EventPage(
         </div>
       </div>
 
-      {/* Synthesis */}
+      {/* Synthesis — full markdown (headings, bold, lists, citations) */}
       <div className="synthesis-body text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-10">
-        {renderSynthesis(page.synthesis_md)}
+        <NewsMarkdown source={page.synthesis_md} />
       </div>
 
       {/* Evidence rail */}
