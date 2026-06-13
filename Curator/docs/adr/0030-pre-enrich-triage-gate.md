@@ -122,3 +122,27 @@ still stored, and enrich/cluster/synth are skipped. Drop rate is lower than the
 that filler is still caught at synthesis (ADR-0021), just not pre-enrich.
 **To revert:** set `TRIAGE_SHADOW=true` (back to log-only) or `TRIAGE_ENABLED=false`
 (full off) in `infra/.env` + `docker compose up -d inkbytes-curator-worker`.
+
+## ⚠️ Known limitation — dropped articles have no terminal marker (2026-06-13)
+
+The raw article is upserted (`application._handle_event` line ~653) **before**
+the gate; the drop branch (~684) just `return`s. So a triage-dropped article
+sits in `articles` with `topic IS NULL` / `enriched_at IS NULL` and **nothing
+distinguishes it from a genuinely-unenriched (pending) article**. Two
+consequences:
+
+1. **`--reenrich-missing` resurrects dropped junk.** `fetch_unenriched_articles()`
+   selects `topic IS NULL AND body_text IS NOT NULL` — exactly a dropped
+   article's shape. Running `python main.py --reenrich-missing` while the gate
+   is enforcing will re-enrich every horoscope/lottery page the gate dropped,
+   silently undoing the gate, re-polluting the corpus, and spending the enrich
+   $ the gate saved. **Workaround until fixed: do NOT run `--reenrich-missing`
+   while triage is enforcing** (or disable triage for the duration of a backfill).
+2. **Dashboard "pending enrichment" drifts.** The Backoffice Curator-Status
+   counter (`enriched_at IS NULL`) counts dropped junk as forever-pending, so it
+   climbs over time and never reads "all done." Cosmetic, but misleading.
+
+**Fix (deferred, flagged not built):** add a nullable `triage_dropped_at`
+column, set it in the drop branch instead of a bare `return`, and add
+`AND triage_dropped_at IS NULL` to `fetch_unenriched_articles()` + the dashboard
+pending query. Doubles as a queryable drop audit.
