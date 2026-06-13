@@ -41,9 +41,17 @@ class TriageVerdict:
 class TriageSkill:
     name = "triage"
 
+    # Rolling shadow counters — every _STATS_EVERY verdicts we log a summary so
+    # the keep/junk/error mix (and thus the drop-rate denominator) is observable
+    # without logging every individual keep.
+    _STATS_EVERY = 50
+
     def __init__(self, cfg: TriageCfg) -> None:
         self.cfg = cfg
         self._client = None
+        self._n_keep = 0
+        self._n_junk = 0
+        self._n_error = 0
         if cfg.enabled:
             from openai import AsyncOpenAI
             base = cfg.base_url or "http://localhost:11434/v1"
@@ -83,8 +91,26 @@ class TriageSkill:
             if verdict not in ("keep", "junk"):
                 verdict = "keep"
             reason = str(data.get("reason", ""))[:160]
+            self._tally(verdict)
             return TriageVerdict(verdict, reason)
         except Exception as e:
             # Fail OPEN — never drop because the local model errored/timed out.
             logger.warning("TRIAGE error for %s — failing open (keep): %s", art.id, e)
+            self._tally("error")
             return TriageVerdict("error", str(e)[:120])
+
+    def _tally(self, verdict: str) -> None:
+        if verdict == "junk":
+            self._n_junk += 1
+        elif verdict == "error":
+            self._n_error += 1
+        else:
+            self._n_keep += 1
+        total = self._n_keep + self._n_junk + self._n_error
+        if total % self._STATS_EVERY == 0:
+            judged = self._n_keep + self._n_junk  # excludes fail-open errors
+            drop_pct = (100.0 * self._n_junk / judged) if judged else 0.0
+            logger.info(
+                "TRIAGE stats: %d judged | keep=%d junk=%d (%.1f%% drop) | errors=%d (fail-open)",
+                judged, self._n_keep, self._n_junk, drop_pct, self._n_error,
+            )
