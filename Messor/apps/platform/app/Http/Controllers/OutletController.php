@@ -75,6 +75,11 @@ class OutletController extends Controller
                         'article_count' => $row['article_count'] ?? 0,
                         'events_contributed' => $row['events_contributed'] ?? 0,
                         'last_scraped' => $row['last_scraped'] ?? null,
+                        // Redundancy signal: % of this outlet's events where it
+                        // is load-bearing for the 2-source publish bar. Low =
+                        // almost always a redundant 3rd+ source → safe cut.
+                        'decisive_pct' => $row['decisive_pct'] ?? null,
+                        'decisive_events' => $row['decisive_events'] ?? null,
                     ];
                 })
                 ->values(),
@@ -202,6 +207,43 @@ class OutletController extends Controller
                     ? Carbon::parse($row->last_scraped)->toIso8601String()
                     : null,
             ];
+        }
+
+        // Decisive-contribution metric (redundancy analysis): for each outlet,
+        // the share of its events where it is load-bearing for the ≥2-source
+        // publish bar — i.e. the event has ≤2 distinct sources (this outlet is
+        // the sole source, or one of exactly two). A low decisive_pct means the
+        // outlet is almost always a redundant 3rd+ source → a safe cut. Merged
+        // into the same map so the Outlets screen can show it (own try: a heavy
+        // aggregate must never break the listing if it times out).
+        try {
+            $decisive = DB::select(
+                "WITH ev_src AS (
+                     SELECT event_id, count(DISTINCT outlet_id) AS n_src
+                       FROM public.articles
+                      WHERE event_id IS NOT NULL AND outlet_id NOT LIKE 'ondemand-%'
+                      GROUP BY event_id
+                 )
+                 SELECT a.outlet_id,
+                        count(DISTINCT a.event_id) AS ev,
+                        count(DISTINCT a.event_id) FILTER (WHERE s.n_src <= 2) AS decisive
+                   FROM public.articles a
+                   JOIN ev_src s ON s.event_id = a.event_id
+                  WHERE a.outlet_id NOT LIKE 'ondemand-%'
+                  GROUP BY a.outlet_id"
+            );
+            foreach ($decisive as $d) {
+                if (! isset($stats[$d->outlet_id])) {
+                    continue;
+                }
+                $ev = (int) $d->ev;
+                $stats[$d->outlet_id]['decisive_events'] = (int) $d->decisive;
+                $stats[$d->outlet_id]['decisive_pct'] = $ev > 0
+                    ? round(100.0 * (int) $d->decisive / $ev, 1)
+                    : null;
+            }
+        } catch (Throwable $e) {
+            // leave decisive_* unset → screen shows "—"
         }
 
         return $stats;

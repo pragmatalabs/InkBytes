@@ -461,6 +461,11 @@ export default function OutletsIndex({
                             </SortableTableCell>
                             <TableCell align="right">Articles</TableCell>
                             <TableCell align="right">Events</TableCell>
+                            <TableCell align="right">
+                                <Tooltip title="Share of this outlet's events where it is load-bearing for the 2-source publish bar (sole source, or one of exactly two). Low % = almost always a redundant 3rd+ source → a safe cut.">
+                                    <span>Decisive</span>
+                                </Tooltip>
+                            </TableCell>
                             <TableCell>Last scraped</TableCell>
                             <TableCell>Health</TableCell>
                             <TableCell align="right">Actions</TableCell>
@@ -469,7 +474,7 @@ export default function OutletsIndex({
                     <TableBody>
                         {sortedOutlets.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={isOperator ? 13 : 12}>
+                                <TableCell colSpan={isOperator ? 14 : 13}>
                                     <EmptyState
                                         title={
                                             filters.q
@@ -590,6 +595,27 @@ export default function OutletsIndex({
                                         <Typography variant="body2">
                                             {outlet.events_contributed ?? 0}
                                         </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        {outlet.decisive_pct == null ? (
+                                            <Typography variant="body2" color="text.disabled">—</Typography>
+                                        ) : (
+                                            <Tooltip title={`Decisive in ${outlet.decisive_events ?? 0} of ${outlet.events_contributed ?? 0} events${outlet.decisive_pct < 25 ? ' · low — likely a safe cut' : ''}`}>
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontWeight: 600,
+                                                        color: outlet.decisive_pct < 25
+                                                            ? 'error.main'
+                                                            : outlet.decisive_pct < 40
+                                                                ? 'warning.main'
+                                                                : 'text.secondary',
+                                                    }}
+                                                >
+                                                    {outlet.decisive_pct}%
+                                                </Typography>
+                                            </Tooltip>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <Tooltip
