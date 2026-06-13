@@ -197,6 +197,11 @@ services:
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
+      # Pre-enrich triage gate (Curator ADR-0030). Off by default; ships in shadow.
+      TRIAGE_ENABLED: ${TRIAGE_ENABLED:-false}
+      TRIAGE_SHADOW: ${TRIAGE_SHADOW:-true}
+      TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-http://ollama:11434/v1}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-qwen2.5:3b}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
@@ -237,6 +242,11 @@ services:
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
+      # Pre-enrich triage gate (Curator ADR-0030). Off by default; ships in shadow.
+      TRIAGE_ENABLED: ${TRIAGE_ENABLED:-false}
+      TRIAGE_SHADOW: ${TRIAGE_SHADOW:-true}
+      TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-http://ollama:11434/v1}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-qwen2.5:3b}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
