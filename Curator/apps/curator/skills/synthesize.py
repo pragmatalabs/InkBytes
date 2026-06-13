@@ -49,7 +49,13 @@ class SynthesizeSkill:
         raw = LlmService.load_prompt("synthesize")
         return re.split(r"^## Input format", raw, flags=re.MULTILINE)[0].strip()
 
-    async def run(self, event_id: str) -> PageV1 | None:
+    async def run(self, event_id: str, force: bool = False) -> PageV1 | None:
+        """Synthesize (and publish) the event's page.
+
+        ``force=True`` (manual breaking gate, ADR-0029): an editor has vetted
+        this story, so bypass the ≥2-article minimum and the promo/noise
+        publish gates. Still requires ≥1 article to have content to synthesize.
+        """
         async with self.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
                 """
@@ -60,15 +66,21 @@ class SynthesizeSkill:
                 """,
                 event_id,
             )
-        if len(rows) < 2:
+        if not rows:
+            logger.info("SYNTHESIZE skipped — event %s has no articles", event_id)
+            return None
+        if len(rows) < 2 and not force:
             logger.info("SYNTHESIZE skipped — event %s has < 2 articles", event_id)
             return None
+        if len(rows) < 2 and force:
+            logger.info("SYNTHESIZE force — event %s with %d article(s) (editor override)",
+                        event_id, len(rows))
 
         # Promotional-cluster gate (ADR-0020): when a strict majority of the
         # cluster's article titles are shopping/affiliate content (gift guides,
         # product reviews, deals), the event is a commerce roundup, not news —
         # skip BEFORE the LLM call so we don't pay to synthesize an ad page.
-        if self.filter_promotional:
+        if self.filter_promotional and not force:
             titles = [r["title"] for r in rows if r["title"]]
             promo = sum(1 for t in titles if is_promotional(t))
             if titles and promo * 2 > len(titles):
@@ -81,7 +93,7 @@ class SynthesizeSkill:
         # Non-news filler gate (ADR-0021): skip a cluster that is a strict
         # majority horoscope / lottery-result / betting-pick filler — these
         # recur daily across outlets and cluster into junk pages.
-        if self.filter_noise:
+        if self.filter_noise and not force:
             titles = [r["title"] for r in rows if r["title"]]
             noise = sum(1 for t in titles if is_excluded(t))
             if titles and noise * 2 > len(titles):
@@ -104,7 +116,7 @@ class SynthesizeSkill:
 
         # Backstop: even a mixed cluster can yield an ad-style headline
         # ("X Covers Top Gifts and Y Reviews"). Don't publish those.
-        if self.filter_promotional and (reason := promo_reason(page.headline)):
+        if self.filter_promotional and not force and (reason := promo_reason(page.headline)):
             logger.info(
                 "SYNTHESIZE skipped — ad-style headline [%s]: '%s' (event %s)",
                 reason, page.headline, event_id,
@@ -113,7 +125,7 @@ class SynthesizeSkill:
 
         # Backstop: a mixed cluster can still yield a filler headline
         # ("Horóscopo del día y resultados de la lotería"). Don't publish those.
-        if self.filter_noise and (reason := exclusion_reason(page.headline)):
+        if self.filter_noise and not force and (reason := exclusion_reason(page.headline)):
             logger.info(
                 "SYNTHESIZE skipped — filler headline [%s]: '%s' (event %s)",
                 reason, page.headline, event_id,

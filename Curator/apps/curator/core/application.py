@@ -396,6 +396,23 @@ class Application:
         elif routing_key == "event.recluster":
             await self._recluster_event(target_id)
             logger.info("event.recluster %s dispatched", target_id)
+        elif routing_key == "event.mark_breaking":
+            # Manual breaking gate (ADR-0029): editor flags this event breaking
+            # regardless of the auto-detector's pulse-outlet velocity.
+            ttl = (payload or {}).get("ttl_hours") or self.cfg.clustering.breaking_ttl_hours
+            ok = await self.db.set_event_breaking(target_id, ttl_hours=int(ttl))
+            logger.info("event.mark_breaking %s -> %s (ttl=%sh)",
+                        target_id, "ok" if ok else "no such event", ttl)
+        elif routing_key == "event.clear_breaking":
+            ok = await self.db.clear_event_breaking(target_id)
+            logger.info("event.clear_breaking %s -> %s", target_id, "ok" if ok else "no such event")
+        elif routing_key == "event.force_publish":
+            # Manual breaking gate (ADR-0029): synthesize + publish even below
+            # the ≥2-source bar and past the promo/noise gates — the editor has
+            # vetted this story. force=True bypasses those guards in the skill.
+            page = await self.synthesize.run(target_id, force=True)
+            logger.info("event.force_publish %s -> %s",
+                        target_id, "published" if page else "skipped (no articles)")
         elif routing_key == "embeddings.reembed":
             # Corpus-wide re-embed with the CURRENT embedder (ADR-0004). Runs in
             # the background so the command consumer stays responsive; a second

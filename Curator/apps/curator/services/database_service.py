@@ -500,6 +500,32 @@ class DatabaseService:
                     )
         return event_id is not None
 
+    async def set_event_breaking(self, event_id: str, *, ttl_hours: int = 2) -> bool:
+        """Manually flag an event breaking (ADR-0029 manual gate).
+
+        Sets breaking_at = NOW(), breaking_until = NOW() + ttl_hours. Mirrors the
+        auto-detector's columns (ADR-0024) but editor-triggered, so it fires
+        regardless of pulse-outlet velocity. Returns True if the event exists.
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            row = await conn.fetchval(
+                "UPDATE events SET breaking_at = NOW(), "
+                "breaking_until = NOW() + ($2 || ' hours')::interval "
+                "WHERE id = $1 RETURNING id",
+                event_id, str(int(ttl_hours)),
+            )
+        return row is not None
+
+    async def clear_event_breaking(self, event_id: str) -> bool:
+        """Clear an event's breaking flag (NULL breaking_at/until)."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            row = await conn.fetchval(
+                "UPDATE events SET breaking_at = NULL, breaking_until = NULL "
+                "WHERE id = $1 RETURNING id",
+                event_id,
+            )
+        return row is not None
+
     async def write_media_rail(self, event_id: str, items: list[dict[str, Any]]) -> None:
         """Persist IllustrateSkill results to pages.media_rail (migration 009).
 
