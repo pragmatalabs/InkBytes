@@ -38,13 +38,20 @@ class ScrapeResultsController extends Controller
     /** Session columns the list may sort on. */
     private const SORTABLE = ['started_at', 'success_rate', 'total_articles', 'total_outlets'];
 
+    /** Harvest lanes (Messor ADR-0017): 5-min RSS pulse vs the full cycle. */
+    private const LANES = ['cycle', 'pulse'];
+
     public function index(Request $request): Response
     {
         [$sort, $dir] = $this->resolveSort($request, self::SORTABLE, 'started_at', 'desc');
         $perPage = $this->resolvePerPage($request, 25);
         $q = trim((string) $request->query('q', ''));
+        // Lane filter (Messor ADR-0017): the pulse lane emits ~120 mostly-dup
+        // sessions/hour that bury the full-cycle runs; let the user filter them.
+        $lane = (string) $request->query('lane', '');
 
         $reachable = true;
+        $daily = [];
 
         try {
             $query = ScrapeSession::query();
@@ -53,6 +60,9 @@ class ScrapeResultsController extends Controller
             // text search inside JSON differs across Postgres/SQLite; the model
             // resolves the per-outlet breakdown on the detail view instead).
             $this->applySearch($query, $q, ['session_id']);
+            if (in_array($lane, self::LANES, true)) {
+                $query->where('lane', $lane);
+            }
             $this->applySort($query, $sort, $dir);
 
             $sessions = $query
@@ -63,6 +73,25 @@ class ScrapeResultsController extends Controller
             $stats = [
                 'session_count' => ScrapeSession::query()->count(),
             ];
+
+            // Daily new-article rollup (last 7 days) — the number that actually
+            // reflects intake health, summed across BOTH lanes so the pulse
+            // noise in the row list doesn't hide the real daily total.
+            $daily = ScrapeSession::query()
+                ->selectRaw("date_trunc('day', started_at)::date AS day")
+                ->selectRaw('SUM(successful_articles) AS new_articles')
+                ->selectRaw('COUNT(*) AS sessions')
+                ->whereNotNull('started_at')
+                ->where('started_at', '>=', now()->subDays(7))
+                ->groupByRaw("date_trunc('day', started_at)::date")
+                ->orderByRaw("date_trunc('day', started_at)::date DESC")
+                ->get()
+                ->map(fn ($r): array => [
+                    'day' => (string) $r->day,
+                    'new_articles' => (int) $r->new_articles,
+                    'sessions' => (int) $r->sessions,
+                ])
+                ->all();
         } catch (Throwable $e) {
             // No public schema (test DB / fresh pipeline): hand-build an empty
             // paginator so the page renders the same shape as a live read.
@@ -77,8 +106,12 @@ class ScrapeResultsController extends Controller
         return Inertia::render('ScrapeResults/Index', [
             'sessions' => $sessions,
             'stats' => $stats,
+            'daily' => $daily,
             'reachable' => $reachable,
-            'filters' => $this->listState($request, $sort, $dir, $perPage),
+            'lanes' => self::LANES,
+            'filters' => $this->listState($request, $sort, $dir, $perPage) + [
+                'lane' => in_array($lane, self::LANES, true) ? $lane : '',
+            ],
         ]);
     }
 
@@ -135,6 +168,7 @@ class ScrapeResultsController extends Controller
             'success_rate_pct'    => $realRate !== null ? round($realRate * 100, 1) : null,
             'duration_seconds'    => $s->duration_seconds !== null ? (float) $s->duration_seconds : null,
             'total_outlets'       => (int) $s->total_outlets,
+            'lane'                => $s->lane ?? 'cycle',
         ];
     }
 

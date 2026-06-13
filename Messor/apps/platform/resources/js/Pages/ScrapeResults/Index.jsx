@@ -11,8 +11,13 @@ import {
     Dialog,
     DialogContent,
     DialogTitle,
+    FormControl,
+    Grid,
     IconButton,
+    InputLabel,
+    MenuItem,
     Paper,
+    Select,
     Stack,
     Table,
     TableBody,
@@ -48,10 +53,14 @@ function successColor(pct) {
 export default function ScrapeResultsIndex({
     sessions = { data: [], total: 0, per_page: 25, current_page: 1 },
     stats = {},
+    daily = [],
     reachable = true,
-    filters = { q: '', sort: 'started_at', dir: 'desc', per_page: 25 },
+    lanes = [],
+    filters = { q: '', sort: 'started_at', dir: 'desc', per_page: 25, lane: '' },
 }) {
-    const list = useListQuery('scrape-results.index', filters);
+    const list = useListQuery('scrape-results.index', filters, {
+        lane: filters.lane ?? '',
+    });
     const rows = sessions.data ?? [];
 
     // Per-session detail (the outlets[] breakdown), fetched lazily on open.
@@ -107,14 +116,69 @@ export default function ScrapeResultsIndex({
                 />
             )}
 
-            <Box sx={{ mb: 2.5, maxWidth: 480 }}>
-                <ListSearchField
-                    value={filters.q}
-                    onSearch={list.search}
-                    label="Search session id"
-                    placeholder="Session id contains… (press Enter)"
-                />
-            </Box>
+            {/* Daily new-article rollup — the number that reflects intake health,
+                summed across both lanes so pulse noise in the rows doesn't hide it. */}
+            {daily.length > 0 && (
+                <Box sx={{ mb: 2.5 }}>
+                    <Typography variant="overline" color="text.secondary">
+                        New articles / day (last 7 days)
+                    </Typography>
+                    <Grid container spacing={1.5} sx={{ mt: 0.25 }}>
+                        {daily.map((d) => (
+                            <Grid key={d.day} size={{ xs: 6, sm: 4, md: 'auto' }}>
+                                <Paper
+                                    variant="outlined"
+                                    sx={{ px: 2, py: 1, minWidth: 96, textAlign: 'center' }}
+                                >
+                                    <Typography variant="h6" sx={{ lineHeight: 1.1 }}>
+                                        {numberFormatter.format(d.new_articles)}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {new Date(d.day).toLocaleDateString(undefined, {
+                                            month: 'short',
+                                            day: 'numeric',
+                                        })}
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </Box>
+            )}
+
+            <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                sx={{ mb: 2.5 }}
+                alignItems={{ sm: 'center' }}
+            >
+                <Box sx={{ flex: 1, maxWidth: 480 }}>
+                    <ListSearchField
+                        value={filters.q}
+                        onSearch={list.search}
+                        label="Search session id"
+                        placeholder="Session id contains… (press Enter)"
+                    />
+                </Box>
+                <FormControl size="small" sx={{ minWidth: 160 }}>
+                    <InputLabel id="lane-label">Lane</InputLabel>
+                    <Select
+                        labelId="lane-label"
+                        label="Lane"
+                        value={filters.lane ?? ''}
+                        onChange={(e) => list.setExtra({ lane: e.target.value })}
+                    >
+                        <MenuItem value="">
+                            <em>All lanes</em>
+                        </MenuItem>
+                        {lanes.map((l) => (
+                            <MenuItem key={l} value={l}>
+                                {l === 'pulse' ? 'Pulse (5-min)' : 'Cycle (full)'}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Stack>
 
             <TableContainer component={Paper}>
                 <Table size="small">
@@ -182,13 +246,22 @@ export default function ScrapeResultsIndex({
                                     sx={{ cursor: 'pointer' }}
                                     onClick={() => openDetail(s.session_id)}
                                 >
-                                    <TableCell sx={{ maxWidth: 220 }}>
-                                        <Typography
-                                            variant="caption"
-                                            sx={{ fontFamily: 'monospace' }}
-                                        >
-                                            {s.session_id}
-                                        </Typography>
+                                    <TableCell sx={{ maxWidth: 240 }}>
+                                        <Stack direction="row" spacing={1} alignItems="center">
+                                            <Chip
+                                                size="small"
+                                                label={s.lane === 'pulse' ? 'pulse' : 'cycle'}
+                                                color={s.lane === 'pulse' ? 'warning' : 'default'}
+                                                variant={s.lane === 'pulse' ? 'filled' : 'outlined'}
+                                                sx={{ height: 18, fontSize: 10, textTransform: 'uppercase' }}
+                                            />
+                                            <Typography
+                                                variant="caption"
+                                                sx={{ fontFamily: 'monospace' }}
+                                            >
+                                                {s.session_id}
+                                            </Typography>
+                                        </Stack>
                                     </TableCell>
                                     <TableCell>
                                         <Tooltip title={fmt(s.started_at)}>
