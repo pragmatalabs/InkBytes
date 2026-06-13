@@ -160,6 +160,18 @@ function LangChip({ lang }: { lang: string }) {
   );
 }
 
+/**
+ * Relative timestamp ("29m ago"). relativeTime() uses Date.now(), so the
+ * server render and the client hydration straddle different instants and can
+ * differ by a minute → hydration mismatch. suppressHydrationWarning lets the
+ * client keep the server's value without regenerating the tree; the 20-min
+ * feed refresh re-renders it fresh. (Same pattern as the date header + the
+ * event page's Developing badge.)
+ */
+function TimeAgo({ iso }: { iso: string }) {
+  return <span suppressHydrationWarning>{relativeTime(iso)}</span>;
+}
+
 function StrengthDot({ count, developing }: { count: number; developing: boolean }) {
   if (developing) return <span className="developing-dot shrink-0" aria-hidden="true" />;
   const color =
@@ -192,7 +204,7 @@ function BreakingCard({ event, showLang }: { event: EventSummary; showLang: bool
       <div className="flex items-center justify-between gap-2">
         <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={16} />
         <span className="text-xs text-[var(--ink-muted)] tabular-nums shrink-0">
-          {relativeTime(event.freshness_at)}
+          <TimeAgo iso={event.freshness_at} />
         </span>
       </div>
     </Link>
@@ -246,7 +258,7 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
               {event.article_count} {event.article_count === 1 ? "article" : "articles"}
             </span>
             <span aria-hidden>·</span>
-            <span>{relativeTime(event.freshness_at)}</span>
+            <span><TimeAgo iso={event.freshness_at} /></span>
           </div>
         </div>
       </div>
@@ -294,7 +306,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
         <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
           <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
           <span className="text-xs text-[var(--ink-muted)]">
-            {event.article_count} art · {relativeTime(event.freshness_at)}
+            {event.article_count} art · <TimeAgo iso={event.freshness_at} />
           </span>
         </div>
       </div>
@@ -333,7 +345,7 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
           {event.source_count}
         </span>
         <span aria-hidden>·</span>
-        <span>{relativeTime(event.freshness_at)}</span>
+        <span><TimeAgo iso={event.freshness_at} /></span>
       </div>
     </Link>
   );
@@ -369,7 +381,7 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
             {event.article_count} {event.article_count === 1 ? "article" : "articles"}
           </span>
           <span>·</span>
-          <span>{relativeTime(event.freshness_at)}</span>
+          <span><TimeAgo iso={event.freshness_at} /></span>
         </div>
       </div>
     </Link>
