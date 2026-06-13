@@ -15,6 +15,7 @@ import MonitorHeartRoundedIcon from '@mui/icons-material/MonitorHeartRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
+import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded';
 import NewspaperRoundedIcon from '@mui/icons-material/NewspaperRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
@@ -104,6 +105,12 @@ const navigationItems = [
         routeName: 'moderation.index',
         match: 'moderation.*',
         icon: RateReviewRoundedIcon,
+    },
+    {
+        label: 'Breaking Desk',
+        routeName: 'breaking.index',
+        match: 'breaking.*',
+        icon: BoltRoundedIcon,
     },
     {
         label: 'Cost & Usage',

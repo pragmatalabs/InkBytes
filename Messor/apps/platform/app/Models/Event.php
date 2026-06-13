@@ -35,6 +35,9 @@ class Event extends Model
         'created_at' => 'datetime',
         'first_seen_at' => 'datetime',
         'last_updated_at' => 'datetime',
+        // Breaking-news flags (ADR-0024 auto-detector / ADR-0029 manual gate)
+        'breaking_at' => 'datetime',
+        'breaking_until' => 'datetime',
     ];
 
     public function page(): HasOne

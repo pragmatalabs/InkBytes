@@ -37,7 +37,29 @@ class CuratorCommandService
         'event.resynthesize',
         'event.recluster',
         'embeddings.reembed',
+        // On-demand breaking gate (ADR-0029)
+        'event.mark_breaking',
+        'event.clear_breaking',
+        'event.force_publish',
     ];
+
+    /** Manually flag an event breaking (ADR-0029 manual gate). */
+    public function markBreaking(string $eventId): bool
+    {
+        return $this->publish('event.mark_breaking', $eventId);
+    }
+
+    /** Clear an event's manual breaking flag. */
+    public function clearBreaking(string $eventId): bool
+    {
+        return $this->publish('event.clear_breaking', $eventId);
+    }
+
+    /** Synthesize + publish an event below the normal gates (editor override). */
+    public function forcePublish(string $eventId): bool
+    {
+        return $this->publish('event.force_publish', $eventId);
+    }
 
     public function publishPage(string $pageId): bool
     {

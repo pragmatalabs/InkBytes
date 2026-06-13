@@ -3,6 +3,7 @@
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\BreakingDeskController;
 use App\Http\Controllers\CuratorSettingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventModerationController;
@@ -73,6 +74,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Moderation list is read-only review; the action POSTs below are operator+.
     Route::get('/moderation', [EventModerationController::class, 'index'])->name('moderation.index');
 
+    // On-Demand Breaking Desk (ADR-0029) — read views; the scrape + gate POSTs
+    // below are operator+.
+    Route::get('/breaking-desk', [BreakingDeskController::class, 'index'])->name('breaking.index');
+    Route::get('/breaking-desk/results', [BreakingDeskController::class, 'results'])->name('breaking.results');
+
     // Model usage / cost dashboard — read-only aggregates over
     // backoffice.model_usage (Curator writes rows; Phase 2.2 / ADR-0003).
     Route::get('/model-usage', [ModelUsageController::class, 'index'])->name('model-usage.index');
@@ -108,6 +114,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/moderation/pages/{page}/drop', [EventModerationController::class, 'dropPage'])->name('moderation.pages.drop');
         Route::post('/moderation/events/{event}/resynthesize', [EventModerationController::class, 'resynthesizeEvent'])->name('moderation.events.resynthesize');
         Route::post('/moderation/events/{event}/recluster', [EventModerationController::class, 'reclusterEvent'])->name('moderation.events.recluster');
+
+        // On-Demand Breaking Desk actions (ADR-0029).
+        Route::post('/breaking-desk/search', [BreakingDeskController::class, 'search'])->name('breaking.search');
+        Route::post('/breaking-desk/events/{event}/mark-breaking', [BreakingDeskController::class, 'markBreaking'])->name('breaking.mark');
+        Route::post('/breaking-desk/events/{event}/clear-breaking', [BreakingDeskController::class, 'clearBreaking'])->name('breaking.clear');
+        Route::post('/breaking-desk/events/{event}/force-publish', [BreakingDeskController::class, 'forcePublish'])->name('breaking.force');
     });
 
     // ── Admin only: keys, settings writes, audit log, user management ────────
