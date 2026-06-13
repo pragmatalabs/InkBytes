@@ -38,7 +38,7 @@ from inkbytes.models.outlets import OutletsSource
 
 # v1: TinyDB was retired (INK-5). Per-cycle staging now uses a plain JSON store.
 from core.staging_store import StagingStore, article_id_exists_in_file, get_staged_content_hash, load_known_article_urls
-from core.feed_scraper import get_articles_from_feed
+from core.feed_scraper import get_articles_from_feed, _make_article
 
 # Module setup
 MODULE_NAME = get_module_name(2)
@@ -197,7 +197,7 @@ class ScraperResults(BaseModel):
 # ===== Functions from newsscraper.py =====
 
 def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None,
-                  feed_only=False) -> ScrapingSession:
+                  feed_only=False, explicit_urls=None) -> ScrapingSession:
     """Scrape articles from a given outlet — sequential article processing (ADR-0011).
 
     The ``num_workers`` parameter is kept for API compatibility but is no longer used.
@@ -224,7 +224,7 @@ def scrape_outlet(outlet, agent, headers, num_workers=2, languages=None,
 
     try:
         newsScraper = NewsScraper(outlet, newsPaper, session=session, languages=languages)
-        newsScraper.scrape_news_outlet(outlet, feed_only=feed_only)
+        newsScraper.scrape_news_outlet(outlet, feed_only=feed_only, explicit_urls=explicit_urls)
         return newsScraper.session
     except Exception as e:
         logger.error(f"Scraping articles from: {outlet.name} failed with error: {e}")
@@ -1010,7 +1010,8 @@ class NewsScraper:
         self.languages = languages
 
     def scrape_news_outlet(self, executor_or_outlet=None, outlet=None,
-                           feed_only: bool = False) -> ScrapingSession:
+                           feed_only: bool = False,
+                           explicit_urls: list | None = None) -> ScrapingSession:
         """Scrape articles from a news outlet — sequential, no inner thread pool (ADR-0011).
 
         Signature accepts the old two-arg form ``(executor, outlet)`` and the new
@@ -1019,6 +1020,10 @@ class NewsScraper:
         ``feed_only=True`` (pulse lane, ADR-0017): never fall back to the
         newspaper3k homepage crawl — no feed (or a failed feed) means the
         outlet is skipped this run.
+
+        ``explicit_urls`` (on-demand breaking gate, ADR-0029): scrape exactly
+        these article URLs — skip all discovery — and bypass the freshness gate
+        (the editor hand-picked them; they may legitimately be a few days old).
         """
         # Accept both (executor, outlet) and (outlet,) call signatures.
         if outlet is None:
@@ -1027,6 +1032,25 @@ class NewsScraper:
 
         try:
             self.session.outlet_name = outlet.name
+
+            # ── On-demand explicit-URL path (ADR-0029) ────────────────────────
+            if explicit_urls:
+                np_articles = [_make_article(u) for u in explicit_urls]
+                self.session.total_articles = len(np_articles)
+                scrapes_dir = config.storage.staging.local.scraping()
+                known_urls = load_known_article_urls(scrapes_dir, outlet.name)
+                self.logger.info(
+                    "On-demand: scraping %d explicit URL(s) for %s",
+                    len(np_articles), outlet.name,
+                )
+                self.process_outlet_articles(
+                    outlet.name, np_articles, known_urls,
+                    min_word_count=getattr(outlet, 'min_word_count', None),
+                    skip_freshness=True,
+                )
+                self.session.complete_session()
+                return self.session
+
             if not validate_outlet_url(outlet):
                 self.logger.info(f"Invalid outlet URL {outlet.url}")
                 return self.session
@@ -1101,7 +1125,8 @@ class NewsScraper:
         return self.session
 
     def process_outlet_articles(self, outletBrand: str, np_articles: list,
-                               known_urls: set, min_word_count: int = None) -> None:
+                               known_urls: set, min_word_count: int = None,
+                               skip_freshness: bool = False) -> None:
         """Sequential article processing — ADR-0011 Layers 1, 2, 3.
 
         Replaces the futures-based loop with a plain for-loop so only ONE article's
@@ -1206,7 +1231,9 @@ class NewsScraper:
             # `window_hours` are staged.  Strict — a missing/unparseable date is
             # treated as stale and dropped.  This is what stops month-old archive
             # links (theguardian back to 2012) from being re-published as "fresh".
-            if not is_article_fresh(record, window_hours):
+            # Bypassed for the on-demand breaking gate (ADR-0029): the editor
+            # hand-picked these URLs and wants them regardless of age.
+            if not skip_freshness and not is_article_fresh(record, window_hours):
                 stale_skipped += 1
                 self.session.increment_failed_articles()
                 continue

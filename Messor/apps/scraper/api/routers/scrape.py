@@ -261,6 +261,56 @@ async def trigger_scrape(request: Request) -> Dict[str, Any]:
     }
 
 
+@router.post("/api/scrape/on-demand")
+async def on_demand_scrape(request: Request) -> Dict[str, Any]:
+    """On-demand breaking-news scrape (ADR-0029).
+
+    Body: { "query": "title or topic", "url": "https://…", "lang": "en|es",
+            "limit": 10 }. Provide a `url` to scrape one article directly, or a
+    `query` to search Google News and scrape the top results. Runs in the
+    background at AMQP priority 9; returns immediately with the `brand`
+    (outlet_name namespace) the Backoffice polls to find the resulting event.
+    """
+    body: Dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    query = (body.get("query") or "").strip() or None
+    url = (body.get("url") or "").strip() or None
+    lang = (body.get("lang") or "en").strip() or "en"
+    try:
+        limit = int(body.get("limit") or 10)
+    except (TypeError, ValueError):
+        limit = 10
+    limit = max(1, min(limit, 25))
+
+    if not query and not url:
+        return {"status": "error", "message": "query or url required"}
+    if _messor_app is None:
+        return {"status": "error", "message": "Application not initialised yet — retry shortly."}
+
+    svc = _messor_app.command_processor.scraper_service
+    brand = svc.ondemand_brand(query=query, url=url)
+
+    def _run() -> None:
+        try:
+            svc.execute_on_demand_scrape(query=query, url=url, lang=lang, limit=limit)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("On-demand scrape error: %s", exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {
+        "status": "accepted",
+        "message": "On-demand scrape started",
+        "brand": brand,
+        "query": query,
+        "url": url,
+    }
+
+
 @router.get("/api/outlets")
 async def list_outlets() -> List[Dict[str, Any]]:
     """Outlet catalogue from outlets.json, active outlets only."""

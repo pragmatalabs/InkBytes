@@ -35,7 +35,8 @@ class ScraperService:
     
     def create_outlet_scraping_session(self, outlet: OutletsSource,
                                        feed_only: bool = False,
-                                       priority: int = 0):
+                                       priority: int = 0,
+                                       explicit_urls: list = None):
         """
         Extract articles from a single outlet and handle file upload and messaging.
 
@@ -44,6 +45,8 @@ class ScraperService:
         ``feed_only``/``priority`` are the pulse-lane knobs (ADR-0017):
         RSS-only URL discovery + AMQP message priority on the per-article
         events. Defaults preserve the normal cycle behaviour exactly.
+        ``explicit_urls`` (on-demand breaking gate, ADR-0029): scrape exactly
+        these URLs, no discovery, freshness gate bypassed.
         """
         self.logger.info(f"Starting create_outlet_scraping_session: {outlet}")
         try:
@@ -53,6 +56,7 @@ class ScraperService:
                 headers=self.config.scraping.headers.default(),
                 languages=self.config.articles.supported_languages(),
                 feed_only=feed_only,
+                explicit_urls=explicit_urls,
             )
             session_info = scraping_session.to_json()
 
@@ -87,7 +91,74 @@ class ScraperService:
         except Exception as e:
             self.logger.error(f"Error in create_outlet_scraping_session: {outlet}: {e}")
             return None
-    
+
+    @staticmethod
+    def ondemand_brand(query: str = None, url: str = None) -> str:
+        """Stable synthetic outlet brand for an on-demand run (ADR-0029).
+
+        Namespaced 'ondemand:<slug>' so the Backoffice can locate the resulting
+        articles/event by outlet_name, and so distinct runs don't collide.
+        """
+        import re as _re
+        if url:
+            base = url.split('//')[-1].split('/')[0] or 'url'
+        else:
+            base = query or 'untitled'
+        slug = _re.sub(r'[^a-z0-9]+', '-', base.lower()).strip('-')[:40] or 'run'
+        # Hyphen separator (not ':') — the brand becomes a staging filename and
+        # an S3 key, where ':' is unsafe. Backoffice matches LIKE 'ondemand-%'.
+        return f"ondemand-{slug}"
+
+    def execute_on_demand_scrape(self, query: str = None, url: str = None,
+                                 lang: str = "en", limit: int = 10) -> Dict[str, Any]:
+        """On-demand breaking-news scrape (ADR-0029).
+
+        Resolves article URLs — a pasted ``url`` (scraped directly) or a
+        free-text ``query`` (Google News RSS search → decode) — scrapes them
+        with the freshness gate bypassed, and publishes per-article events at
+        AMQP priority 9 so Curator enriches them ahead of the normal backlog.
+
+        Returns a summary dict (urls_found, articles_staged, session brand) the
+        Backoffice uses to locate the resulting event(s).
+        """
+        from inkbytes.models.outlets import OutletsSource
+
+        urls: List[str] = []
+        if url:
+            urls = [url.strip()]
+        elif query:
+            from core.gnews_search import search as gnews_search
+            hits = gnews_search(query, lang=lang, limit=limit)
+            urls = [h.url for h in hits]
+        else:
+            return {"status": "error", "message": "query or url required", "urls_found": 0}
+
+        brand = self.ondemand_brand(query=query, url=url)
+        if not urls:
+            self.logger.warning("On-demand scrape: no URLs resolved (query=%r url=%r)", query, url)
+            return {"status": "empty", "urls_found": 0, "articles_staged": 0,
+                    "brand": brand, "query": query, "url": url}
+
+        # Namespaced synthetic outlet so on-demand articles don't collide with
+        # the catalogue or with other on-demand runs.
+        outlet = OutletsSource(name=brand, url=urls[0])
+        self.logger.info("On-demand scrape '%s' → %d URL(s) at priority 9", brand, len(urls))
+        session = self.create_outlet_scraping_session(
+            outlet, priority=9, explicit_urls=urls,
+        )
+        staged = 0
+        if session is not None:
+            data = (session.to_json() or {}).get("data") or {}
+            staged = int(data.get("successful_articles") or 0)
+        return {
+            "status": "ok",
+            "brand": brand,
+            "query": query,
+            "url": url,
+            "urls_found": len(urls),
+            "articles_staged": staged,
+        }
+
     def _handle_completed_session(self,  session_info, priority: int = 0):
         """Handle a completed scraping session by saving, publishing event, and moving file."""
         try:
