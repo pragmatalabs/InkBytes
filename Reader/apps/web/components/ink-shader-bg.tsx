@@ -29,23 +29,38 @@ export function InkShaderBg({ palette = 5, className }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Respect reduced-motion — leave the caller's solid background in place.
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    // Honor reduced-motion by NOT animating — but still show the ink as a
+    // single static frame (the engine warms up the field on construction, so
+    // one render() paints a still ink image). Full motion otherwise.
+    const reduce = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-    let wall: { start: () => void; destroy: () => void; pointer: (x: number, y: number, dx: number, dy: number) => void; mStr: number } | null = null;
+    let wall:
+      | {
+          start: () => void;
+          render: () => void;
+          destroy: () => void;
+          pointer: (x: number, y: number, dx: number, dy: number) => void;
+          mStr: number;
+        }
+      | null = null;
     try {
-      // Tuned for a SUBTLE splash backdrop, not a full wallpaper: steady-state
-      // field density ≈ ambient/(1−dissip) ≈ 0.0028/0.027 ≈ 0.10, so the field
-      // stays dark-dominant (white text legible) with thin luminous ribbons
-      // spiking higher from the drifting emitter + drag.
-      wall = new InkWall(canvas, {
-        palette,
-        speed: 0.0024,
-        dissip: 0.973,
-        flow: 2.6,
-        emit: 0.006,
-        ambient: 0.0028,
-      });
+      // Animated path: tuned for a SUBTLE backdrop — steady-state field density
+      // ≈ ambient/(1−dissip) ≈ 0.0028/0.027 ≈ 0.10, dark-dominant (white text
+      // legible) with thin luminous ribbons from the drifting emitter + drag.
+      // Reduced-motion path: a single STATIC frame, but with a stronger emitter
+      // during the constructor warm-up so the still image carries visible ink
+      // ribbons (the gentle steady-state alone is nearly imperceptible). Higher
+      // emit (concentrated strokes) + low ambient keeps dark gaps for text.
+      wall = new InkWall(
+        canvas,
+        reduce
+          ? { palette, speed: 0.0024, dissip: 0.982, flow: 2.6, emit: 0.03, ambient: 0.004 }
+          : { palette, speed: 0.0024, dissip: 0.973, flow: 2.6, emit: 0.006, ambient: 0.0028 }
+      );
+      if (reduce) {
+        wall!.render(); // static frame, no rAF loop, no pointer stir
+        return () => wall?.destroy();
+      }
       wall!.start();
     } catch {
       return; // WebGL unavailable / context failure → solid background fallback
