@@ -410,6 +410,12 @@ class MessageService:
                 "duration":            session.get("duration"),
                 "outlets":             session.get("outlets", []),
                 "total_outlets":       session.get("total_outlets", 0),
+                # Lane tag (Messor ADR-0017): 'pulse' = 5-min RSS tick, 'cycle'
+                # = full 2-hour sweep. Must be forwarded here — this payload is
+                # rebuilt field-by-field, so a missing key silently defaults the
+                # session to 'cycle' in Curator (the Backoffice pulse filter was
+                # empty because every pulse session arrived untagged).
+                "lane":                session.get("lane", "cycle"),
             },
         }
 
