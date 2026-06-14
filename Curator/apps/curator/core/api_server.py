@@ -437,13 +437,15 @@ def build_app(app: Application) -> FastAPI:
     async def trending_topics(
         response: Response, window_hours: int = 48, limit: int = 20
     ) -> list[dict[str, Any]]:
-        """Top story topics over the last `window_hours`, by distinct-event count.
+        """Top story topics over the last `window_hours`, recency-weighted.
 
-        Powers the Reader "Trending" surface (task 6b). Ranked by how many
-        distinct published events carry the topic (breadth of coverage), then
-        article volume. Junk enrichment artifacts (error pages, generic outlet
-        boilerplate) are excluded via _JUNK_TOPIC_PATTERNS. Each topic is
-        drill-down-able via /events?topic=<label>.
+        Powers the Reader "Trending" surface (task 6b). Ranked by a "hotness"
+        score = coverage breadth (distinct published events) decayed by how long
+        since the topic's most recent article (HN/Reddit-style gravity). This
+        keeps big stories high while surfacing fresh topics toward the FRONT of
+        the carousel — pure event-count ordering buried newly-emerging topics at
+        the end (they haven't accumulated events yet). Junk enrichment artifacts
+        are excluded via _JUNK_TOPIC_PATTERNS. Drill-down via /events?topic=.
         """
         window_hours = min(max(window_hours, 1), 168)  # clamp 1h–7d
         limit = min(max(limit, 1), 100)
@@ -465,7 +467,8 @@ def build_app(app: Application) -> FastAPI:
                    -- Representative theme for the chip's color accent: the most
                    -- common article-level theme among this topic's articles.
                    MODE() WITHIN GROUP (ORDER BY a.theme)
-                     FILTER (WHERE a.theme IS NOT NULL) AS theme
+                     FILTER (WHERE a.theme IS NOT NULL) AS theme,
+                   MAX(a.scraped_at) AS latest
               FROM articles a
               JOIN pages pg ON pg.event_id = a.event_id
                            AND pg.published_at IS NOT NULL
@@ -473,7 +476,16 @@ def build_app(app: Application) -> FastAPI:
                AND a.scraped_at > NOW() - ($1 || ' hours')::interval
                {junk_clause}
              GROUP BY a.topic
-             ORDER BY event_count DESC, article_count DESC
+             -- Hotness = coverage / (hours_since_latest + 2)^1.2 — recent +
+             -- well-covered topics rank highest; topics decay as they age so a
+             -- fresh story surfaces toward the front of the carousel.
+             ORDER BY (
+                 COUNT(DISTINCT a.event_id)::float
+                 / power(
+                     EXTRACT(EPOCH FROM (NOW() - MAX(a.scraped_at))) / 3600.0 + 2,
+                     1.2
+                   )
+             ) DESC, event_count DESC
              LIMIT $2
         """
         response.headers["Cache-Control"] = "public, max-age=120"
