@@ -137,6 +137,12 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'scrape_sessions' "
                 "AND column_name = 'lane')"
             ),
+            "017_triage_dropped_marker.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'articles' "
+                "AND column_name = 'triage_dropped_at')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -313,10 +319,28 @@ class DatabaseService:
                   FROM articles
                  WHERE topic IS NULL
                    AND body_text IS NOT NULL
+                   AND triage_dropped_at IS NULL   -- ADR-0030: don't resurrect triage-dropped junk
                  ORDER BY scraped_at
                 """
             )
         return [dict(r) for r in rows]
+
+    async def mark_triage_dropped(self, article_id: str, reason: str) -> None:
+        """Stamp an article as triage-dropped (ADR-0030 terminal marker).
+
+        Set when the pre-enrich triage gate rejects an article so it carries a
+        terminal state: excluded from the /status pending-enrichment counter and
+        from --reenrich-missing (which keys on topic IS NULL). Best-effort —
+        a failed mark only leaves the cosmetic counter drift, never blocks the ack.
+        """
+        if not self.pool:
+            return
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE articles SET triage_dropped_at = NOW(), triage_drop_reason = $2 "
+                "WHERE id = $1",
+                article_id, (reason or "")[:500],
+            )
 
     async def fetch_stub_enriched_articles(self) -> list[dict[str, Any]]:
         """Fetch articles enriched in stub mode (keywords_canonical contains 'stub').

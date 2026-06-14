@@ -681,6 +681,10 @@ class Application:
                             "TRIAGE DROP %s (%s) — %s | %s",
                             article.id, article.outlet.name, tv.reason, article.title[:80],
                         )
+                        # Terminal marker (ADR-0030 / migration 017): keeps the
+                        # raw article but stamps it dropped, so it leaves the
+                        # /status pending counter and is never re-enriched.
+                        await self.db.mark_triage_dropped(article.id, tv.reason)
                         return  # ack; skip enrich/cluster/synth (raw article kept)
 
             # 1. ENRICH — the slow stage (8-17s of LLM network wait); runs

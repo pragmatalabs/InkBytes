@@ -195,7 +195,11 @@ def build_app(app: Application) -> FastAPI:
                 SELECT
                     COUNT(*)                                          AS total,
                     COUNT(*) FILTER (WHERE enriched_at IS NOT NULL)  AS enriched,
-                    COUNT(*) FILTER (WHERE embedding  IS NOT NULL)   AS embedded
+                    COUNT(*) FILTER (WHERE embedding  IS NOT NULL)   AS embedded,
+                    COUNT(*) FILTER (WHERE triage_dropped_at IS NOT NULL) AS triage_dropped,
+                    -- True backlog: not enriched AND not triage-dropped (ADR-0030).
+                    COUNT(*) FILTER (WHERE enriched_at IS NULL
+                                       AND triage_dropped_at IS NULL)  AS pending
                   FROM articles
                 """
             )
@@ -215,16 +219,20 @@ def build_app(app: Application) -> FastAPI:
         articles_total    = art["total"]
         articles_enriched = art["enriched"]
         articles_embedded = art["embedded"]
+        articles_triage_dropped = art["triage_dropped"]
         events_total      = evp["events_total"]
         events_published  = evp["events_published"]
         pages_published   = evp["pages_published"]
-        articles_pending  = max(0, (articles_total or 0) - (articles_enriched or 0))
+        # True pending = unenriched AND not triage-dropped (ADR-0030). Computed
+        # in SQL so dropped junk never inflates the backlog counter.
+        articles_pending  = max(0, art["pending"] or 0)
 
         return {
             "articles_total":    articles_total,
             "articles_enriched": articles_enriched,
             "articles_embedded": articles_embedded,
             "articles_pending":  articles_pending,
+            "articles_triage_dropped": articles_triage_dropped,
             "events_total":      events_total,
             "events_published":  events_published,
             "pages_published":   pages_published,

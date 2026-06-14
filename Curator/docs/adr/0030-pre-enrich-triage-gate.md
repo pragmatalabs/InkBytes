@@ -146,3 +146,23 @@ consequences:
 column, set it in the drop branch instead of a bare `return`, and add
 `AND triage_dropped_at IS NULL` to `fetch_unenriched_articles()` + the dashboard
 pending query. Doubles as a queryable drop audit.
+
+### ✅ FIXED (2026-06-14) — migration 017
+
+Built exactly as flagged above:
+- **Migration 017** adds `articles.triage_dropped_at TIMESTAMPTZ` +
+  `triage_drop_reason TEXT` (queryable drop audit) + a partial index.
+- The drop branch now calls `db.mark_triage_dropped(article.id, reason)` before
+  the `return` (best-effort — a failed mark only leaves the cosmetic drift, never
+  blocks the ack).
+- `fetch_unenriched_articles()` gains `AND triage_dropped_at IS NULL` →
+  **`--reenrich-missing` no longer resurrects dropped junk** (landmine closed).
+- `/status` computes `articles_pending` as
+  `enriched_at IS NULL AND triage_dropped_at IS NULL` and adds
+  `articles_triage_dropped` → the counter reads true backlog (~0).
+- One-time backfill of legacy pre-marker drops:
+  `infra/scripts/backfill_triage_dropped.sql` (unenriched + topic NULL +
+  scraped > 1 h ago = a triage drop predating the marker).
+
+Verified locally: marking an article moves it pending 1→0, stores the reason,
+and excludes it from `fetch_unenriched_articles()`.
