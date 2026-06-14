@@ -147,10 +147,20 @@ export default function ChatAssistant() {
         "
         style={{ bottom: "calc(58px + env(safe-area-inset-bottom, 0px) + 12px)" }}
       >
-        {/* Sparkle / ask glyph */}
-        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" opacity="0.6" />
-          <path d="M12 8l1.4 2.6L16 12l-2.6 1.4L12 16l-1.4-2.6L8 12l2.6-1.4z" fill="currentColor" stroke="none" />
+        {/* Bot glyph — friendly robot head (antenna, eyes, smile) */}
+        <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          {/* antenna */}
+          <path d="M12 3v2.2" />
+          <circle cx="12" cy="2.3" r="1.05" fill="currentColor" stroke="none" />
+          {/* head */}
+          <rect x="4.5" y="6.5" width="15" height="11" rx="3.5" />
+          {/* side ears */}
+          <path d="M2.6 11v2.2M21.4 11v2.2" />
+          {/* eyes */}
+          <circle cx="9.4" cy="11.4" r="1.25" fill="currentColor" stroke="none" />
+          <circle cx="14.6" cy="11.4" r="1.25" fill="currentColor" stroke="none" />
+          {/* smile */}
+          <path d="M9.5 14.4c.9.8 4.1.8 5 0" />
         </svg>
       </button>
 
