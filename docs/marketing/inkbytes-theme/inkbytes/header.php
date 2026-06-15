@@ -60,5 +60,32 @@ $ib_nav = array(
       <?php endforeach; ?>
       <span class="nav-cta"><a class="ib-btn v-primary sz-sm" href="<?php echo esc_url( inkbytes_reader_url() ); ?>">Start reading</a></span>
     </nav>
+    <button class="nav-toggle" id="ib-nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="ib-mobile-menu">
+      <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
+    </button>
   </div>
+  <nav class="mobile-menu" id="ib-mobile-menu" aria-label="Mobile">
+    <?php
+    foreach ( $ib_nav as $n ) :
+      $active = in_array( $ib_key, $n['on'], true ) ? ' is-active' : '';
+      ?>
+      <a href="<?php echo esc_url( ib_url( $n['slug'] ) ); ?>" class="nav-link<?php echo $active; ?>"><?php echo esc_html( $n['label'] ); ?></a>
+    <?php endforeach; ?>
+    <a class="ib-btn v-primary sz-md block" href="<?php echo esc_url( inkbytes_reader_url() ); ?>">Start reading</a>
+  </nav>
 </header>
+<script>
+(function(){
+  var t=document.getElementById('ib-nav-toggle');
+  if(!t) return;
+  t.addEventListener('click',function(){
+    var open=document.body.classList.toggle('nav-open');
+    t.setAttribute('aria-expanded',open?'true':'false');
+  });
+  // close the menu if the viewport grows back to desktop
+  var mq=window.matchMedia('(min-width:841px)');
+  (mq.addEventListener?mq.addEventListener.bind(mq,'change'):mq.addListener.bind(mq))(function(e){
+    if(e.matches){document.body.classList.remove('nav-open');t.setAttribute('aria-expanded','false');}
+  });
+})();
+</script>

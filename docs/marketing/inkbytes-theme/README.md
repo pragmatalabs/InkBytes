@@ -49,6 +49,15 @@ inkbytes/
 └── parts/widget-*.php     static event-mock / two-source / fact-spectrum
 ```
 
+## Mobile
+`site.css` ships desktop-first breakpoints but hides the nav links below 840px with
+no menu. The theme adds a **hamburger + drop-down panel** (`header.php` markup +
+toggle script; styles in `assets/widgets.css` under "Mobile adaptation") — below
+840px the bar shows brand + hamburger, and the panel holds the nav links + the
+reader CTA. Plus tighter section/`.wrap` spacing and full-width CTAs on phones
+(≤640/≤560px). The header `<title>`/nav are server-rendered, so this all works
+without JS except the toggle. Verified at 390px (home, menu, methodology).
+
 ## Regenerate the page templates
 The `page-*.php` / `front-page.php` / `404.php` are generated from `../site/*.html`:
 ```bash
