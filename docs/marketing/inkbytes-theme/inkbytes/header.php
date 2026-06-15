@@ -61,7 +61,8 @@ $ib_nav = array(
       <span class="nav-cta"><a class="ib-btn v-primary sz-sm" href="<?php echo esc_url( inkbytes_reader_url() ); ?>">Start reading</a></span>
     </nav>
     <button class="nav-toggle" id="ib-nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="ib-mobile-menu">
-      <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
+      <svg class="nav-ico nav-ico-open" viewBox="0 0 24 24" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="nav-ico nav-ico-close" viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
     </button>
   </div>
   <nav class="mobile-menu" id="ib-mobile-menu" aria-label="Mobile">
