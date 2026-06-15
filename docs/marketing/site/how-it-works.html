@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How InkBytes Works — Multi-Source News Synthesis</title>
+<meta name="description" content="A reproducible five-stage pipeline — collect, enrich, cluster, synthesize, verify — with a hard ≥2-source rule. Not a wrapper over a chatbot." />
+<meta property="og:title" content="How InkBytes Works — Multi-Source News Synthesis" />
+<meta property="og:description" content="Five stages turn the open web's firehose into one trustworthy page. Not a wrapper over a chatbot." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://inkbytes.news/how-it-works" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="../_ds/inkbytes-design-system-11965451-5407-4f06-841c-ae5a338d983f/styles.css" />
+<link rel="stylesheet" href="assets/site.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="../_ds/inkbytes-design-system-11965451-5407-4f06-841c-ae5a338d983f/_ds_bundle.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body data-page="how" data-lang="en">
+<script src="assets/sprite.js"></script>
+
+<header id="ib-header" class="site-header"></header>
+
+<main>
+
+  <section class="page-hero page-hero--accent">
+    <div class="wrap">
+      <span class="kicker"><span class="pulse"></span> How it works</span>
+      <h1>A pipeline, <span class="accent">not a chatbot</span>.</h1>
+      <p class="lead">Five stages turn the open web's firehose into one trustworthy page — and a hard rule sits at the center: nothing publishes without at least two independent sources agreeing it's a story.</p>
+    </div>
+  </section>
+
+  <section class="section--tight">
+    <div class="wrap">
+      <div class="trust-list">
+        <div class="trust-row">
+          <div class="trust-row-label"><span class="num">01</span>Collect</div>
+          <div>
+            <h3>Harvest the open web, in real time</h3>
+            <p>We read many trusted outlets in parallel — homepages and RSS/Atom feeds — across English and Spanish. A strict freshness window keeps only current stories, so stale archive content never floats to the top.</p>
+          </div>
+        </div>
+        <div class="trust-row">
+          <div class="trust-row-label"><span class="num">02</span>Enrich</div>
+          <div>
+            <h3>Tag the who, what and where</h3>
+            <p>Each article is tagged with the people, organizations and places it mentions, plus its topic and language, and condensed into a short summary the rest of the pipeline can reason over.</p>
+          </div>
+        </div>
+        <div class="trust-row">
+          <div class="trust-row-label"><span class="num">03</span>Cluster</div>
+          <div>
+            <h3>Group by meaning, not keywords</h3>
+            <p>Articles are grouped by semantic similarity plus shared entities — not matching words — so different outlets covering the same event land together even when they phrase it nothing alike.</p>
+          </div>
+        </div>
+        <div class="trust-row">
+          <div class="trust-row-label"><span class="num">04</span>Synthesize</div>
+          <div>
+            <h3>One balanced, cited page</h3>
+            <p>Once a cluster has at least two distinct sources, we write a single balanced, source-traceable page. Every claim carries a citation back to the reporting it came from.</p>
+          </div>
+        </div>
+        <div class="trust-row">
+          <div class="trust-row-label"><span class="num">05</span>Verify</div>
+          <div>
+            <h3>Drop anything that can't be traced</h3>
+            <p>A quality-assurance pass removes any claim that can't be tied back to a real source, and validates each page before it goes live.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="cards-row c2" style="margin-top:30px">
+        <div class="callout">
+          <span class="rule-chip" style="align-self:flex-start">≥ 2 sources</span>
+          <div>
+            <h3>The two-source rule</h3>
+            <p>Single-source rumors never become an InkBytes page. If only one outlet has it, we wait until it's independently corroborated.</p>
+          </div>
+        </div>
+        <div class="callout" style="border-left-color:var(--ink-3)">
+          <span class="icon-badge"><svg class="uicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"/></svg></span>
+          <div>
+            <h3>What we don't do</h3>
+            <p>No original reporting. No opinion dressed as fact. No engagement-maximizing feed. We aggregate and synthesize — and we say so.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band center">
+    <div class="wrap measure">
+      <h2 class="h-sec" style="margin:0 auto 18px">See the pipeline's output.</h2>
+      <p class="lead" style="margin:0 auto 30px">Open any event and follow each claim back to the reporting it came from.</p>
+      <a class="ib-btn v-primary sz-lg" href="https://inkbytes.org">Start reading — $9/mo</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div id="ib-footer"></div>
+  <div id="ib-footbar" class="foot-bar"></div>
+</footer>
+
+<script src="assets/chrome.jsx"></script>
+<script type="text/babel" src="assets/widgets.jsx"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contacto — InkBytes</title>
+<meta name="description" content="Ponte en contacto, reporta una corrección o escríbenos para prensa." />
+<meta property="og:title" content="Contacto — InkBytes" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://inkbytes.news/es/contact" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="../../_ds/inkbytes-design-system-11965451-5407-4f06-841c-ae5a338d983f/styles.css" />
+<link rel="stylesheet" href="../assets/site.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="../../_ds/inkbytes-design-system-11965451-5407-4f06-841c-ae5a338d983f/_ds_bundle.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body data-page="contact" data-lang="es" data-alt="../contact.html">
+<script src="../assets/sprite.js"></script>
+
+<header id="ib-header" class="site-header"></header>
+
+<main>
+
+  <section class="page-hero page-hero--accent">
+    <div class="wrap">
+      <span class="kicker"><span class="pulse"></span> Contacto</span>
+      <h1>Ponte en <span class="accent">contacto</span>.</h1>
+      <p class="lead">Preguntas, correcciones o prensa — leemos todo. Sin embudos de marketing, sin trucos.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="contact-grid">
+        <div class="card contact-card">
+          <span class="icon-badge"><svg class="uicon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
+          <h3>General</h3>
+          <p>Para cualquier tema sobre el producto, la membresía o alianzas.</p>
+          <a class="email" href="mailto:hola@inkbytes.news">hola@inkbytes.news</a>
+        </div>
+        <div class="card contact-card">
+          <span class="icon-badge"><svg class="uicon" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+          <h3>Reportar una corrección</h3>
+          <p>¿Viste un error en una página de evento? Envía la página y qué está mal. Lo corregimos a la vista.</p>
+          <a class="email" href="mailto:correcciones@inkbytes.news">correcciones@inkbytes.news</a>
+        </div>
+        <div class="card contact-card">
+          <span class="icon-badge"><svg class="uicon" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/></svg></span>
+          <h3>Prensa</h3>
+          <p>InkBytes es un lector de noticias pago y sin anuncios que sintetiza una página citada por evento. Hecho en República Dominicana.</p>
+          <a class="email" href="mailto:prensa@inkbytes.news">prensa@inkbytes.news</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section--tight">
+    <div class="wrap">
+      <div class="sec-head center" style="margin-bottom:32px">
+        <span class="kicker">Envía un mensaje</span>
+        <h2 class="h-sec">O simplemente escríbenos aquí.</h2>
+      </div>
+      <form class="contact-form" onsubmit="return false">
+        <div class="field-row">
+          <div class="field">
+            <label for="cf-name">Nombre</label>
+            <input id="cf-name" type="text" placeholder="Tu nombre" autocomplete="name" />
+          </div>
+          <div class="field">
+            <label for="cf-email">Correo</label>
+            <input id="cf-email" type="email" placeholder="tu@ejemplo.com" autocomplete="email" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="cf-topic">Tema</label>
+          <select id="cf-topic">
+            <option>Pregunta general</option>
+            <option>Reportar una corrección</option>
+            <option>Membresía y facturación</option>
+            <option>Prensa</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="cf-msg">Mensaje</label>
+          <textarea id="cf-msg" placeholder="¿Qué tienes en mente?"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap">
+          <p class="form-note"><span class="pulse"></span> No te agregamos a ninguna lista de marketing. Nunca.</p>
+          <button class="ib-btn v-primary sz-md" type="submit">Enviar mensaje</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="section band center">
+    <div class="wrap measure">
+      <h2 class="h-sec" style="margin:0 auto 18px">¿Prefieres solo leer?</h2>
+      <p class="lead" style="margin:0 auto 30px">Explora cada evento gratis en el lector y mira la síntesis por ti mismo.</p>
+      <a class="ib-btn v-primary sz-lg" href="https://inkbytes.org">Empezar a leer — $9/mes</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div id="ib-footer"></div>
+  <div id="ib-footbar" class="foot-bar"></div>
+</footer>
+
+<script src="../assets/chrome.jsx"></script>
+<script type="text/babel" src="../assets/widgets.jsx"></script>
+</body>
+</html>
