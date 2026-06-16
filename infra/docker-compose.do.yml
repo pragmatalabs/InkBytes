@@ -48,6 +48,16 @@ services:
       - "traefik.http.routers.inkbytes-reader.entrypoints=websecure"
       - "traefik.http.routers.inkbytes-reader.tls.certresolver=letsencrypt"
       - "traefik.http.services.inkbytes-reader.loadbalancer.server.port=3000"
+      # Flood / DDoS hardening (security). Per-IP rate-limit + concurrent-request
+      # cap at the edge. Defaults limit by client IP (RemoteAddr — spoof-resistant,
+      # no X-Forwarded-For trust). Values are generous for humans (lead images are
+      # cross-origin from outlet CDNs, so a page load hits this origin ~5-15×) and
+      # brutal for a flood (which does thousands/s). Names are inkbytes-prefixed so
+      # they don't collide on the shared Traefik. Tune average/burst if false 429s.
+      - "traefik.http.routers.inkbytes-reader.middlewares=inkbytes-reader-ratelimit,inkbytes-reader-inflight"
+      - "traefik.http.middlewares.inkbytes-reader-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.inkbytes-reader-ratelimit.ratelimit.burst=200"
+      - "traefik.http.middlewares.inkbytes-reader-inflight.inflightreq.amount=100"
 
   inkbytes-backoffice:
     mem_limit: 384m
@@ -61,3 +71,11 @@ services:
       - "traefik.http.routers.inkbytes-backoffice.entrypoints=websecure"
       - "traefik.http.routers.inkbytes-backoffice.tls.certresolver=letsencrypt"
       - "traefik.http.services.inkbytes-backoffice.loadbalancer.server.port=80"
+      # Flood / brute-force hardening (security). Tighter than the Reader — the
+      # admin is a single-user tool, so a low ceiling is safe and also caps
+      # login-POST flooding at the edge (on top of Breeze's per-credential
+      # lockout + the throttle:10,1 route middleware).
+      - "traefik.http.routers.inkbytes-backoffice.middlewares=inkbytes-backoffice-ratelimit,inkbytes-backoffice-inflight"
+      - "traefik.http.middlewares.inkbytes-backoffice-ratelimit.ratelimit.average=30"
+      - "traefik.http.middlewares.inkbytes-backoffice-ratelimit.ratelimit.burst=60"
+      - "traefik.http.middlewares.inkbytes-backoffice-inflight.inflightreq.amount=40"

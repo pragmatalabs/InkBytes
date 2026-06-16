@@ -20,7 +20,12 @@ Route::middleware('guest')->group(function () {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    // Per-IP flood cap on the login endpoint (security hardening). Breeze's
+    // LoginRequest already locks out after 5 failed attempts per email+IP, but
+    // that keys on the credential — a flood with varying emails from one IP
+    // bypasses it. throttle:10,1 caps raw login POSTs to 10/min/IP regardless.
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])
+        ->middleware('throttle:10,1');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
