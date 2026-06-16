@@ -131,10 +131,11 @@ floor + the LLM's judgment on top.
   the LLM), dedupes + caps the most-frequent surface forms per type. **Fail-open
   everywhere** (gated off, unsupported language, missing model, load error,
   timeout → `[]`). `format_must_cover()` renders the `TYPE: a, b` block.
-- `core/config.py` — `NerCfg` (`enabled=False`, `models={en:en_core_web_md,
-  es:es_core_news_lg}`, `max_entities_per_type`, `max_chars`, `max_concurrent`,
-  `timeout_s`); env overlay `NER_ENABLED` + per-language `NER_EN_MODEL`/
-  `NER_ES_MODEL` (drop es to `_md` on a memory-tight box).
+- `core/config.py` — `NerCfg` (`enabled=False`, **memory-safe defaults**
+  `models={en:en_core_web_md, es:es_core_news_md}`, `max_entities_per_type`,
+  `max_chars`, `max_concurrent`, `timeout_s`); env overlay `NER_ENABLED` +
+  per-language `NER_EN_MODEL`/`NER_ES_MODEL` (opt up to `es_core_news_lg` on a
+  ≥16GB box).
 - `prompts/enrich.md` (rule 4 + input block) — the LLM must include each genuine
   MUST_COVER entity with the *correct* type/salience, may drop a false positive,
   and still finds the central EVENT itself.
@@ -151,9 +152,28 @@ floor + the LLM's judgment on top.
 
 **Two gates, both default-off:** build-time (`INSTALL_NER_MODELS`) keeps models
 out of the image; runtime (`NER_ENABLED`) keeps the pass dormant. Roll out like
-triage did — bake models, enable on one cycle, watch worker memory — because
-`es_core_news_lg` is ~1GB resident vs the worker's 1.5GB cap (use `es_core_news_md`
-or wait for the 16GB droplet upgrade).
+triage did — bake models, enable on one cycle, watch worker memory.
+
+**Measured peak RSS** (loading both models in-process, 2026-06-15) drove the
+model defaults:
+
+| Models loaded | Peak RSS |
+|---|---:|
+| `import spacy` baseline | 88 MB |
+| `en_core_web_md` only | 433 MB |
+| `es_core_news_md` only | 420 MB |
+| `es_core_news_lg` only | 981 MB |
+| **`en_core_web_md` + `es_core_news_md`** (default) | **693 MB** |
+| `en_core_web_md` + `es_core_news_lg` | 1 235 MB |
+
+On the worker's ~400 MB working set, the **md pair lands ~1.0 GB (fits the 1.5 GB
+cap with Chromium headroom)**; the lg pair reaches ~1.55 GB and **breaches the cap
+once an IllustrateSkill Chromium run overlaps**. The es md→lg NER gap is small —
+the extra ~560 MB is lg's static-vector table, which the NER head barely uses.
+**`exclude=["vectors"]` is NOT an option**: the es md/lg NER heads feed on the
+static vectors and crash (`IndexError` in `staticvectors.py`) without them. Hence
+the default is `es_core_news_md`; opt up to `es_core_news_lg` (bake it + set
+`NER_ES_MODEL`) only on a ≥16GB box.
 
 ### Item 3 (🥉 Medium) — Wikipedia entity-linking  *[design captured, deferred]*
 

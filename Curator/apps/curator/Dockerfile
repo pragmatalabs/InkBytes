@@ -22,14 +22,15 @@ COPY apps/curator/requirements.txt .
 RUN pip install -r requirements.txt
 
 # spaCy NER pre-pass models (ADR-0032 item 2). OFF by default to keep the image
-# lean (~600MB of models) — build with `--build-arg INSTALL_NER_MODELS=true`
-# AND set NER_ENABLED=1 at runtime to use the pass. es_core_news_lg is ~1GB
-# resident; on the 1.5GB worker prefer es_core_news_md (NER_ES_MODEL) or wait
-# for the 16GB droplet upgrade.
+# lean — build with `--build-arg INSTALL_NER_MODELS=true` AND set NER_ENABLED=1
+# at runtime to use the pass. These match NerCfg's memory-safe defaults
+# (measured peak ≈ 0.69 GB for the pair, fits the 1.5 GB worker). For a ≥16GB box
+# wanting higher Spanish recall, also bake es_core_news_lg and set
+# NER_ES_MODEL=es_core_news_lg (the pair then needs ≈ 1.24 GB resident).
 ARG INSTALL_NER_MODELS=false
 RUN if [ "$INSTALL_NER_MODELS" = "true" ]; then \
       python -m spacy download en_core_web_md && \
-      python -m spacy download es_core_news_lg ; \
+      python -m spacy download es_core_news_md ; \
     fi
 
 # Install Chromium binaries for both Playwright (DynamicFetcher) and

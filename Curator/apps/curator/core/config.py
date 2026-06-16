@@ -189,21 +189,25 @@ class NerCfg(BaseModel):
     # under-extract. Free/CPU, multilingual, fail-OPEN (any error → LLM-only).
     #
     # OFF by default. Two independent gates keep it safe: this runtime flag AND
-    # the build-time `INSTALL_NER_MODELS` Docker arg (models are ~600MB and are
-    # NOT in the default image). Enable only once the curator-worker has memory
-    # headroom (es_core_news_lg is ~1GB resident vs the 1.5GB worker cap — prefer
-    # es_core_news_md there, or wait for the 16GB droplet upgrade).
+    # the build-time `INSTALL_NER_MODELS` Docker arg (models are NOT in the
+    # default image). Enable only once the curator-worker has memory headroom.
     enabled: bool = False
-    # Per-language spaCy package. md(en)/lg(es) are the ADR quality target; any
-    # absent model is skipped (that language falls back to LLM-only).
+    # Per-language spaCy package. Defaults are MEMORY-SAFE for the 1.5GB worker —
+    # measured peak RSS (loading both, in-process): en_core_web_md + es_core_news_md
+    # ≈ 0.69 GB, vs es_core_news_lg which pushes the pair to ≈ 1.24 GB and breaches
+    # the cap once an IllustrateSkill Chromium run overlaps. The es md→lg NER gap is
+    # small (the extra ~560MB is lg's static-vector table, which the NER head barely
+    # uses — and it can't be excluded: dropping vectors crashes the es models).
+    # Opt up to es_core_news_lg via NER_ES_MODEL only on a ≥16GB box. Any absent
+    # model is skipped (that language falls back to LLM-only).
     models: dict[str, str] = Field(default_factory=lambda: {
         "en": "en_core_web_md",
-        "es": "es_core_news_lg",
+        "es": "es_core_news_md",
     })
-    # The md/lg models are still noisy on news copy — keep only the most frequent
+    # The md models are still noisy on news copy — keep only the most frequent
     # surface forms per type so the prompt isn't flooded.
     max_entities_per_type: int = 8
-    # NER over the article head is enough; the full body is slow on lg models.
+    # NER over the article head is enough; the full body is slow on larger models.
     max_chars: int = 4000
     # spaCy is synchronous + CPU-heavy: each call runs in a worker thread and
     # concurrency is bounded (the _embed_sem lesson) so N in-flight articles
