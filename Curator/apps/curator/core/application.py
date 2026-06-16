@@ -16,6 +16,7 @@ from services.embedding_service import EmbeddingService
 from services.llm_service import LlmService, LlmQuotaError
 from services.media_validation import MediaValidator
 from services.message_service import MessageService, ProcessingPausedError
+from services import taxonomy
 from skills.assistant import AssistantSkill
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
@@ -258,6 +259,9 @@ class Application:
         print(f"Language: {article.language}")
         print("-" * 60)
         print(f"Theme        : {result.theme}")
+        _cat = (taxonomy.normalize_category(result.article_category)
+                or taxonomy.suggest_category(article.category, article.meta_categories))
+        print(f"Category(33) : {_cat or '(none)'}  [llm={result.article_category or '—'}]")
         print(f"Topic        : {result.topic}")
         print(f"Sentiment    : {result.sentiment}")
         print(f"Factuality   : {result.factuality:.2f}")
@@ -696,6 +700,13 @@ class Application:
                 embedding = await self.embed.embed(
                     f"{article.title}\n\n{article.text[:4000]}"
                 )
+            # Granular category (ADR-0032 item 1): normalize the LLM's pick to
+            # the canonical 33 set; fall back to the deterministic 634→33 bridge
+            # over Messor's section/tags when the model abstained.
+            article_category = (
+                taxonomy.normalize_category(enrichment.article_category)
+                or taxonomy.suggest_category(article.category, article.meta_categories)
+            )
             await self.db.write_enrichment(
                 article.id,
                 theme=enrichment.theme,
@@ -706,6 +717,7 @@ class Application:
                 keywords_canonical=enrichment.keywords_canonical,
                 embedding=embedding,
                 entities=[e.model_dump() for e in enrichment.entities],
+                article_category=article_category,
             )
 
             # 2. CLUSTER — serialised (_cluster_lock): two same-story articles

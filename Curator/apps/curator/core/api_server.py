@@ -74,9 +74,12 @@ _CATCH_ALL = "world"
 
 # The 8 canonical themes written by ENRICH (migration 007). Used to validate
 # the ?theme= filter so a bad value is ignored rather than returning [].
+# 15 broad themes (Curator ADR-0032 item 1, widened from 8). The original 8
+# are a strict subset, so legacy ?theme= chips keep working.
 _VALID_THEMES: frozenset[str] = frozenset({
-    "politics", "culture", "world", "sports",
-    "business", "technology", "health", "environment",
+    "politics", "world", "business", "technology", "science",
+    "health", "sports", "culture", "entertainment", "environment",
+    "crime", "education", "lifestyle", "religion", "disaster",
 })
 
 # Junk topic labels excluded from /topics/trending — enrichment artifacts from
@@ -270,10 +273,12 @@ def build_app(app: Application) -> FastAPI:
         """List published events, newest-first (global-first ranking, ADR-0017).
 
         Optional taxonomy filters (task 6a / ADR-0027), all AND-combined:
-          theme=    one of the 8 canonical themes; matches the event's
-                    majority-vote article theme. Invalid values are ignored.
-          category= a raw outlet section (articles.article_category); event
-                    matches if any of its articles carries that section.
+          theme=    one of the 15 canonical themes (ADR-0032); matches the
+                    event's majority-vote article theme. Invalid values ignored.
+          category= a granular category (articles.article_category) — the
+                    normalized 33-cat label once an article is (re-)enriched
+                    under ADR-0032, else the legacy Messor section; event
+                    matches if any of its articles carries that value.
           topic=    a story topic label (articles.topic); event matches if any
                     article carries it (used by the trending-topics drill-down).
         """

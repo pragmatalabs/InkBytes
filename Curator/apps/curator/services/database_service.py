@@ -812,6 +812,7 @@ class DatabaseService:
         keywords_canonical: list[str],
         embedding: list[float],
         entities: list[dict[str, Any]],
+        article_category: str | None = None,
     ) -> None:
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             async with conn.transaction():
@@ -821,11 +822,17 @@ class DatabaseService:
                        SET enriched_at = NOW(),
                            theme = $2, topic = $3, sentiment = $4, factuality = $5,
                            summary_50w = $6, keywords_canonical = $7,
-                           embedding = $8
+                           embedding = $8,
+                           -- ADR-0032 item 1: upgrade article_category to the
+                           -- normalized 33-cat label when ENRICH derived one;
+                           -- COALESCE keeps Messor's raw section otherwise (no
+                           -- destructive overwrite on an abstain).
+                           article_category = COALESCE($9, article_category)
                      WHERE id = $1
                     """,
                     article_id, theme, topic, sentiment, factuality,
                     summary_50w, keywords_canonical, _vector_literal(embedding),
+                    article_category,
                 )
                 await conn.execute("DELETE FROM entities WHERE article_id = $1", article_id)
                 if entities:

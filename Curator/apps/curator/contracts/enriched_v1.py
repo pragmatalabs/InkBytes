@@ -13,9 +13,14 @@ from pydantic import BaseModel, Field
 
 EntityType = Literal["PERSON", "ORG", "LOC", "EVENT", "OTHER"]
 Sentiment  = Literal["positive", "neutral", "negative"]
+# Broad UI-facing buckets. Widened 8 → 15 (Curator ADR-0032, item 1) using
+# Julian's IPTC-aligned ontology: tech split into technology+science, culture
+# split into culture+entertainment, plus crime/education/lifestyle/religion/
+# disaster. The original 8 are all a strict subset, so legacy rows stay valid.
 Theme      = Literal[
-    "politics", "business", "technology", "sports",
-    "health",   "environment", "culture",  "world",
+    "politics", "world", "business", "technology", "science",
+    "health", "sports", "culture", "entertainment", "environment",
+    "crime", "education", "lifestyle", "religion", "disaster",
 ]
 
 
@@ -31,8 +36,24 @@ class EnrichmentResult(BaseModel):
     theme: Theme = Field(
         ...,
         description=(
-            "Broad thematic bucket. Pick the single best fit from: "
-            "politics, business, technology, sports, health, environment, culture, world."
+            "Broad thematic bucket. Pick the single best fit from: politics, "
+            "world, business, technology, science, health, sports, culture, "
+            "entertainment, environment, crime, education, lifestyle, religion, "
+            "disaster."
+        ),
+    )
+    # Granular IPTC-grounded category (Julian's 33-cat ontology, Curator
+    # ADR-0032 item 1). Free text so `instructor` never re-prompts on a near-
+    # miss; normalized to the canonical 33 set in Python (services/taxonomy.py)
+    # before persistence, with the 634→33 bridge as the deterministic fallback
+    # when the model abstains (null). Drives Backoffice / future per-category
+    # drill-down — distinct from the broad `theme`.
+    article_category: str | None = Field(
+        default=None,
+        max_length=60,
+        description=(
+            "Granular news category, picked from the supplied 33-category list "
+            "(use the broadest fitting label). Return null if none clearly fits."
         ),
     )
     topic: str = Field(..., max_length=80, description="One short topic label. Title case.")

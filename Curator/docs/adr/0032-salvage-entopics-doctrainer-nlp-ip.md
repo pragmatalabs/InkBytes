@@ -1,6 +1,6 @@
 # Curator ADR-0032 — Salvage the Entopics/DocTrainer NLP IP into Curator; retire the legacy repos
 
-> *Status: **proposed** · Owner: Julian De La Rosa · Date: 2026-06-15*
+> *Status: **accepted** — item 1 implemented 2026-06-15 (committed, not yet deployed) · Owner: Julian De La Rosa · Date: 2026-06-15*
 > *Original NLP work (Entopics service + DocTrainer training project) designed, trained and authored by **Julian De La Rosa** (2024). This ADR salvages that work into the InkBytes monorepo so the two source repositories can be put **dormant**.*
 
 ## Context
@@ -73,6 +73,44 @@ already exist: `theme`, `article_category`, `meta_categories`):
   category, used as a strong hint in the enrich prompt (and a deterministic fallback
   when the LLM is unsure).
 
+**Implemented 2026-06-15** (committed locally, not yet deployed):
+- `services/taxonomy.py` — single loader for the two vendored artifacts; exposes
+  `CATEGORIES_33`, `normalize_category()` (case-fold the LLM's pick to a canonical
+  33 label, reject off-ontology), `suggest_category()` (634→33 bridge over
+  section/tags, case-insensitive). Fail-soft: a missing artifact logs once and the
+  pipeline runs on the LLM alone.
+- `contracts/enriched_v1.py` — `Theme` widened 8→15; new optional
+  `article_category: str | None` (free text, so `instructor` never re-prompts on a
+  near-miss; constrained to the 33-set in Python).
+- `prompts/enrich.md` — rule 7 lists the 15 themes; new rule 8 lists the 33
+  categories + `BRIDGE_SUGGESTION` hint; the bridge line is injected by
+  `skills/enrich.py`.
+- `core/application.py` — `article_category = normalize_category(llm_pick) or
+  suggest_category(section, tags)` (LLM first, bridge fallback on abstain).
+- `services/database_service.py` — `write_enrichment(... article_category=)` writes
+  it via `COALESCE($9, article_category)` — **non-destructive**: an abstain that the
+  bridge can't resolve keeps the existing Messor-raw section rather than NULLing it.
+  Existing rows upgrade to the normalized 33-cat only as they re-enrich.
+- `core/api_server.py` — `_VALID_THEMES` widened to 15; the ADR-0027 `?category=`
+  filter now documents `article_category` as the normalized 33-cat (legacy Messor
+  section until re-enriched).
+- `scripts/test_taxonomy_widen.py` — 17 checks (theme subset, contract validation,
+  loader=33, normalize/bridge behaviour, prompt↔33-set drift guard,
+  `_VALID_THEMES`↔contract). All green. Verified on real-LLM `--dry-run`: both
+  fixtures classify `business` / `Business & Economy`.
+
+**Known wrinkles (follow-ups, not blockers):**
+- The 33-cat ontology is a raw 2024 model artifact with overlaps/dotted subtypes
+  (`Entertainment` vs `.Tv/.Movies/.Music`, `Economy` vs `Business & Economy`,
+  `Miscellaneous`/`Headline News`/`Weird News`). It's an imperfect LLM target;
+  the prompt tells the model to prefer the broadest fitting label. A future cleanup
+  could prune it to a tighter granular set.
+- **Reader + Backoffice UI** still surface only the original 8 theme chips/icons.
+  The 7 new themes flow through safely (the Reader's `CategoryIcon` returns `null`
+  and the colour maps are open `Record<string,string>`, so no crash — just no
+  dedicated chip/icon/colour yet). Widening the Reader chips/icons and the
+  Backoffice filter dropdown is the immediate non-breaking follow-up.
+
 ### Item 2 (🥈 Medium-high) — spaCy NER pre-pass → enforce typed entity coverage
 
 A new **optional** pre-enrich step in Curator (`services/ner_prepass.py`, behind a
@@ -120,7 +158,8 @@ here. Preserved for future local-model fine-tuning / extraction evaluation.
 ## Repo-dormancy plan (the goal)
 
 A repo is "dormant" once its durable value is in-repo or archived:
-1. ✅ Taxonomy (33-cat + 634-bridge) → `Curator/.../data/taxonomy/` (this ADR).
+1. ✅ Taxonomy (33-cat + 634-bridge) → `Curator/.../data/taxonomy/` **and wired
+   into the enrich path** (item 1 build, 2026-06-15).
 2. ☐ spaCy NER pre-pass → `Curator/.../services/ner_prepass.py` (item 2 build).
 3. ☐ `lee.py` Wikipedia linker → preserved (port when item 3 is built).
 4. ☐ 346k corpus + 224 MB BERTopic → DO Spaces archive + manifest.

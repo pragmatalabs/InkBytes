@@ -35,9 +35,27 @@ produce a strictly structured analysis. Be neutral, terse, accurate.
    the article is about. Merge/deduplicate with any META_KEYWORDS provided.
    Avoid stop-words.
 7. `theme`: pick the single best broad bucket from this fixed list —
-   **politics | business | technology | sports | health | environment | culture | world**.
-   Use OUTLET_SECTION and OUTLET_TAGS as hints; default to `world` when unsure.
-8. Do not invent facts. If the text is too short or non-substantive,
+   **politics | world | business | technology | science | health | sports |
+   culture | entertainment | environment | crime | education | lifestyle |
+   religion | disaster**.
+   Use OUTLET_SECTION, OUTLET_TAGS and BRIDGE_SUGGESTION as hints; default to
+   `world` when unsure.
+8. `article_category`: pick the single granular category that best fits, from
+   this fixed 33-item list. Prefer the **broadest** label that fits (e.g.
+   `Entertainment` over `Entertainment.Music` unless the story is squarely about
+   music). If BRIDGE_SUGGESTION is present it is a strong hint — use it unless
+   the text clearly contradicts it. Return **null** if none clearly fits (a
+   deterministic fallback fills it in).
+   - Crime & Justice · Arts & Culture · Business & Economy · Disaster & Emergency
+     · Weather & Environment · Education · Health & Wellness · Human Interest ·
+     Lifestyle · Politics · Religion & Beliefs · Science & Technology · Sports ·
+     Headline News · Entertainment · Food & Drink · Automotive · Entertainment.Tv
+     · Entertainment.Movies · Entertainment.Music · Family & Parenting.Kids ·
+     Global News.MiddleEast · Headline News.North America · Media & Journalism ·
+     Economy · Global News · Impact & Social Issues · Miscellaneous ·
+     Culture & Experiences · Family & Parenting · Weird News · Diversity & Identity
+     · Positive News
+9. Do not invent facts. If the text is too short or non-substantive,
    return a low factuality score and empty entities.
 
 ## Input format
@@ -46,9 +64,10 @@ produce a strictly structured analysis. Be neutral, terse, accurate.
 TITLE:           {{title}}
 OUTLET:          {{outlet}}
 LANGUAGE:        {{language}}
-OUTLET_SECTION:  {{outlet_section}}   ← Messor-detected primary section (may be absent)
-OUTLET_TAGS:     {{outlet_tags}}      ← Messor-extracted category tags (may be absent)
-META_KEYWORDS:   {{meta_keywords}}    ← Raw <meta> keywords from the page (may be absent)
+OUTLET_SECTION:    {{outlet_section}}     ← Messor-detected primary section (may be absent)
+OUTLET_TAGS:       {{outlet_tags}}        ← Messor-extracted category tags (may be absent)
+META_KEYWORDS:     {{meta_keywords}}      ← Raw <meta> keywords from the page (may be absent)
+BRIDGE_SUGGESTION: {{bridge_suggestion}}  ← 634→33 IPTC bridge category from section/tags (may be absent)
 TEXT:
 {{text}}
 ```

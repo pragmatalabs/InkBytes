@@ -11,6 +11,7 @@ import re
 from contracts.article_v1 import ArticleV1
 from contracts.enriched_v1 import EnrichmentResult
 from core.config import LlmCfg
+from services import taxonomy
 from services.llm_service import LlmService
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,12 @@ def _build_user_content(art: ArticleV1) -> str:
         lines.append(f"OUTLET_TAGS:     {', '.join(art.meta_categories[:8])}")
     if art.keywords:
         lines.append(f"META_KEYWORDS:   {', '.join(art.keywords[:10])}")
+
+    # 634→33 IPTC bridge: a deterministic category hint from Messor's section /
+    # tags (ADR-0032 item 1). Same lookup feeds the post-enrich fallback.
+    bridge = taxonomy.suggest_category(art.category, art.meta_categories)
+    if bridge:
+        lines.append(f"BRIDGE_SUGGESTION: {bridge}")
 
     lines.append(f"TEXT:\n{body}")
     return "\n".join(lines)
