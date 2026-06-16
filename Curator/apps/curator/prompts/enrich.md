@@ -30,6 +30,12 @@ produce a strictly structured analysis. Be neutral, terse, accurate.
    location, the central event), then add secondary ones. Up to 30 total; prefer
    high-salience over completeness once the central entities are covered.
    `salience` is 0–1 (1 = central to the story, lower for passing mentions).
+   If a **MUST_COVER** block is supplied (deterministic NER, high-recall but
+   noisy): include each listed entity that genuinely appears in the article,
+   assigning the **correct** type and salience yourself — the suggested type may
+   be wrong, and you SHOULD silently drop an obvious false positive or a name not
+   actually in the text. MUST_COVER never lists the central **EVENT** — that
+   remains yours to identify per the rules above.
 5. `topic` is a short noun phrase. Title case. No hashtags.
 6. `keywords_canonical`: up to 10 lowercase short phrases that name *what*
    the article is about. Merge/deduplicate with any META_KEYWORDS provided.
@@ -68,6 +74,7 @@ OUTLET_SECTION:    {{outlet_section}}     ← Messor-detected primary section (m
 OUTLET_TAGS:       {{outlet_tags}}        ← Messor-extracted category tags (may be absent)
 META_KEYWORDS:     {{meta_keywords}}      ← Raw <meta> keywords from the page (may be absent)
 BRIDGE_SUGGESTION: {{bridge_suggestion}}  ← 634→33 IPTC bridge category from section/tags (may be absent)
+MUST_COVER:        {{must_cover}}          ← typed entities from deterministic NER, one line per type (may be absent)
 TEXT:
 {{text}}
 ```

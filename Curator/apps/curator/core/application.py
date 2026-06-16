@@ -17,6 +17,7 @@ from services.llm_service import LlmService, LlmQuotaError
 from services.media_validation import MediaValidator
 from services.message_service import MessageService, ProcessingPausedError
 from services import taxonomy
+from services.ner_prepass import NerPrepass
 from skills.assistant import AssistantSkill
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
@@ -65,6 +66,9 @@ class Application:
         # Pre-enrich triage gate (ADR-0030): small local model drops junk before
         # the paid DeepSeek enrich. No-op when cfg.triage.enabled is False.
         self.triage = TriageSkill(cfg.triage)
+        # spaCy NER pre-pass (ADR-0032 item 2): deterministic typed entities fed
+        # to enrich as MUST_COVER hints. No-op when cfg.ner.enabled is False.
+        self.ner = NerPrepass(cfg.ner)
         self.cluster = ClusterSkill(self.db, cfg.clustering)
         self.synthesize = SynthesizeSkill(
             self.llm, self.db, cfg.llm,
@@ -87,6 +91,9 @@ class Application:
         # the shared CPU box isn't hit by max_concurrent_articles generations at
         # once (same reasoning as _embed_sem).
         self._triage_sem = asyncio.Semaphore(max(1, cfg.triage.max_concurrent))
+        # NER pre-pass concurrency (ADR-0032 item 2): spaCy runs in worker threads;
+        # bound them so N in-flight articles don't saturate the shared CPU box.
+        self._ner_sem = asyncio.Semaphore(max(1, cfg.ner.max_concurrent))
         # Cluster-attach serialisation: two same-story articles clustering
         # concurrently would each see "no neighbour" and seed duplicate events.
         # The attach decision is fast (~1s: one ANN query + two UPDATEs), so a
@@ -250,7 +257,11 @@ class Application:
         event = ArticleScrapedEvent.model_validate(payload)
         article = event.article
         logger.info("[dry-run] ENRICH on %s (%s)", article.id, article.outlet.name)
-        result = await self.enrich.run(article)
+        must_cover = await self.ner.extract(article) if self.cfg.ner.enabled else []
+        if must_cover:
+            logger.info("[dry-run] MUST_COVER (%d): %s", len(must_cover),
+                        ", ".join(f"{e.type}:{e.name}" for e in must_cover))
+        result = await self.enrich.run(article, must_cover=must_cover)
         vec = await self.embed.embed(f"{article.title}\n\n{article.text[:4000]}")
         print()
         print("=" * 60)
@@ -691,9 +702,18 @@ class Application:
                         await self.db.mark_triage_dropped(article.id, tv.reason)
                         return  # ack; skip enrich/cluster/synth (raw article kept)
 
+            # NER pre-pass (ADR-0032 item 2): deterministic typed entities the
+            # LLM must consider, so it can't under-extract people/orgs/places.
+            # Runs only on articles that survived triage; fail-open ([] → LLM
+            # only); bounded so spaCy threads don't saturate the CPU box.
+            must_cover = []
+            if self.cfg.ner.enabled:
+                async with self._ner_sem:
+                    must_cover = await self.ner.extract(article)
+
             # 1. ENRICH — the slow stage (8-17s of LLM network wait); runs
             # concurrently across messages up to max_concurrent_articles.
-            enrichment = await self.enrich.run(article)
+            enrichment = await self.enrich.run(article, must_cover=must_cover)
             # Embed is serialised (_embed_sem): CPU-only Ollama times out under
             # concurrent load. ~0.2-1s per call, so the lock is cheap.
             async with self._embed_sem:

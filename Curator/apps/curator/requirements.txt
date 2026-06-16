@@ -22,6 +22,12 @@ pydantic-settings>=2.5.0
 # Browser binaries: `playwright install chromium && patchright install chromium` in Dockerfile.
 scrapling[fetchers]>=0.2.9
 
+# --- NER pre-pass (ADR-0032 item 2) ---
+# The library (~40MB) ships always so the service imports cleanly; the language
+# MODELS (~600MB) are baked only when the Dockerfile is built with
+# `--build-arg INSTALL_NER_MODELS=true`, and the pass is OFF until NER_ENABLED=1.
+spacy>=3.7,<3.9
+
 # --- Utilities ---
 PyYAML>=6.0.1
 python-dotenv>=1.0.0

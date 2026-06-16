@@ -182,6 +182,37 @@ class TriageCfg(BaseModel):
     max_concurrent: int = 2
 
 
+class NerCfg(BaseModel):
+    # spaCy NER pre-pass (ADR-0032 item 2): a language-routed, deterministic NER
+    # pass extracts typed entities (PERSON/ORG/LOC) BEFORE enrich and injects
+    # them into the enrich prompt as MUST_COVER hints, so the LLM can't
+    # under-extract. Free/CPU, multilingual, fail-OPEN (any error → LLM-only).
+    #
+    # OFF by default. Two independent gates keep it safe: this runtime flag AND
+    # the build-time `INSTALL_NER_MODELS` Docker arg (models are ~600MB and are
+    # NOT in the default image). Enable only once the curator-worker has memory
+    # headroom (es_core_news_lg is ~1GB resident vs the 1.5GB worker cap — prefer
+    # es_core_news_md there, or wait for the 16GB droplet upgrade).
+    enabled: bool = False
+    # Per-language spaCy package. md(en)/lg(es) are the ADR quality target; any
+    # absent model is skipped (that language falls back to LLM-only).
+    models: dict[str, str] = Field(default_factory=lambda: {
+        "en": "en_core_web_md",
+        "es": "es_core_news_lg",
+    })
+    # The md/lg models are still noisy on news copy — keep only the most frequent
+    # surface forms per type so the prompt isn't flooded.
+    max_entities_per_type: int = 8
+    # NER over the article head is enough; the full body is slow on lg models.
+    max_chars: int = 4000
+    # spaCy is synchronous + CPU-heavy: each call runs in a worker thread and
+    # concurrency is bounded (the _embed_sem lesson) so N in-flight articles
+    # don't saturate the shared box. Keep <= CPU cores - 2.
+    max_concurrent: int = 2
+    # Per-document wall-clock cap (thread). On overrun the pass fails OPEN.
+    timeout_s: float = 8.0
+
+
 class ClusterCfg(BaseModel):
     # Tuned for bge-m3 (Ollama, 1024-dim, ADR-0017): 72h of production data
     # showed articles with ≥0.50 cosine similarity are effectively the same
@@ -267,6 +298,7 @@ class CuratorConfig(BaseModel):
     spaces: SpacesCfg = SpacesCfg()
     api: ApiCfg = ApiCfg()
     triage: TriageCfg = TriageCfg()
+    ner: NerCfg = NerCfg()
 
     @classmethod
     def load(cls, path: str | Path) -> "CuratorConfig":
@@ -366,12 +398,21 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         "TRIAGE_SHADOW":     ("triage", "shadow"),
         "TRIAGE_BASE_URL":   ("triage", "base_url"),
         "TRIAGE_MODEL":      ("triage", "model"),
+        # spaCy NER pre-pass (ADR-0032 item 2). Off by default; enable in prod
+        # via infra/.env once models are baked (INSTALL_NER_MODELS) + memory ok.
+        "NER_ENABLED":       ("ner", "enabled"),
     }
     data = cfg.model_dump()
     for env_var, (section, key) in overrides.items():
         val = os.environ.get(env_var)
         if val:
             data[section][key] = val
+    # Per-language NER model overrides land in the nested `ner.models` dict, so
+    # a memory-constrained box can drop es to es_core_news_md without code edits.
+    for env_var, lang in (("NER_EN_MODEL", "en"), ("NER_ES_MODEL", "es")):
+        mv = os.environ.get(env_var)
+        if mv:
+            data["ner"]["models"][lang] = mv
     # Provider-specific API keys feed their dedicated llm.* fields so LlmService
     # can hot-swap between providers via Backoffice (ADR-0004).
     openai_key = os.environ.get("OPENAI_API_KEY")

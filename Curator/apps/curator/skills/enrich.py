@@ -13,11 +13,12 @@ from contracts.enriched_v1 import EnrichmentResult
 from core.config import LlmCfg
 from services import taxonomy
 from services.llm_service import LlmService
+from services.ner_prepass import NerEntity, format_must_cover
 
 logger = logging.getLogger(__name__)
 
 
-def _build_user_content(art: ArticleV1) -> str:
+def _build_user_content(art: ArticleV1, must_cover: list[NerEntity] | None = None) -> str:
     body = art.text
     # Soft truncate at ~6000 chars; ENRICH doesn't need the whole text.
     if len(body) > 6000:
@@ -44,6 +45,12 @@ def _build_user_content(art: ArticleV1) -> str:
     if bridge:
         lines.append(f"BRIDGE_SUGGESTION: {bridge}")
 
+    # spaCy NER pre-pass (ADR-0032 item 2): high-recall typed entities the LLM
+    # must consider so it can't under-extract the principal people/orgs/places.
+    mc = format_must_cover(must_cover or [])
+    if mc:
+        lines.append(f"MUST_COVER:\n{mc}")
+
     lines.append(f"TEXT:\n{body}")
     return "\n".join(lines)
 
@@ -62,12 +69,14 @@ class EnrichSkill:
         # humans; the API call sets system + user directly.
         return re.split(r"^## Input format", raw, flags=re.MULTILINE)[0].strip()
 
-    async def run(self, article: ArticleV1) -> EnrichmentResult:
+    async def run(
+        self, article: ArticleV1, must_cover: list[NerEntity] | None = None,
+    ) -> EnrichmentResult:
         logger.info("ENRICH %s (%s)", article.id, article.outlet.name)
         return await self.llm.structured(
             model=self.llm_cfg.enrich_model,
             system_prompt=self._system_prompt,
-            user_content=_build_user_content(article),
+            user_content=_build_user_content(article, must_cover),
             response_model=EnrichmentResult,
             max_tokens=self.llm_cfg.max_tokens_enrich,
         )

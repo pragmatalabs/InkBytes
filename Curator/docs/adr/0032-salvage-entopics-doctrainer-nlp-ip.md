@@ -1,6 +1,6 @@
 # Curator ADR-0032 — Salvage the Entopics/DocTrainer NLP IP into Curator; retire the legacy repos
 
-> *Status: **accepted** — item 1 implemented 2026-06-15 (committed, not yet deployed) · Owner: Julian De La Rosa · Date: 2026-06-15*
+> *Status: **accepted** — items 1 + 2 implemented 2026-06-15 (committed, not yet deployed; NER pre-pass ships disabled behind two gates) · Owner: Julian De La Rosa · Date: 2026-06-15*
 > *Original NLP work (Entopics service + DocTrainer training project) designed, trained and authored by **Julian De La Rosa** (2024). This ADR salvages that work into the InkBytes monorepo so the two source repositories can be put **dormant**.*
 
 ## Context
@@ -123,6 +123,38 @@ is **multilingual**, closing the legacy stack's fatal EN-only limitation. Fail-o
 (spaCy hiccup → LLM-only, never blocks). Net effect: deterministic typed-coverage
 floor + the LLM's judgment on top.
 
+**Implemented 2026-06-15** (committed locally, not deployed; ships **disabled**):
+- `services/ner_prepass.py` — `NerPrepass.extract(article)` lazy-loads the
+  per-language model (NER-only pipeline; others disabled for speed/memory),
+  runs spaCy in a worker thread (`asyncio.to_thread`) under a per-doc timeout,
+  normalizes labels (EN OntoNotes + ES/`xx` CoNLL → PERSON/ORG/LOC; EVENT left to
+  the LLM), dedupes + caps the most-frequent surface forms per type. **Fail-open
+  everywhere** (gated off, unsupported language, missing model, load error,
+  timeout → `[]`). `format_must_cover()` renders the `TYPE: a, b` block.
+- `core/config.py` — `NerCfg` (`enabled=False`, `models={en:en_core_web_md,
+  es:es_core_news_lg}`, `max_entities_per_type`, `max_chars`, `max_concurrent`,
+  `timeout_s`); env overlay `NER_ENABLED` + per-language `NER_EN_MODEL`/
+  `NER_ES_MODEL` (drop es to `_md` on a memory-tight box).
+- `prompts/enrich.md` (rule 4 + input block) — the LLM must include each genuine
+  MUST_COVER entity with the *correct* type/salience, may drop a false positive,
+  and still finds the central EVENT itself.
+- `skills/enrich.py` — `run(article, must_cover=…)` injects the block.
+- `core/application.py` — runs after triage, before enrich, bounded by
+  `_ner_sem`; also wired into `--dry-run` (logs MUST_COVER).
+- `requirements.txt` — `spacy>=3.7,<3.9` (lib always; models NOT).
+- `Dockerfile` — `ARG INSTALL_NER_MODELS=false` gates the ~600MB
+  `spacy download en_core_web_md es_core_news_lg`, so the default image stays lean.
+- `scripts/test_ner_prepass.py` — 15 checks (gating, fail-open ×3, format,
+  prompt injection, real EN+ES extraction, dedup, type-filter, cap). All green.
+  Verified end-to-end on `--dry-run`: a Spanish fixture loaded `es_core_news_sm`,
+  surfaced 9 typed entities, and the LLM covered all 9 — multilingual gap closed.
+
+**Two gates, both default-off:** build-time (`INSTALL_NER_MODELS`) keeps models
+out of the image; runtime (`NER_ENABLED`) keeps the pass dormant. Roll out like
+triage did — bake models, enable on one cycle, watch worker memory — because
+`es_core_news_lg` is ~1GB resident vs the worker's 1.5GB cap (use `es_core_news_md`
+or wait for the 16GB droplet upgrade).
+
 ### Item 3 (🥉 Medium) — Wikipedia entity-linking  *[design captured, deferred]*
 
 Port `Trashx/Entopics/nlp/lee.py` (circuit-breaker + LRU + disk cache) as an
@@ -160,7 +192,9 @@ here. Preserved for future local-model fine-tuning / extraction evaluation.
 A repo is "dormant" once its durable value is in-repo or archived:
 1. ✅ Taxonomy (33-cat + 634-bridge) → `Curator/.../data/taxonomy/` **and wired
    into the enrich path** (item 1 build, 2026-06-15).
-2. ☐ spaCy NER pre-pass → `Curator/.../services/ner_prepass.py` (item 2 build).
+2. ✅ spaCy NER pre-pass → `Curator/.../services/ner_prepass.py` (item 2 build,
+   2026-06-15). Ships disabled (build + runtime gates); enable after a memory
+   check on the worker.
 3. ☐ `lee.py` Wikipedia linker → preserved (port when item 3 is built).
 4. ☐ 346k corpus + 224 MB BERTopic → DO Spaces archive + manifest.
 5. Then: tag the repos read-only / move out of active `Trashx`, add a `DORMANT.md`
