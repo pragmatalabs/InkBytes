@@ -128,6 +128,14 @@ const CATEGORY_LABELS: Record<string, string> = {
   environment: "Climate",
   culture: "Culture",
   world: "World",
+  // ADR-0032 item 1 — 7 added themes.
+  science: "Science",
+  entertainment: "Entertainment",
+  crime: "Crime",
+  education: "Education",
+  lifestyle: "Lifestyle",
+  religion: "Religion",
+  disaster: "Disaster",
 };
 
 /**

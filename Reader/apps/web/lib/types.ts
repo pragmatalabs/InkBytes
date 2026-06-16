@@ -31,8 +31,9 @@ export interface EventSummary {
   source_count: number;
   article_count: number;
   topic: string | null;
-  /** Broad category derived server-side from topic: politics | business | technology |
-   *  sports | health | environment | culture | world */
+  /** Broad enrichment theme (Curator ADR-0032, 15 values): politics | business |
+   *  technology | sports | health | environment | culture | world | science |
+   *  entertainment | crime | education | lifestyle | religion | disaster */
   category: string | null;
   language: string;
   outlet_names: string[];

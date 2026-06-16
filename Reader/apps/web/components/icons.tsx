@@ -246,6 +246,111 @@ export function HelpIcon({ className }: IconProps) {
   );
 }
 
+// ── Category icons (ADR-0032 item 1 — 7 added themes) ───────────────────────────
+// Authored on a 48×48 grid with strokeWidth 2 + round caps/joins to match the
+// help/tech/AI category icons already in use.
+
+/** Science — conical lab flask with liquid + bubbles */
+export function ScienceIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <line x1="19" y1="7" x2="29" y2="7"/>
+      <path d="M21 7 V20 L11 39 a2 2 0 0 0 1.8 3 H35.2 a2 2 0 0 0 1.8-3 L27 20 V7"/>
+      <line x1="16" y1="31" x2="32" y2="31"/>
+      <circle cx="21" cy="27" r="1.3"/>
+      <circle cx="27" cy="35" r="1.3"/>
+    </svg>
+  );
+}
+
+/** Entertainment — film clapperboard */
+export function ClapperboardIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <rect x="8" y="18" width="32" height="23" rx="2"/>
+      <path d="M8 18 V13 H40 V18 Z"/>
+      <line x1="14" y1="13" x2="11" y2="18"/>
+      <line x1="20" y1="13" x2="17" y2="18"/>
+      <line x1="26" y1="13" x2="23" y2="18"/>
+      <line x1="32" y1="13" x2="29" y2="18"/>
+      <line x1="38" y1="13" x2="35" y2="18"/>
+    </svg>
+  );
+}
+
+/** Crime / justice — scales of justice */
+export function ScalesIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <circle cx="24" cy="9" r="2"/>
+      <line x1="24" y1="11" x2="24" y2="38"/>
+      <line x1="13" y1="14" x2="35" y2="14"/>
+      <path d="M13 14 L8 25 H18 Z"/>
+      <path d="M35 14 L30 25 H40 Z"/>
+      <line x1="17" y1="38" x2="31" y2="38"/>
+    </svg>
+  );
+}
+
+/** Education — graduation cap (mortarboard) + tassel */
+export function GraduationCapIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <polygon points="24 12 43 19 24 26 5 19"/>
+      <path d="M13 22 V30 c0 3 5 5.5 11 5.5 S35 33 35 30 V22"/>
+      <line x1="43" y1="19" x2="43" y2="28"/>
+      <circle cx="43" cy="29.5" r="1.5"/>
+    </svg>
+  );
+}
+
+/** Lifestyle — coffee cup with steam */
+export function CoffeeCupIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <path d="M11 19 H33 V29 a9 9 0 0 1-9 9 H20 a9 9 0 0 1-9-9 Z"/>
+      <path d="M33 21 h4 a4 4 0 0 1 0 8 h-4"/>
+      <line x1="10" y1="42" x2="34" y2="42"/>
+      <line x1="17" y1="9" x2="17" y2="13"/>
+      <line x1="23" y1="9" x2="23" y2="13"/>
+      <line x1="29" y1="9" x2="29" y2="13"/>
+    </svg>
+  );
+}
+
+/** Religion — domed place of worship (non-denominational) */
+export function PlaceOfWorshipIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <line x1="24" y1="6" x2="24" y2="13"/>
+      <path d="M14 26 a10 10 0 0 1 20 0"/>
+      <line x1="14" y1="26" x2="14" y2="40"/>
+      <line x1="34" y1="26" x2="34" y2="40"/>
+      <line x1="20" y1="29" x2="20" y2="40"/>
+      <line x1="28" y1="29" x2="28" y2="40"/>
+      <line x1="10" y1="40" x2="38" y2="40"/>
+    </svg>
+  );
+}
+
+/** Disaster — warning triangle with exclamation */
+export function WarningTriangleIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <path d="M24 8 L42 39 H6 Z"/>
+      <line x1="24" y1="19" x2="24" y2="29"/>
+      <line x1="24" y1="33.5" x2="24" y2="34"/>
+    </svg>
+  );
+}
+
 // ── Feed badge icons ───────────────────────────────────────────────────────────
 
 /** Trending news — lightning bolt (breaking-news-icon-set) */
@@ -311,7 +416,9 @@ export function HotNewsIcon({ className }: IconProps) {
 
 export type CategoryKey =
   | "politics" | "business" | "technology" | "sports"
-  | "health" | "environment" | "culture" | "world";
+  | "health" | "environment" | "culture" | "world"
+  | "science" | "entertainment" | "crime" | "education"
+  | "lifestyle" | "religion" | "disaster";
 
 const CATEGORY_ICONS: Record<CategoryKey, (p: IconProps) => React.ReactElement> = {
   politics:    OfficialAnnouncementIcon,
@@ -322,6 +429,14 @@ const CATEGORY_ICONS: Record<CategoryKey, (p: IconProps) => React.ReactElement> 
   environment: ChargingIcon,
   culture:     ImageMediaIcon,
   world:       GlobalNewsIcon,
+  // ADR-0032 item 1 — 7 added themes.
+  science:       ScienceIcon,
+  entertainment: ClapperboardIcon,
+  crime:         ScalesIcon,
+  education:     GraduationCapIcon,
+  lifestyle:     CoffeeCupIcon,
+  religion:      PlaceOfWorshipIcon,
+  disaster:      WarningTriangleIcon,
 };
 
 export function CategoryIcon({ category, className }: { category: string; className?: string }) {

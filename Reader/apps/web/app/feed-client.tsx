@@ -11,8 +11,12 @@ import { DailySplash } from "@/components/daily-splash";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Lang     = "all" | "en" | "es";
+// 15 enrichment themes (Curator ADR-0032). Original 8 first, then the 7 added
+// by ADR-0032 item 1. Backend `_VALID_THEMES` is the source of truth.
 type Category = "all" | "politics" | "business" | "technology" | "sports"
-              | "health" | "environment" | "culture" | "world";
+              | "health" | "environment" | "culture" | "world"
+              | "science" | "entertainment" | "crime" | "education"
+              | "lifestyle" | "religion" | "disaster";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -29,6 +33,14 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: "environment", label: "Climate"  },
   { key: "culture",     label: "Culture"  },
   { key: "world",       label: "World"    },
+  // ADR-0032 item 1 — 7 added themes.
+  { key: "science",       label: "Science"       },
+  { key: "entertainment", label: "Entertainment" },
+  { key: "crime",         label: "Crime"         },
+  { key: "education",     label: "Education"     },
+  { key: "lifestyle",     label: "Lifestyle"     },
+  { key: "religion",      label: "Religion"      },
+  { key: "disaster",      label: "Disaster"      },
 ];
 
 // ── Sort: global-first, freshness_at DESC within each tier (ADR-0017) ──────────
@@ -54,6 +66,14 @@ const CAT_STYLES: Record<string, string> = {
   environment: "bg-emerald-50 text-emerald-600",
   culture:     "bg-amber-50  text-amber-600",
   world:       "bg-gray-100  text-gray-500",
+  // ADR-0032 item 1 — 7 added themes (distinct hues from the original 8).
+  science:       "bg-cyan-50    text-cyan-600",
+  entertainment: "bg-fuchsia-50 text-fuchsia-600",
+  crime:         "bg-slate-100  text-slate-700",
+  education:     "bg-indigo-50  text-indigo-600",
+  lifestyle:     "bg-teal-50    text-teal-600",
+  religion:      "bg-yellow-50  text-yellow-700",
+  disaster:      "bg-orange-50  text-orange-600",
 };
 
 // Left-accent border color per theme for the trending pills (ADR-0027 6b).
@@ -66,6 +86,14 @@ const TREND_ACCENT: Record<string, string> = {
   environment: "border-l-emerald-500",
   culture:     "border-l-amber-500",
   world:       "border-l-gray-400",
+  // ADR-0032 item 1 — 7 added themes (match CAT_STYLES hues at -500).
+  science:       "border-l-cyan-500",
+  entertainment: "border-l-fuchsia-500",
+  crime:         "border-l-slate-500",
+  education:     "border-l-indigo-500",
+  lifestyle:     "border-l-teal-500",
+  religion:      "border-l-yellow-500",
+  disaster:      "border-l-orange-500",
 };
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────

@@ -32,8 +32,16 @@ class EventModerationController extends Controller
 
     private const STATUSES = ['published', 'draft', 'dropped'];
 
-    /** The 8 canonical enrichment themes (Curator migration 007 / ADR-0027). */
-    private const THEMES = ['politics', 'culture', 'world', 'sports', 'business', 'technology', 'health', 'environment'];
+    /**
+     * The 15 canonical enrichment themes (Curator ADR-0032 item 1; was 8 under
+     * ADR-0027). Mirrors Curator's `_VALID_THEMES`. Used both to render the
+     * moderation theme dropdown and to whitelist the ?theme= filter.
+     */
+    private const THEMES = [
+        'politics', 'world', 'business', 'technology', 'science', 'health',
+        'sports', 'culture', 'entertainment', 'environment', 'crime',
+        'education', 'lifestyle', 'religion', 'disaster',
+    ];
 
     /** Event columns the moderation list may sort on. */
     private const SORTABLE = ['status', 'topic', 'language', 'source_count', 'article_count', 'last_updated_at'];
