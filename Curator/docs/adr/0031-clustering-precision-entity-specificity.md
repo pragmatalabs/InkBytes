@@ -1,6 +1,8 @@
 # Curator ADR-0031 — Clustering precision: entity-specificity gate vs mega-buckets
 
-> *Status: **proposed** (prototype done, validation-gated) · Owner: Julian · Date: 2026-06-14*
+> *Status: **accepted** — implemented 2026-06-25 (committed `6d94ef0`, ships DORMANT behind `clustering.precision_mode`; not deployed) · Owner: Julian · Date: 2026-06-14*
+>
+> **Implementation (flag-gated, default off — legacy single-linkage untouched):** migration 019 `events.centroid` + `scripts/backfill_event_centroids.py` (seed existing events before flipping); `cluster.py::_run_precision` does centroid-linkage (`events.centroid <=>`, distance < `precision_distance`=0.48) + the entity-specificity gate (share ≥1 entity in ≤ `specificity_cap`=0.05 of the recent pool) + a staleness gate (skip events with no material update in `recent_window`) + the shared `_maybe_flag_breaking` helper. Enable via `infra/.env` `PRECISION_MODE=true` **after** backfilling centroids. Verified live (dev): a WC article with specific entities attaches (d=0.296); the same embedding with only ubiquitous entities **seeds** — the gate blocks the mega-bucket merge (Finding 2). Follow-ups still open: re-cluster the ~308 legacy mega-buckets + the event merge/dedup pass (items 4–5 below).
 
 ## Context — the symptom
 
