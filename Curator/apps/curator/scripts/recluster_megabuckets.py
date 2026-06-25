@@ -46,32 +46,43 @@ def _unit(v):
 
 
 def simulate(rows, distance=DISTANCE, cap=CAP, min_shared=MIN_SHARED):
-    """Greedy online centroid-linkage + entity-specificity (mirrors cluster.py)."""
+    """Greedy online centroid-linkage + entity-specificity (mirrors cluster.py).
+
+    Vectorized: centroids held as a running-sum matrix; each article's nearest
+    centroid is one BLAS matmul (`sums[:nc] @ v`) instead of a Python loop over
+    clusters — identical result, but O(n·k) in C not Python, so 25k articles run
+    in seconds. Cosine distance = 1 − (sumᵢ·v)/‖sumᵢ‖ (v is unit).
+    """
     n = len(rows)
     df = Counter()
     for r in rows:
         for e in set(r["ents"] or []):
             df[e] += 1
-    embs = [_unit(_vec(r["emb"])) for r in rows]
+    embs = np.stack([_unit(_vec(r["emb"])) for r in rows]).astype(np.float32)  # (n, dim)
     spec = [{e for e in (r["ents"] or []) if df.get(e, 0) <= cap * n} for r in rows]
-    clusters = []  # {sum,count,spec_ents,members}
+    dim = embs.shape[1]
+    sums = np.zeros((n, dim), dtype=np.float32)   # running sum of member vectors
+    spec_ents: list[set] = []                     # per-cluster accumulated specific entities
+    members: list[list[int]] = []
+    nc = 0
     assign = []
     for i in range(n):
         v = embs[i]
         best, bestd = -1, 1e9
-        for ci, c in enumerate(clusters):
-            d = 1.0 - float(np.dot(v, _unit(c["sum"] / c["count"])))
-            if d < bestd:
-                bestd, best = d, ci
-        ok = (best >= 0 and bestd < distance
-              and len(spec[i] & clusters[best]["spec_ents"]) >= min_shared)
-        if ok:
-            c = clusters[best]
-            c["sum"] += v; c["count"] += 1; c["spec_ents"] |= spec[i]; c["members"].append(i)
+        if nc:
+            active = sums[:nc]
+            norms = np.linalg.norm(active, axis=1)
+            norms[norms == 0] = 1.0
+            d = 1.0 - (active @ v) / norms        # (nc,) cosine distance to each centroid
+            best = int(np.argmin(d)); bestd = float(d[best])
+        if best >= 0 and bestd < distance and len(spec[i] & spec_ents[best]) >= min_shared:
+            sums[best] += v; spec_ents[best] |= spec[i]; members[best].append(i)
             assign.append(best)
         else:
-            clusters.append({"sum": v.copy(), "count": 1, "spec_ents": set(spec[i]), "members": [i]})
-            assign.append(len(clusters) - 1)
+            sums[nc] = v; spec_ents.append(set(spec[i])); members.append([i])
+            assign.append(nc); nc += 1
+    clusters = [{"members": members[c], "spec_ents": spec_ents[c], "count": len(members[c])}
+                for c in range(nc)]
     return clusters, assign
 
 
