@@ -248,6 +248,18 @@ class ClusterCfg(BaseModel):
     # do NOT re-float it. Default = the attach threshold (1−0.50 = 0.50) → no
     # behaviour change until lowered (e.g. 0.40) once validated.
     material_max_distance: float = 0.50
+    # ADR-0031 clustering precision (mega-bucket fix). When True, replace
+    # single-linkage with **centroid-linkage + an entity-specificity gate**: an
+    # article attaches to the nearest event *centroid* (events.centroid) only if
+    # distance < precision_distance AND it shares ≥1 *specific* entity (one in
+    # ≤ specificity_cap of the recent pool) — a ubiquitous mega-entity ("Mundial
+    # 2026") alone can't merge unrelated stories. Off → legacy single-linkage.
+    # Requires events.centroid backfilled (scripts/backfill_event_centroids.py)
+    # before flipping. Prototype-validated bar (ADR-0031 Findings): distance 0.48,
+    # cap 0.05.
+    precision_mode: bool = False
+    precision_distance: float = 0.48
+    specificity_cap: float = 0.05
     # Breaking-news detector (ADR-0024 + 2026-06-12 fix): an event is breaking
     # when ≥2 distinct pulse outlets (outlets.pulse) have articles whose
     # scraped_at fall within breaking_window_minutes OF EACH OTHER (a coverage
@@ -428,6 +440,11 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         "FEED_WINDOW_HOURS": ("application", "feed_window_hours"),
         "CONCLUDE_AFTER_DAYS":  ("clustering", "conclude_after_days"),
         "MATERIAL_MAX_DISTANCE": ("clustering", "material_max_distance"),
+        # ADR-0031 clustering precision. Off by default; enable after backfilling
+        # events.centroid. PRECISION_DISTANCE / SPECIFICITY_CAP tune the gate.
+        "PRECISION_MODE":      ("clustering", "precision_mode"),
+        "PRECISION_DISTANCE":  ("clustering", "precision_distance"),
+        "SPECIFICITY_CAP":     ("clustering", "specificity_cap"),
     }
     data = cfg.model_dump()
     for env_var, (section, key) in overrides.items():
