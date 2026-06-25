@@ -31,8 +31,8 @@ import ulid  # noqa: E402
 from core.config import CuratorConfig  # noqa: E402
 from services.database_service import DatabaseService  # noqa: E402
 
-DISTANCE = 0.48        # precision_distance (ADR-0031 event-preserving bar)
-CAP = 0.05             # specificity_cap
+DISTANCE = 0.48        # precision_distance (ADR-0031 event-preserving bar); --distance overrides
+CAP = 0.05             # specificity_cap; --cap overrides
 
 
 def _vec(s):
@@ -44,7 +44,7 @@ def _unit(v):
     return v / n if n > 0 else v
 
 
-def simulate(rows):
+def simulate(rows, distance=DISTANCE, cap=CAP):
     """Greedy online centroid-linkage + entity-specificity (mirrors cluster.py)."""
     n = len(rows)
     df = Counter()
@@ -52,7 +52,7 @@ def simulate(rows):
         for e in set(r["ents"] or []):
             df[e] += 1
     embs = [_unit(_vec(r["emb"])) for r in rows]
-    spec = [{e for e in (r["ents"] or []) if df.get(e, 0) <= CAP * n} for r in rows]
+    spec = [{e for e in (r["ents"] or []) if df.get(e, 0) <= cap * n} for r in rows]
     clusters = []  # {sum,count,spec_ents,members}
     assign = []
     for i in range(n):
@@ -62,7 +62,7 @@ def simulate(rows):
             d = 1.0 - float(np.dot(v, _unit(c["sum"] / c["count"])))
             if d < bestd:
                 bestd, best = d, ci
-        ok = best >= 0 and bestd < DISTANCE and len(spec[i] & clusters[best]["spec_ents"]) >= 1
+        ok = best >= 0 and bestd < distance and len(spec[i] & clusters[best]["spec_ents"]) >= 1
         if ok:
             c = clusters[best]
             c["sum"] += v; c["count"] += 1; c["spec_ents"] |= spec[i]; c["members"].append(i)
@@ -77,7 +77,8 @@ def _srcs(rows, idxs):
     return len({rows[i]["outlet_id"] for i in idxs})
 
 
-async def _run(config_path: str, min_articles: int, apply: bool) -> int:
+async def _run(config_path: str, min_articles: int, apply: bool,
+               distance: float = DISTANCE, cap: float = CAP) -> int:
     db = DatabaseService(CuratorConfig.load(config_path).database)
     await db.connect()
     try:
@@ -99,7 +100,7 @@ async def _run(config_path: str, min_articles: int, apply: bool) -> int:
                         ORDER BY a.scraped_at""", m["id"])
                 if len(rows) < 2:
                     continue
-                clusters, assign = simulate(rows)
+                clusters, assign = simulate(rows, distance, cap)
                 sizes = sorted((len(c["members"]) for c in clusters), reverse=True)
                 pub = sum(1 for c in clusters if _srcs(rows, c["members"]) >= 2)
                 tot_in += len(rows); tot_sub += len(clusters); tot_pub += pub
@@ -150,9 +151,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="env.yaml")
     ap.add_argument("--min-articles", type=int, default=50)
+    ap.add_argument("--distance", type=float, default=DISTANCE)
+    ap.add_argument("--cap", type=float, default=CAP)
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
-    sys.exit(asyncio.run(_run(args.config, args.min_articles, args.apply)))
+    sys.exit(asyncio.run(_run(args.config, args.min_articles, args.apply, args.distance, args.cap)))
 
 
 if __name__ == "__main__":
