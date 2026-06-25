@@ -27,6 +27,13 @@ export interface EventSummary {
   id: string;
   headline: string;
   freshness_at: string;
+  /** ADR-0033: when the story actually happened (immutable first_seen_at).
+   *  The displayed date — a 9-day-old story reads "9d ago", never "today",
+   *  regardless of later tangential touches. Absent on pre-ADR-0033 responses. */
+  occurred_at?: string;
+  /** ADR-0033: last *material* development — drives ranking (mirrors the
+   *  server's lifecycle ordering). Absent on pre-ADR-0033 responses. */
+  last_material_update_at?: string;
   published_at: string;
   source_count: number;
   article_count: number;

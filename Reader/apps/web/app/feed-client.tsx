@@ -52,7 +52,9 @@ const GLOBAL_BONUS_MS = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
 function importance(ev: EventSummary): number {
   const bonus = ev.has_global_outlet ? GLOBAL_BONUS_MS : 0;
-  return new Date(ev.freshness_at).getTime() + bonus;
+  // ADR-0033: rank by the material clock (mirrors the server's lifecycle
+  // ordering) so a tangential touch can't re-float a stale event client-side.
+  return new Date(ev.last_material_update_at ?? ev.freshness_at).getTime() + bonus;
 }
 
 // ── Category chip styles ──────────────────────────────────────────────────────
@@ -232,7 +234,7 @@ function BreakingCard({ event, showLang }: { event: EventSummary; showLang: bool
       <div className="flex items-center justify-between gap-2">
         <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={16} />
         <span className="text-xs text-[var(--ink-muted)] tabular-nums shrink-0">
-          <TimeAgo iso={event.freshness_at} />
+          <TimeAgo iso={event.occurred_at ?? event.freshness_at} />
         </span>
       </div>
     </Link>
@@ -286,7 +288,7 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
               {event.article_count} {event.article_count === 1 ? "article" : "articles"}
             </span>
             <span aria-hidden>·</span>
-            <span><TimeAgo iso={event.freshness_at} /></span>
+            <span><TimeAgo iso={event.occurred_at ?? event.freshness_at} /></span>
           </div>
         </div>
       </div>
@@ -334,7 +336,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
         <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
           <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
           <span className="text-xs text-[var(--ink-muted)]">
-            {event.article_count} art · <TimeAgo iso={event.freshness_at} />
+            {event.article_count} art · <TimeAgo iso={event.occurred_at ?? event.freshness_at} />
           </span>
         </div>
       </div>
@@ -373,7 +375,7 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
           {event.source_count}
         </span>
         <span aria-hidden>·</span>
-        <span><TimeAgo iso={event.freshness_at} /></span>
+        <span><TimeAgo iso={event.occurred_at ?? event.freshness_at} /></span>
       </div>
     </Link>
   );
@@ -409,7 +411,7 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
             {event.article_count} {event.article_count === 1 ? "article" : "articles"}
           </span>
           <span>·</span>
-          <span><TimeAgo iso={event.freshness_at} /></span>
+          <span><TimeAgo iso={event.occurred_at ?? event.freshness_at} /></span>
         </div>
       </div>
     </Link>
