@@ -213,8 +213,9 @@ services:
       # Clustering precision (ADR-0031). Off by default; enable after backfilling
       # events.centroid. Stops new mega-buckets (centroid-linkage + specificity).
       PRECISION_MODE: ${PRECISION_MODE:-false}
-      PRECISION_DISTANCE: ${PRECISION_DISTANCE:-0.48}
+      PRECISION_DISTANCE: ${PRECISION_DISTANCE:-0.34}
       SPECIFICITY_CAP: ${SPECIFICITY_CAP:-0.05}
+      SPECIFICITY_MIN_SHARED: ${SPECIFICITY_MIN_SHARED:-2}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
@@ -271,8 +272,9 @@ services:
       # Clustering precision (ADR-0031). Off by default; enable after backfilling
       # events.centroid. Stops new mega-buckets (centroid-linkage + specificity).
       PRECISION_MODE: ${PRECISION_MODE:-false}
-      PRECISION_DISTANCE: ${PRECISION_DISTANCE:-0.48}
+      PRECISION_DISTANCE: ${PRECISION_DISTANCE:-0.34}
       SPECIFICITY_CAP: ${SPECIFICITY_CAP:-0.05}
+      SPECIFICITY_MIN_SHARED: ${SPECIFICITY_MIN_SHARED:-2}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
