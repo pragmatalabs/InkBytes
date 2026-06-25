@@ -143,6 +143,13 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'articles' "
                 "AND column_name = 'triage_dropped_at')"
             ),
+            # 018 adds events.last_material_update_at (ADR-0033). TRUE once present.
+            "018_event_material_clock.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'events' "
+                "AND column_name = 'last_material_update_at')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -861,11 +868,14 @@ class DatabaseService:
                    e.last_updated_at, e.article_count, e.source_count
               FROM events e
              WHERE e.status = 'published'
-               AND e.last_updated_at < $1
+               -- ADR-0033: quiet = no MATERIAL update since the cutoff. Fall back
+               -- to last_updated_at for legacy rows where the material clock is
+               -- NULL (pre-migration-018), so the gate still fires.
+               AND COALESCE(e.last_material_update_at, e.last_updated_at) < $1
                AND NOT EXISTS (
                    SELECT 1 FROM story_arcs sa WHERE sa.event_id = e.id
                )
-             ORDER BY e.last_updated_at ASC
+             ORDER BY COALESCE(e.last_material_update_at, e.last_updated_at) ASC
             """,
             cutoff,
         )

@@ -291,10 +291,22 @@ def build_app(app: Application) -> FastAPI:
         # Filtered responses vary by query string; keep the short TTL but mark
         # them private-ish so a CDN doesn't serve one theme's page for another.
         response.headers["Cache-Control"] = "public, max-age=30"
+        # ADR-0033 P0: flag-gated feed ranking by the material clock + recency
+        # window. Off → legacy behaviour (rank by p.freshness_at, no window). The
+        # window int is config-sourced (not user input), so formatting it into the
+        # SQL is safe. occurred_at (first_seen_at) is always exposed so the Reader
+        # can show the real date, never "today" for an old story.
+        if app.cfg.application.lifecycle_feed:
+            _win = int(app.cfg.application.feed_window_hours)
+            _window_clause = f"AND e.last_material_update_at > NOW() - INTERVAL '{_win} hours'"
+            _order_col = "COALESCE(e.last_material_update_at, p.freshness_at)"
+        else:
+            _window_clause, _order_col = "", "p.freshness_at"
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             rows = await conn.fetch(
-                """
+                ("""
                 SELECT p.id, p.headline, p.freshness_at, p.published_at,
+                       e.first_seen_at AS occurred_at, e.last_material_update_at,
                        e.source_count, e.article_count, e.language,
 
                        -- Topic: prefer the event-level topic (set by synthesize);
@@ -417,6 +429,7 @@ def build_app(app: Application) -> FastAPI:
                   ) th ON true
                  WHERE p.published_at IS NOT NULL
                    AND e.status = 'published'
+                   __WINDOW_CLAUSE__
                    AND ($2::text IS NULL OR th.theme = $2)
                    AND ($3::text IS NULL OR EXISTS (
                          SELECT 1 FROM articles a
@@ -425,14 +438,14 @@ def build_app(app: Application) -> FastAPI:
                          SELECT 1 FROM articles a
                           WHERE a.event_id = e.id AND a.topic = $4))
                  ORDER BY (
-                     p.freshness_at
+                     __ORDER_COL__
                      + CASE WHEN gflag.has_global_outlet
                            THEN INTERVAL '6 hours'
                            ELSE INTERVAL '0'
                        END
                  ) DESC NULLS LAST
                  LIMIT $1
-                """,
+                """).replace("__WINDOW_CLAUSE__", _window_clause).replace("__ORDER_COL__", _order_col),
                 limit, theme_filter, category_filter, topic_filter,
             )
         result = []

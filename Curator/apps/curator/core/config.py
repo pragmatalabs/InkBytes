@@ -119,6 +119,14 @@ class AppCfg(BaseModel):
     # requeued (never lost), the API keeps serving. Live-polled from
     # backoffice.curator_settings via the config-refresh loop (~30s latency).
     processing_enabled: bool = True
+    # ADR-0033 P0 event lifecycle. When True the /events feed ranks by the
+    # material clock (last_material_update_at) and is scoped to feed_window_hours,
+    # so a tangential attach can't re-float a stale event and old events fall out
+    # of the live feed (into the vault once concluded). False → legacy behaviour
+    # (rank by pages.freshness_at = max scraped_at, no window). Default off so
+    # this ships dormant and is shadow-measured before flipping.
+    lifecycle_feed: bool = False
+    feed_window_hours: int = 72
 
 
 class LlmCfg(BaseModel):
@@ -228,10 +236,18 @@ class ClusterCfg(BaseModel):
     min_sources_to_publish: int = 2
     entity_overlap_min: int = 1
     recent_window_hours: int = 48
-    # Story arc archive (ADR-0013): events with no new article for this many days
-    # are marked 'concluded' and archived to story_arcs.  0 = disabled (default
-    # until first paying user validates the feature).
+    # Story arc archive (ADR-0013): events with no *material* update for this many
+    # days are marked 'concluded' and archived to story_arcs (then drop out of the
+    # live feed, which filters status='published'). 0 = disabled (default).
+    # Under ADR-0033 the quiet test now uses last_material_update_at, so a stream
+    # of tangential re-mentions no longer keeps a dead story out of the vault.
     conclude_after_days: int = 0
+    # ADR-0033 P0: an attach is a *material* update (bumps last_material_update_at,
+    # can re-float the event) only when its cluster distance ≤ this. Tangential
+    # attaches (this < distance ≤ 1−similarity_threshold) still join the event but
+    # do NOT re-float it. Default = the attach threshold (1−0.50 = 0.50) → no
+    # behaviour change until lowered (e.g. 0.40) once validated.
+    material_max_distance: float = 0.50
     # Breaking-news detector (ADR-0024 + 2026-06-12 fix): an event is breaking
     # when ≥2 distinct pulse outlets (outlets.pulse) have articles whose
     # scraped_at fall within breaking_window_minutes OF EACH OTHER (a coverage
@@ -405,6 +421,13 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         # spaCy NER pre-pass (ADR-0032 item 2). Off by default; enable in prod
         # via infra/.env once models are baked (INSTALL_NER_MODELS) + memory ok.
         "NER_ENABLED":       ("ner", "enabled"),
+        # Event lifecycle (ADR-0033 P0). Enable in prod via infra/.env to flip the
+        # feed to the material clock + window, archive quiet stories, and gate
+        # re-floating. All default to legacy behaviour until set.
+        "LIFECYCLE_FEED":    ("application", "lifecycle_feed"),
+        "FEED_WINDOW_HOURS": ("application", "feed_window_hours"),
+        "CONCLUDE_AFTER_DAYS":  ("clustering", "conclude_after_days"),
+        "MATERIAL_MAX_DISTANCE": ("clustering", "material_max_distance"),
     }
     data = cfg.model_dump()
     for env_var, (section, key) in overrides.items():

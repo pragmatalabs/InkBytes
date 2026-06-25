@@ -87,6 +87,11 @@ class ClusterSkill:
                         "SELECT COUNT(DISTINCT outlet_id) FROM articles WHERE event_id = $1",
                         row["event_id"],
                     )
+                    # ADR-0033 P0: a "material" attach (core-cluster, distance ≤
+                    # material_max_distance) re-floats the event (bumps the
+                    # material clock); a tangential re-mention still joins the
+                    # event but must NOT re-float it as if it happened today.
+                    material = float(row["distance"]) <= self.cfg.material_max_distance
                     await conn.execute(
                         """
                         UPDATE articles SET event_id = $2, cluster_distance = $3
@@ -98,11 +103,13 @@ class ClusterSkill:
                         """
                         UPDATE events
                            SET last_updated_at = NOW(),
+                               last_material_update_at = CASE WHEN $2
+                                   THEN NOW() ELSE last_material_update_at END,
                                article_count = (SELECT COUNT(*) FROM articles WHERE event_id = $1),
                                source_count  = (SELECT COUNT(DISTINCT outlet_id) FROM articles WHERE event_id = $1)
                          WHERE id = $1
                         """,
-                        row["event_id"],
+                        row["event_id"], material,
                     )
                     # Read back the authoritative distinct-outlet count we just
                     # wrote. (Previously this was approximated in Python from the
@@ -158,8 +165,9 @@ class ClusterSkill:
                                 self.cfg.breaking_ttl_hours,
                             )
                     logger.info(
-                        "CLUSTER attach %s -> %s (distance=%.3f, overlap=%d, sources=%d)",
-                        article_id, row["event_id"], row["distance"], len(overlap), int(new_source_count),
+                        "CLUSTER attach %s -> %s (distance=%.3f, overlap=%d, sources=%d, %s)",
+                        article_id, row["event_id"], row["distance"], len(overlap),
+                        int(new_source_count), "material" if material else "tangential",
                     )
                     return ClusterResult(
                         event_id=row["event_id"],
@@ -173,8 +181,9 @@ class ClusterSkill:
             await conn.execute(
                 """
                 INSERT INTO events (id, first_seen_at, last_updated_at,
+                                    last_material_update_at,
                                     source_count, article_count, language)
-                VALUES ($1, $2, $2, 1, 1, $3)
+                VALUES ($1, $2, $2, $2, 1, 1, $3)
                 """,
                 new_event_id, scraped_at, language,
             )
