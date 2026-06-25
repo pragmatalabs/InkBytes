@@ -255,11 +255,18 @@ class ClusterCfg(BaseModel):
     # ≤ specificity_cap of the recent pool) — a ubiquitous mega-entity ("Mundial
     # 2026") alone can't merge unrelated stories. Off → legacy single-linkage.
     # Requires events.centroid backfilled (scripts/backfill_event_centroids.py)
-    # before flipping. Prototype-validated bar (ADR-0031 Findings): distance 0.48,
-    # cap 0.05.
+    # before flipping. Tightened bar (2026-06-25, dev corpus validation): at the
+    # original distance 0.48 + 1-shared-entity gate the World Cup still rebuilt a
+    # 363-article blob from scratch (same-genre match reports are embedding-near
+    # and a big cluster's *accumulating* specific-entity union becomes a magnet).
+    # distance 0.34 + requiring ≥2 shared specific entities splits it per match
+    # (Portugal-Uzbekistán, Ronaldo's record, Colombia elections each stand alone).
     precision_mode: bool = False
-    precision_distance: float = 0.48
+    precision_distance: float = 0.34
     specificity_cap: float = 0.05
+    # min count of *specific* entities an article must share with an event to
+    # attach (was implicitly 1). ≥2 stops the accumulating-union magnet.
+    specificity_min_shared: int = 2
     # Breaking-news detector (ADR-0024 + 2026-06-12 fix): an event is breaking
     # when ≥2 distinct pulse outlets (outlets.pulse) have articles whose
     # scraped_at fall within breaking_window_minutes OF EACH OTHER (a coverage
@@ -445,6 +452,7 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         "PRECISION_MODE":      ("clustering", "precision_mode"),
         "PRECISION_DISTANCE":  ("clustering", "precision_distance"),
         "SPECIFICITY_CAP":     ("clustering", "specificity_cap"),
+        "SPECIFICITY_MIN_SHARED": ("clustering", "specificity_min_shared"),
     }
     data = cfg.model_dump()
     for env_var, (section, key) in overrides.items():

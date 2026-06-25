@@ -269,13 +269,16 @@ class ClusterSkill:
             "ORDER BY e.centroid <=> $1::vector ASC LIMIT 1",
             vec, language, win)
 
-        # 3. Attach iff near the centroid AND it shares a specific entity.
+        # 3. Attach iff near the centroid AND it shares ≥ specificity_min_shared
+        #    specific entities with the event (≥2 stops the accumulating-union
+        #    magnet — a lone shared mega-region/team can't merge distinct stories).
         if cand and float(cand["distance"]) < self.cfg.precision_distance and specific:
-            shared = await conn.fetchval(
-                "SELECT EXISTS(SELECT 1 FROM entities ent JOIN articles a ON a.id = ent.article_id "
-                "WHERE a.event_id = $1 AND lower(ent.name) = ANY($2::text[]))",
-                cand["id"], list(specific))
-            if shared:
+            n_shared = await conn.fetchval(
+                "SELECT count(DISTINCT lower(ent.name)) FROM entities ent "
+                "JOIN articles a ON a.id = ent.article_id "
+                "WHERE a.event_id = $1 AND lower(ent.name) = ANY($2::text[])",
+                cand["id"], list(specific)) or 0
+            if int(n_shared) >= self.cfg.specificity_min_shared:
                 ev_id, dist = cand["id"], float(cand["distance"])
                 material = dist <= self.cfg.material_max_distance
                 await conn.execute(

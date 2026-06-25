@@ -75,11 +75,41 @@ _BETTING = (
     r"|\bapuestas?\s+(deportivas?\s+)?(de\s+hoy|del\s+d[ií]a)\b"
 )
 
+# ── Live-blog / daily-roundup non-events ──────────────────────────────────────
+# Live tickers, "what's on today", live standings, date-only titles. These cluster
+# together (all "live update" pages) and mix every topic of the day into one junk
+# page. Precision-first: require an explicit live/today-roundup marker — NEVER bare
+# "hoy" or "noticias" (every news headline has those). "Noticias del ICE en Houston
+# hoy: …" (a real story) must NOT match.
+_LIVEBLOG = (
+    r"\ben\s+vivo\b[^.!?]{0,30}\b(hoy|[uú]ltimas\s+noticias|minuto\s+a\s+minuto)\b"
+    r"|\b[uú]ltimas\s+noticias\s+de\s+hoy\b"
+    r"|\ben\s+directo\b[^.!?]{0,30}\bhoy\b"
+    r"|\bminuto\s+a\s+minuto\b"
+    r"|\blive\s+blog\b|\bliveblog\b|\blive\s+updates?\b|\blive:\s"
+    r"|\bqu[eé]\s+partidos\s+se\s+juegan\s+hoy\b"
+    r"|\btabla\s+de\s+posiciones\b[^.!?]{0,40}\b(en\s+vivo|hoy|resultados?)\b"
+    r"|\bresultados?\b[^.!?]{0,20}\ben\s+vivo\s+hoy\b"
+    r"|\bal\s+momento\s*:"                                  # "AL MOMENTO:" live marker
+    r"|\b(eliminados|clasificados)\b[^.!?]{0,40}\bal\s+momento\b"
+)
+# NOTE: match-preview / "when & where to watch" titles (e.g. "Argentina vs
+# Honduras: previa, horario y dónde ver") are intentionally KEPT — the corpus test
+# treats single-match previews as legitimate content, not filler. Only daily
+# all-fixtures roundups ("qué partidos se juegan hoy") and live tickers are gated.
+
+# A title that is essentially just a date — "Miércoles, 24 de junio de 2026".
+_DATE_ONLY = re.compile(
+    r"^\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)?,?\s*"
+    r"\d{1,2}\s+de\s+\w+\s+de\s+\d{4}\s*$", re.I)
+
 # Each entry is (compiled pattern, label). A single match flags the text.
 _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(_HOROSCOPE, re.I), "horoscope"),
     (re.compile(_LOTTERY, re.I), "lottery"),
     (re.compile(_BETTING, re.I), "betting"),
+    (re.compile(_LIVEBLOG, re.I), "liveblog"),
 ]
 
 
@@ -87,6 +117,8 @@ def exclusion_reason(text: str | None) -> str | None:
     """Return the label of the first matching filler pattern, or None if clean."""
     if not text:
         return None
+    if _DATE_ONLY.match(text.strip()):
+        return "date-only"
     for pat, label in _PATTERNS:
         if pat.search(text):
             return label

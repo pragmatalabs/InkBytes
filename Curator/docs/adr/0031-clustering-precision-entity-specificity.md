@@ -154,11 +154,52 @@ corpus, not just these pools). Before changing live behavior:
 | Merge the two World-Cup events | They're incoherent buckets; merging makes one bigger bad bucket. Re-cluster instead. |
 | LLM adjudicates each attach | Cost + latency at ~7k articles/day; the embedding+entity signal is enough once specificity is added. |
 
+## Update 2026-06-25 — distance tightened + ≥2 shared entities + live-blog gate (clean-slate reset)
+
+When the precision gate (`precision_distance=0.48`, share **≥1** specific entity) was
+exercised against a **flat re-cluster of a week's real corpus from scratch** (dev,
+4,008 bge-m3-embedded articles, `scripts/recluster_fresh.py`), the World Cup **still
+rebuilt a 363-article blob**. Two reasons the original bar wasn't enough:
+
+1. **Same-genre embeddings are too close.** Spanish WC match reports sit well inside
+   0.48 of each other regardless of which match — embedding distance alone can't
+   separate them; the entity gate has to.
+2. **The accumulating-union magnet.** A cluster's `spec_ents` is the *union* of all
+   members' specific entities, so a big WC cluster accumulates `{argentina, portugal,
+   messi, ronaldo, …}` and *any* new WC article shares ≥1 → it joins. Sharing **one**
+   specific entity is too weak once a cluster is large.
+
+**Fix (validated on the dev corpus):**
+- `precision_distance` **0.48 → 0.34** — biggest lever; collapses the top cluster 363 → 80.
+- new `specificity_min_shared` (default **2**) — an article must share **≥2** specific
+  entities with the event; a lone shared team/region can't merge distinct stories.
+  `cluster.py::_run_precision` step 3 now counts shared specifics instead of `EXISTS`.
+
+Result: the WC splits into coherent real events — *Colombia elections* (80/24),
+*Ronaldo's six-Mundiales record* (77/25), *Messi/Golden-Boot race* (51/19),
+*Ábalos sentence* (46/9) — no mega-bucket. Publishable (≥2 src) events: ~328/week.
+
+**Residual = a *content* problem, not a distance one:** the stubborn remaining cluster
+is daily **live-blog / roundup** pages (*"en VIVO: últimas noticias de hoy"*, *"qué
+partidos se juegan hoy"*, *"Tabla de posiciones EN VIVO HOY"*, *"AL MOMENTO:"*,
+date-only titles). Gated at publish via `services/content_filter.py` (extends ADR-0021)
+— precision-first, single-match previews ("previa, horario y dónde ver") stay KEPT.
+Tests: `test_content_filter.py` 24/24 FLAG, 14/14 KEEP.
+
+**Rollout = clean-slate "keep recent" reset** (chosen over re-clustering ~104 legacy
+mega-buckets, which is the bigger/irreversible op for data that's mostly outside the
+freshness window anyway): `pg_dump` backup → `DELETE FROM events` (cascades pages/arcs,
+NULLs `article.event_id`) + `DELETE FROM articles WHERE scraped_at < NOW()-7d` (cascades
+entities) → `recluster_fresh.py --apply` (0.34/min2) → `--synthesize-pending --since-hours
+168` (scoped, published-aware) → conclude. Pre-launch + freshness-gated feed make this the
+cheapest, lowest-risk path to a clean feed.
+
 ## Status / next steps
 
 - [x] Root cause confirmed on prod data
 - [x] Read-only prototype + threshold/cap sweeps (`scripts/cluster_reclustering_prototype.py`)
-- [ ] Implement v2 clustering behind a shadow flag
-- [ ] Measure shadow divergence + publish-rate delta for N cycles
-- [ ] Manual held-out validation of "dropped" events; tune cap/bar
-- [ ] Flip + re-cluster the 26 legacy mega-buckets + merge legacy twins
+- [x] Implement v2 clustering behind `precision_mode` (centroid-linkage + specificity gate)
+- [x] Tighten the bar after from-scratch validation: distance 0.34 + `specificity_min_shared=2`
+- [x] Live-blog/roundup publish gate in `content_filter.py` (+ tests)
+- [ ] Deploy the tightened params to prod (`PRECISION_DISTANCE=0.34`, `SPECIFICITY_MIN_SHARED=2`)
+- [ ] Execute the clean-slate reset on prod (backup → wipe → `recluster_fresh` → scoped re-synth)

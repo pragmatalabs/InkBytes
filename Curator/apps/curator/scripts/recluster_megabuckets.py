@@ -31,8 +31,9 @@ import ulid  # noqa: E402
 from core.config import CuratorConfig  # noqa: E402
 from services.database_service import DatabaseService  # noqa: E402
 
-DISTANCE = 0.48        # precision_distance (ADR-0031 event-preserving bar); --distance overrides
+DISTANCE = 0.34        # precision_distance (ADR-0031 tightened 2026-06-25); --distance overrides
 CAP = 0.05             # specificity_cap; --cap overrides
+MIN_SHARED = 2         # specificity_min_shared — ≥2 shared specific entities to merge
 
 
 def _vec(s):
@@ -44,7 +45,7 @@ def _unit(v):
     return v / n if n > 0 else v
 
 
-def simulate(rows, distance=DISTANCE, cap=CAP):
+def simulate(rows, distance=DISTANCE, cap=CAP, min_shared=MIN_SHARED):
     """Greedy online centroid-linkage + entity-specificity (mirrors cluster.py)."""
     n = len(rows)
     df = Counter()
@@ -62,7 +63,8 @@ def simulate(rows, distance=DISTANCE, cap=CAP):
             d = 1.0 - float(np.dot(v, _unit(c["sum"] / c["count"])))
             if d < bestd:
                 bestd, best = d, ci
-        ok = best >= 0 and bestd < distance and len(spec[i] & clusters[best]["spec_ents"]) >= 1
+        ok = (best >= 0 and bestd < distance
+              and len(spec[i] & clusters[best]["spec_ents"]) >= min_shared)
         if ok:
             c = clusters[best]
             c["sum"] += v; c["count"] += 1; c["spec_ents"] |= spec[i]; c["members"].append(i)

@@ -40,6 +40,13 @@ FLAG = [
     "Pronósticos deportivos: las mejores apuestas para la jornada",
     "Apuestas deportivas de hoy: cuotas y picks del día",
     "Betting tips: best bets for the Champions League final",
+    # Live-blog / daily-roundup non-events (2026-06-25)
+    "Mundial 2026, en VIVO: últimas noticias de hoy, 23 de junio",
+    "Mundial 2026: ¿qué partidos se juegan hoy, 23 de junio? Horarios",
+    "Tabla de posiciones del Mundial 2026 EN VIVO HOY: resultados",
+    "Eliminados en fase de grupos AL MOMENTO: ¿qué equipos ya NO siguen?",
+    "Miércoles, 24 de junio de 2026",
+    "Champions League final live: minute-by-minute updates",
 ]
 
 KEEP = [
@@ -57,6 +64,9 @@ KEEP = [
     # Match preview / editorial prediction — sports journalism, kept
     "Argentina vs Honduras: previa, horario y dónde ver el partido",
     "Análisis: cómo llega España al Mundial 2026",
+    # Real story with "noticias … hoy" — NOT a live-blog (live-blog guard)
+    "Noticias del ICE en Houston hoy: perímetro cerrado y desvíos de tráfico",
+    "España gana hoy su primer partido del Mundial",
     # Real news mentioning numbers
     "Inflación de mayo: los precios suben un 4% interanual",
     "Three winning startups announced at the tech summit",
