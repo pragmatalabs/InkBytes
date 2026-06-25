@@ -78,16 +78,22 @@ def _srcs(rows, idxs):
 
 
 async def _run(config_path: str, min_articles: int, apply: bool,
-               distance: float = DISTANCE, cap: float = CAP) -> int:
+               distance: float = DISTANCE, cap: float = CAP,
+               event_id: str | None = None) -> int:
     db = DatabaseService(CuratorConfig.load(config_path).database)
     await db.connect()
     try:
         async with db.pool.acquire() as conn:
-            megas = await conn.fetch(
-                """SELECT e.id, e.article_count, left(p.headline,48) AS headline
-                     FROM events e JOIN pages p ON p.id=e.id
-                    WHERE p.published_at IS NOT NULL AND e.article_count >= $1
-                    ORDER BY e.article_count DESC""", min_articles)
+            if event_id:  # target one specific event (precise staging)
+                megas = await conn.fetch(
+                    """SELECT e.id, e.article_count, left(p.headline,48) AS headline
+                         FROM events e JOIN pages p ON p.id=e.id WHERE e.id = $1""", event_id)
+            else:
+                megas = await conn.fetch(
+                    """SELECT e.id, e.article_count, left(p.headline,48) AS headline
+                         FROM events e JOIN pages p ON p.id=e.id
+                        WHERE p.published_at IS NOT NULL AND e.article_count >= $1
+                        ORDER BY e.article_count DESC""", min_articles)
             print(f"[recluster] {len(megas)} mega-buckets (>= {min_articles} articles) "
                   f"| mode={'APPLY' if apply else 'DRY-RUN'}")
             tot_in = tot_sub = tot_pub = 0
@@ -134,7 +140,12 @@ async def _run(config_path: str, min_articles: int, apply: bool,
                                    source_count=(SELECT count(DISTINCT outlet_id) FROM articles WHERE event_id=$1),
                                    centroid=(SELECT avg(embedding) FROM articles WHERE event_id=$1 AND embedding IS NOT NULL)
                                  WHERE id=$1""", m["id"])
-                    resynth.append(m["id"])  # its page is now stale
+                        # Unpublish E's now-stale page + draft it, so --synthesize-pending
+                        # re-synthesizes it fresh from its (smaller) surviving membership.
+                        # (synthesize-pending only picks up events WITHOUT a published page.)
+                        await conn.execute("UPDATE pages SET published_at=NULL WHERE id=$1", m["id"])
+                        await conn.execute("UPDATE events SET status='draft' WHERE id=$1", m["id"])
+                    resynth.append(m["id"])  # re-synthesize fresh (unpublished above)
             print(f"\n[recluster] TOTAL: {tot_in} articles in {len(megas)} mega-buckets "
                   f"-> {tot_sub} events ({tot_pub} publishable)")
             if apply:
@@ -153,9 +164,11 @@ def main() -> None:
     ap.add_argument("--min-articles", type=int, default=50)
     ap.add_argument("--distance", type=float, default=DISTANCE)
     ap.add_argument("--cap", type=float, default=CAP)
+    ap.add_argument("--event-id", default=None, help="target one event (precise staging)")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
-    sys.exit(asyncio.run(_run(args.config, args.min_articles, args.apply, args.distance, args.cap)))
+    sys.exit(asyncio.run(_run(args.config, args.min_articles, args.apply,
+                              args.distance, args.cap, args.event_id)))
 
 
 if __name__ == "__main__":
