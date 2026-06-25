@@ -122,3 +122,40 @@ multi-agent framework for a single-step scrape + score operation.
 - [ ] Credibility allowlist: expand LATAM-specific domains
       (eluniversal.com, clarin.com, etc.)
 - [ ] Rate-limiting: cap concurrent IllustrateSkill tasks if queue depth > N
+
+## Addendum — 2026-06-25: Chromium PID-leak outage
+
+**Symptom:** prod stopped showing any YouTube/video links; `media_rail` last
+populated ~2026-06-21; worker logs showed Chromium launching then dying with
+`SIGTRAP` ("Target page, context or browser has been closed") → "0 video items".
+
+**Misleading first read:** SIGTRAP matches the seccomp anti-pattern, but
+`docker inspect` confirmed `security_opt: [seccomp:unconfined]` + `shm_size` were
+applied, and the chromium-148 (`chromium_headless_shell-1223`) binary ran
+`--version` fine with no missing libs.
+
+**Real root cause:** raw chromium stderr showed
+`pthread_create: Resource temporarily unavailable (EAGAIN)` — i.e. no free
+threads/PIDs. The worker was at **`pids.current 9379 / pids.max 9388`** with
+**~9,367 orphaned `chrome-headless-shell` processes**. Each crashed launch
+orphans Chromium helper processes to PID 1; the bare `python main.py` is **not a
+subreaper**, so they accumulate as zombies until the PID table is exhausted —
+then *every* launch fails with EAGAIN→SIGTRAP, a self-reinforcing spiral. Worse,
+the worker had **no `pids_limit`**, so the ~9.3k procs consumed the entire shared
+droplet's process table (host had 9,690 procs).
+
+**Fix:**
+- *Immediate recovery:* `docker restart inkbytes-curator-worker` reaps the leak
+  (`pids.current` → single digits; chromium launches normally again).
+- *Durable:* `init: true` (Docker runs tini as PID 1 → reaps zombies) +
+  `pids_limit: 4096` (caps blast radius) on the worker in
+  `infra/docker-compose.do.yml`. Applies on the next `deploy.sh --build`.
+
+**Lesson:** for a headless browser in a container, when launches start crashing,
+check `pids.current` vs `pids.max` and the chrome-proc count **before** chasing
+seccomp/flags/versions. A non-reaping PID 1 + unbounded `pids_limit` turns any
+transient Chromium crash into a slow host-wide PID exhaustion.
+
+**Follow-up (not done):** the headless-browser YouTube scrape is now the 3rd
+Chromium-in-Docker incident (channel → seccomp → PID-leak); consider replacing it
+with the YouTube Data API to drop the Chromium dependency entirely.

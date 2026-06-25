@@ -17,6 +17,15 @@ services:
     shm_size: '256m'  # Chromium needs shared memory even with --disable-dev-shm-usage
     security_opt:
       - seccomp:unconfined  # Docker's default seccomp blocks clone() flags Chromium needs → SIGTRAP
+    # IllustrateSkill launches headless Chromium for YouTube. When a launch
+    # crashes, Chromium's helper processes get reparented to PID 1; the bare
+    # python main.py is NOT a subreaper, so they pile up as zombies. Over days
+    # this exhausted the PID table (~9.3k chrome procs → pthread_create EAGAIN →
+    # every launch SIGTRAPs → no video rail). `init: true` runs tini as PID 1 to
+    # reap them; `pids_limit` caps the blast radius so a future leak can't eat
+    # the whole shared droplet's process table (it was unbounded). 2026-06-25.
+    init: true
+    pids_limit: 4096
     environment:
       # Embeddings offloaded to the Hostinger Ollama box (Curator ADR-0026,
       # 2026-06-11). The DO droplet's CPU-only Ollama embedded bge-m3 in ~15s
