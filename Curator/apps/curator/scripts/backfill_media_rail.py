@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -34,6 +35,10 @@ from skills.illustrate import IllustrateSkill  # noqa: E402
 
 
 async def _run(config_path: str, since: str, limit: int, apply: bool) -> int:
+    # asyncpg binds a timestamptz param from a datetime, not a str.
+    since_dt = datetime.fromisoformat(since)
+    if since_dt.tzinfo is None:
+        since_dt = since_dt.replace(tzinfo=timezone.utc)
     cfg = CuratorConfig.load(config_path)
     db = DatabaseService(cfg.database)
     await db.connect()
@@ -43,12 +48,12 @@ async def _run(config_path: str, since: str, limit: int, apply: bool) -> int:
             SELECT id, headline
               FROM pages
              WHERE published_at IS NOT NULL
-               AND freshness_at >= $1::timestamptz
+               AND freshness_at >= $1
                AND (media_rail IS NULL OR media_rail::text IN ('[]', 'null'))
              ORDER BY freshness_at DESC
              LIMIT $2
             """,
-            since, limit,
+            since_dt, limit,
         )
         print(f"[backfill] {len(rows)} published pages with empty media_rail "
               f"since {since} (mode={'APPLY' if apply else 'dry-run'}, limit={limit})")
