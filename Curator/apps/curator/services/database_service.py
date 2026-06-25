@@ -381,33 +381,50 @@ class DatabaseService:
             )
         return [dict(r) for r in rows]
 
-    async def fetch_events_pending_synthesis(self) -> list[dict[str, Any]]:
-        """Events that have ≥2 distinct sources but no published page yet.
+    async def fetch_events_pending_synthesis(
+        self, since_hours: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Events with ≥2 distinct sources but no *published* page yet.
 
         Used by ``--synthesize-pending`` to backfill synthesis for events that
         accumulated enough sources before the synthesis trigger was introduced,
-        or that were skipped due to in-memory gate resets across restarts.
+        were skipped due to in-memory gate resets, or were UNPUBLISHED by a
+        re-cluster (ADR-0031) and need re-synthesis from their new membership.
 
-        Returns [{id, source_count}] ordered by source_count DESC so the
-        richest events get synthesized first.
+        Note: keys on "no *published* page" (published_at IS NULL), not "no page
+        row" — so an unpublished/drafted event (which still has a page row) is
+        correctly re-synthesized.  Excludes concluded (vaulted) events.
+
+        ``since_hours`` scopes to events with material activity in that window
+        (the feed window) — so a bulk re-cluster only re-synthesizes the events
+        that will actually surface, instead of thousands of out-of-feed ones.
+
+        Returns [{id, source_count}] ordered by source_count DESC.
         """
         if not self.pool:
             return []
+        since_filter = (
+            "AND e.last_material_update_at > NOW() - ($1 || ' hours')::interval"
+            if since_hours else ""
+        )
+        sql = f"""
+            SELECT e.id,
+                   COUNT(DISTINCT a.outlet_id) AS source_count
+              FROM events e
+              JOIN articles a ON a.event_id = e.id
+             WHERE e.status <> 'concluded'
+               AND NOT EXISTS (
+                     SELECT 1 FROM pages p
+                      WHERE p.event_id = e.id AND p.published_at IS NOT NULL
+                   )
+               {since_filter}
+             GROUP BY e.id
+            HAVING COUNT(DISTINCT a.outlet_id) >= 2
+             ORDER BY source_count DESC
+        """
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
-            rows = await conn.fetch(
-                """
-                SELECT e.id,
-                       COUNT(DISTINCT a.outlet_id) AS source_count
-                  FROM events e
-                  JOIN articles a ON a.event_id = e.id
-                 WHERE NOT EXISTS (
-                         SELECT 1 FROM pages p WHERE p.event_id = e.id
-                       )
-                 GROUP BY e.id
-                HAVING COUNT(DISTINCT a.outlet_id) >= 2
-                 ORDER BY source_count DESC
-                """
-            )
+            rows = (await conn.fetch(sql, str(since_hours))
+                    if since_hours else await conn.fetch(sql))
         return [dict(r) for r in rows]
 
     async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:

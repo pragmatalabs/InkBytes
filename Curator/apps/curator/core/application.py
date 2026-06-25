@@ -911,15 +911,17 @@ class Application:
         rows = await self.db.fetch_unenriched_articles()
         await self._run_reenrich(rows, "reenrich-missing")
 
-    async def run_synthesize_pending(self) -> None:
+    async def run_synthesize_pending(self, since_hours: int | None = None) -> None:
         """Synthesize events that have ≥2 sources but no published page yet.
 
-        Useful after restarts (in-memory gate reset) or when the synthesis
-        trigger was missed during a bulk re-ingest.  Passes source_count=0 to
-        ``_synthesize_once`` to bypass the source-count gate — the DB query
-        already filters for events that genuinely need synthesis.
+        Useful after restarts (in-memory gate reset), when the synthesis trigger
+        was missed during a bulk re-ingest, or after a re-cluster (ADR-0031) that
+        unpublished events. ``since_hours`` scopes to the feed window so a bulk
+        re-cluster only re-synthesizes events that will actually surface (keeps
+        the run bounded — the unscoped version over thousands of split events is
+        what got killed). Passes source_count=0 to bypass the source-count gate.
         """
-        rows = await self.db.fetch_events_pending_synthesis()
+        rows = await self.db.fetch_events_pending_synthesis(since_hours)
         total = len(rows)
         if not total:
             logger.info("synthesize-pending: no events to process")

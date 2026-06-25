@@ -94,7 +94,7 @@ async def _run(args: argparse.Namespace) -> None:
         elif args.reenrich_stubs:
             await app.run_reenrich_stubs()
         elif args.synthesize_pending:
-            await app.run_synthesize_pending()
+            await app.run_synthesize_pending(since_hours=args.since_hours)
         elif args.conclude_stories:
             await app.run_conclude_stories()
         elif args.api_only:
@@ -121,6 +121,10 @@ async def _run(args: argparse.Namespace) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="InkBytes Curator")
     parser.add_argument("--config", default="env.yaml", help="Path to config YAML")
+    parser.add_argument("--since-hours", type=int, default=None,
+                        help="Scope --synthesize-pending to events with material activity "
+                             "in the last N hours (the feed window). Keeps a post-re-cluster "
+                             "re-synth bounded to events that will actually surface.")
     grp = parser.add_mutually_exclusive_group()
     grp.add_argument("--consume", action="store_true", help="Consume RabbitMQ events forever AND serve the API on :8060 (single-node/dev; needs DB)")
     grp.add_argument("--worker", action="store_true", help="Consume RabbitMQ events forever, NO API port — scalable worker for the container split (needs DB)")
