@@ -61,6 +61,24 @@ image search). It aggregates ~700M openly-licensed images.
 - These are photos → strictly **generic representation**, never implying it depicts
   the actual event.
 
+**Entity-keyed path — MediaWiki / Wikimedia Commons API** (`www.mediawiki.org/wiki/API`).
+Complements Openverse's keyword search: it returns a **canonical image per entity**
+— `prop=pageimages` (article lead image) or Wikidata **P18** for the event's top
+`LOC`/`ORG` (a country flag/map, the Sagrada Família, a stadium). This dovetails
+with entity resolution (ADR-0032 item 3): resolve an entity → Wikidata ID → its
+image, nearly free. Guardrails:
+- Pull license metadata with `prop=imageinfo&iiprop=extmetadata` → `License` /
+  `LicenseShortName`, `UsageTerms`, `Artist`, `AttributionRequired`, `LicenseUrl`,
+  `Restrictions`, `NonFree`. Accept only commercial-OK (CC0/PD/BY/BY-SA); **reject
+  `NonFree=true` or any `Restrictions`** (trademark/personality/currency), and NC/ND.
+- Query **commons.wikimedia.org** (free-content only) rather than en.wikipedia
+  page-images, which can point to **locally-hosted non-free/fair-use** files.
+- Render attribution for BY/BY-SA (`Artist` + license + `LicenseUrl`); prefer
+  CC0/PD to skip it. `extmetadata` is **expensive** → request few + cache per
+  entity. Wikimedia requires a **descriptive `User-Agent`** (policy) or you're blocked.
+- **Prefer places/things over people** — a real person's photo adds
+  personality/publicity-rights + recency/context concerns beyond the photo's copyright.
+
 ### Tier 3 (top stories only, gated) — **stylized AI editorial illustration**
 For `importance ≥ major` only (gate on the ADR-0033 importance score, so cost is
 bounded): generate an **original, deliberately non-photoreal** editorial
@@ -82,7 +100,7 @@ event or person.
 |---|---|
 | Keep hotlinking source `og:image` | The L3 infringement we're removing. |
 | Photoreal AI image per event | Misinformation/authenticity — fabricates "evidence" of real news; erodes trust; the worst fit for a news product even if legally original. |
-| Wikipedia / Wikimedia Commons entity photos | Mixed licenses (many CC-BY-SA require attribution; some non-free) → needs a per-image license check; fragile to automate safely. Viable later with a license filter. |
+| ~~Wikipedia / Commons entity photos — rejected~~ | **Promoted into Tier 2** as the *entity-keyed* path (Wikidata P18 / pageimages + `imageinfo/extmetadata` license filter). Mixed licenses + non-free locals are handled by the guardrails above (query Commons, reject `NonFree`/`Restrictions`, attribute BY/BY-SA, prefer places over people). |
 | Paid stock API (Getty/Shutterstock) per event | Cost at scale + still photographic; revisit if a licensing deal happens. |
 
 ## Consequences
