@@ -202,6 +202,14 @@ services:
       TRIAGE_SHADOW: ${TRIAGE_SHADOW:-true}
       TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-http://ollama:11434/v1}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.2:3b}
+      # Event lifecycle (Curator ADR-0033 P0). Defaults dormant — set in
+      # infra/.env to activate. LIFECYCLE_FEED/FEED_WINDOW_HOURS → feed
+      # ranking+window; MATERIAL_MAX_DISTANCE → cluster attach gate (0.50=no-op,
+      # 0.40 activates); CONCLUDE_AFTER_DAYS → archiving (0=off; needs the job run).
+      LIFECYCLE_FEED: ${LIFECYCLE_FEED:-false}
+      FEED_WINDOW_HOURS: ${FEED_WINDOW_HOURS:-72}
+      MATERIAL_MAX_DISTANCE: ${MATERIAL_MAX_DISTANCE:-0.50}
+      CONCLUDE_AFTER_DAYS: ${CONCLUDE_AFTER_DAYS:-0}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
@@ -247,6 +255,14 @@ services:
       TRIAGE_SHADOW: ${TRIAGE_SHADOW:-true}
       TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-http://ollama:11434/v1}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.2:3b}
+      # Event lifecycle (Curator ADR-0033 P0). Defaults dormant — set in
+      # infra/.env to activate. LIFECYCLE_FEED/FEED_WINDOW_HOURS → feed
+      # ranking+window; MATERIAL_MAX_DISTANCE → cluster attach gate (0.50=no-op,
+      # 0.40 activates); CONCLUDE_AFTER_DAYS → archiving (0=off; needs the job run).
+      LIFECYCLE_FEED: ${LIFECYCLE_FEED:-false}
+      FEED_WINDOW_HOURS: ${FEED_WINDOW_HOURS:-72}
+      MATERIAL_MAX_DISTANCE: ${MATERIAL_MAX_DISTANCE:-0.50}
+      CONCLUDE_AFTER_DAYS: ${CONCLUDE_AFTER_DAYS:-0}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
