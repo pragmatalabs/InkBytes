@@ -37,12 +37,29 @@ asset, no external call, zero licensing**:
 Rendered Reader-side (SVG/canvas, cacheable). Unique per event ("variation"),
 on-brand, free, never misleading, always available. This is the baseline.
 
-### Tier 2 (variety, optional) — **license-clean generic library**
-A curated set of **CC0 / public-domain / commissioned** generic images, mapped by
-`theme` + top `LOC` entity: e.g. a generic trading-floor for business, a generic
-courtroom for crime, a country **flag/map** (largely free) or CC0 landmark for the
-primary location. Clearly *generic representations*, never the source's photo.
-Selected deterministically so the same story keeps the same image.
+### Tier 2 (variety, optional) — **license-clean generic library via Openverse**
+Generic images mapped by `theme` + top `LOC` entity (generic trading-floor for
+business, courtroom for crime, country flag/map, CC0 landmark), selected
+deterministically so the same story keeps the same image. Clearly *generic
+representations*, never the source's photo.
+
+Source: the **Openverse API** (`api.openverse.org`) — the successor to "CC Search"
+(NOT `api.creativecommons.org`, which is a 2011 license-*generation* service, not
+image search). It aggregates ~700M openly-licensed images.
+
+**Commercial-use guardrails (InkBytes is paid — non-negotiable):**
+- Query with **`license_type=commercial`** (excludes all **NonCommercial/NC** —
+  using NC in a paid product is a violation) `+ modification` (excludes **ND** if
+  we crop/recolor).
+- **Default to `license=cc0,pdm`** (CC0 + Public Domain Mark) → no attribution
+  obligation, simplest for automated covers. If `by`/`by-sa` are allowed, **render
+  the attribution string** Openverse returns (author + license + `license_url`);
+  avoid heavy edits of `by-sa` (share-alike on adaptations).
+- ⚠️ Openverse **does not verify** license accuracy ("independently verify before
+  reusing") → **store license + attribution + source URL per chosen image** for
+  provenance; metadata-trust risk is why this stays Tier 2, not the foundation.
+- These are photos → strictly **generic representation**, never implying it depicts
+  the actual event.
 
 ### Tier 3 (top stories only, gated) — **stylized AI editorial illustration**
 For `importance ≥ major` only (gate on the ADR-0033 importance score, so cost is
