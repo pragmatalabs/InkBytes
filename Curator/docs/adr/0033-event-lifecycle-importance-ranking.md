@@ -1,6 +1,8 @@
 # Curator ADR-0033 — Event lifecycle + three-clock importance ranking (the "skip the noise" fix)
 
-> *Status: **proposed** · Owner: Julian De La Rosa · Date: 2026-06-25*
+> *Status: **accepted** — P0 implemented 2026-06-25 (committed `40070fc`, ships DORMANT behind flags; not deployed) · Owner: Julian De La Rosa · Date: 2026-06-25*
+>
+> **P0 build (rules-only, flag-gated):** migration 018 `events.last_material_update_at`; `cluster.py` material-vs-tangential gate (`material_max_distance`, only a core attach re-floats); `run_conclude_stories`/vault now keys on the material clock; `/events` ranks by the material clock + `feed_window_hours` behind `application.lifecycle_feed`, and always exposes `occurred_at` (first_seen_at). All flags default to legacy behaviour — enable in prod via `infra/.env`: `LIFECYCLE_FEED=true`, `FEED_WINDOW_HOURS=72`, `MATERIAL_MAX_DISTANCE=0.40`, `CONCLUDE_AFTER_DAYS=7`. Verified locally: seeded a fresh + a stale-resurfaced event → flag-off shows both (legacy), flag-on (72h) drops the resurfaced one (feed → just the fresh event). P1 (`UpdateMaterialitySkill`) + P2 (`ImportanceSkill` + lanes) still pending.
 > *Addresses the core product gap: InkBytes promises "one elegant page per event, today's news, pay to skip the noise" but currently surfaces a 4,203-event pile where 78% of the "last 24h" feed is stale resurfacing.*
 
 ## Context
