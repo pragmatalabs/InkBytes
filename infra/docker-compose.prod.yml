@@ -210,6 +210,11 @@ services:
       FEED_WINDOW_HOURS: ${FEED_WINDOW_HOURS:-72}
       MATERIAL_MAX_DISTANCE: ${MATERIAL_MAX_DISTANCE:-0.50}
       CONCLUDE_AFTER_DAYS: ${CONCLUDE_AFTER_DAYS:-0}
+      # Clustering precision (ADR-0031). Off by default; enable after backfilling
+      # events.centroid. Stops new mega-buckets (centroid-linkage + specificity).
+      PRECISION_MODE: ${PRECISION_MODE:-false}
+      PRECISION_DISTANCE: ${PRECISION_DISTANCE:-0.48}
+      SPECIFICITY_CAP: ${SPECIFICITY_CAP:-0.05}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
@@ -263,6 +268,11 @@ services:
       FEED_WINDOW_HOURS: ${FEED_WINDOW_HOURS:-72}
       MATERIAL_MAX_DISTANCE: ${MATERIAL_MAX_DISTANCE:-0.50}
       CONCLUDE_AFTER_DAYS: ${CONCLUDE_AFTER_DAYS:-0}
+      # Clustering precision (ADR-0031). Off by default; enable after backfilling
+      # events.centroid. Stops new mega-buckets (centroid-linkage + specificity).
+      PRECISION_MODE: ${PRECISION_MODE:-false}
+      PRECISION_DISTANCE: ${PRECISION_DISTANCE:-0.48}
+      SPECIFICITY_CAP: ${SPECIFICITY_CAP:-0.05}
       S3_ENDPOINT: ${DO_SPACES_ENDPOINT:-https://nyc3.digitaloceanspaces.com}
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
