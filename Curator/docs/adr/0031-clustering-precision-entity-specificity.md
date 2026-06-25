@@ -170,10 +170,22 @@ rebuilt a 363-article blob**. Two reasons the original bar wasn't enough:
    specific entity is too weak once a cluster is large.
 
 **Fix (validated on the dev corpus):**
-- `precision_distance` **0.48 → 0.34** — biggest lever; collapses the top cluster 363 → 80.
+- `precision_distance` **0.48 → 0.34 → 0.30** — biggest lever; collapses the top cluster 363 → 80.
 - new `specificity_min_shared` (default **2**) — an article must share **≥2** specific
   entities with the event; a lone shared team/region can't merge distinct stories.
   `cluster.py::_run_precision` step 3 now counts shared specifics instead of `EXISTS`.
+
+**Prod-scale correction — the fraction cap doesn't hold across corpus sizes.** The
+first prod dry-run (25,225 articles in the 72h reset window) rebuilt a **421-article**
+WC blob despite 0.34/min2. Cause: `specificity_cap` was a *fraction of pool* (`cap·n`),
+so at n=25k the "specific" threshold was ~1,261 articles — team names ("Argentina",
+"Portugal") fell under it and acted as merge magnets. At dev's n=4k the same 0.05 gave
+a ~200 threshold, which is why dev looked fine. **Fix: replace the fraction with an
+ABSOLUTE doc-frequency threshold `specificity_max_df` (default 90)** — window-independent.
+With `distance=0.30, max_df=90, min_shared=2` the prod top clusters are all coherent real
+events (Venezuela quake 94/32, France/Lecornu 89/28, Portugal–Uzbekistán 85/23, Mexico's
+WC campaign 71/13, UK Labour 67/21) — no blob. `specificity_cap` kept only as a legacy
+fallback (used iff `max_df<=0`); the live path skips the pool-count query when max_df is set.
 
 Result: the WC splits into coherent real events — *Colombia elections* (80/24),
 *Ronaldo's six-Mundiales record* (77/25), *Messi/Golden-Boot race* (51/19),

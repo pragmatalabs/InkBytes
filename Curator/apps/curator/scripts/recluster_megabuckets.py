@@ -31,8 +31,9 @@ import ulid  # noqa: E402
 from core.config import CuratorConfig  # noqa: E402
 from services.database_service import DatabaseService  # noqa: E402
 
-DISTANCE = 0.34        # precision_distance (ADR-0031 tightened 2026-06-25); --distance overrides
-CAP = 0.05             # specificity_cap; --cap overrides
+DISTANCE = 0.30        # precision_distance (ADR-0031 tightened 2026-06-25); --distance overrides
+MAX_DF = 90            # specificity_max_df — ABSOLUTE doc-freq threshold; --max-df overrides
+CAP = 0.05             # legacy fraction fallback (used iff max_df<=0); --cap overrides
 MIN_SHARED = 2         # specificity_min_shared — ≥2 shared specific entities to merge
 
 
@@ -45,13 +46,16 @@ def _unit(v):
     return v / n if n > 0 else v
 
 
-def simulate(rows, distance=DISTANCE, cap=CAP, min_shared=MIN_SHARED):
+def simulate(rows, distance=DISTANCE, cap=CAP, min_shared=MIN_SHARED, max_df=MAX_DF):
     """Greedy online centroid-linkage + entity-specificity (mirrors cluster.py).
 
     Vectorized: centroids held as a running-sum matrix; each article's nearest
     centroid is one BLAS matmul (`sums[:nc] @ v`) instead of a Python loop over
     clusters — identical result, but O(n·k) in C not Python, so 25k articles run
     in seconds. Cosine distance = 1 − (sumᵢ·v)/‖sumᵢ‖ (v is unit).
+
+    Specificity threshold: absolute `max_df` when >0 (robust across corpus sizes),
+    else the legacy fraction `cap * n`.
     """
     n = len(rows)
     df = Counter()
@@ -59,7 +63,8 @@ def simulate(rows, distance=DISTANCE, cap=CAP, min_shared=MIN_SHARED):
         for e in set(r["ents"] or []):
             df[e] += 1
     embs = np.stack([_unit(_vec(r["emb"])) for r in rows]).astype(np.float32)  # (n, dim)
-    spec = [{e for e in (r["ents"] or []) if df.get(e, 0) <= cap * n} for r in rows]
+    threshold = max_df if (max_df and max_df > 0) else cap * n
+    spec = [{e for e in (r["ents"] or []) if df.get(e, 0) <= threshold} for r in rows]
     dim = embs.shape[1]
     sums = np.zeros((n, dim), dtype=np.float32)   # running sum of member vectors
     spec_ents: list[set] = []                     # per-cluster accumulated specific entities

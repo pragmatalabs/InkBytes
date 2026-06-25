@@ -262,8 +262,16 @@ class ClusterCfg(BaseModel):
     # distance 0.34 + requiring ≥2 shared specific entities splits it per match
     # (Portugal-Uzbekistán, Ronaldo's record, Colombia elections each stand alone).
     precision_mode: bool = False
-    precision_distance: float = 0.34
-    specificity_cap: float = 0.05
+    precision_distance: float = 0.30
+    # An entity is "specific" if it appears in ≤ this many recent articles.
+    # ABSOLUTE doc-frequency threshold — robust across corpus sizes. (The earlier
+    # fraction-of-pool `specificity_cap` broke at scale: at n=25k it admitted
+    # entities in up to 1,261 articles as "specific", so team names re-merged the
+    # World Cup into a 421-blob. An absolute 90 keeps real big events coherent —
+    # Venezuela quake, French politics — while excluding ubiquitous WC entities.)
+    # When >0 it takes precedence over specificity_cap (and skips the pool query).
+    specificity_max_df: int = 90
+    specificity_cap: float = 0.05      # legacy fraction fallback (used iff max_df<=0)
     # min count of *specific* entities an article must share with an event to
     # attach (was implicitly 1). ≥2 stops the accumulating-union magnet.
     specificity_min_shared: int = 2
@@ -452,6 +460,7 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         "PRECISION_MODE":      ("clustering", "precision_mode"),
         "PRECISION_DISTANCE":  ("clustering", "precision_distance"),
         "SPECIFICITY_CAP":     ("clustering", "specificity_cap"),
+        "SPECIFICITY_MAX_DF":  ("clustering", "specificity_max_df"),
         "SPECIFICITY_MIN_SHARED": ("clustering", "specificity_min_shared"),
     }
     data = cfg.model_dump()

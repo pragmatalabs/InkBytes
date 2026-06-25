@@ -246,10 +246,15 @@ class ClusterSkill:
         win = str(self.cfg.recent_window_hours)
 
         # 1. Specificity: which of the article's entities are RARE in the recent pool.
-        pool_n = await conn.fetchval(
-            "SELECT count(*) FROM articles WHERE language = $1 "
-            "AND scraped_at > NOW() - ($2 || ' hours')::interval", language, win) or 0
-        cap_count = self.cfg.specificity_cap * max(pool_n, 1)
+        # Absolute doc-frequency threshold (specificity_max_df) when set — robust
+        # across corpus sizes; falls back to the legacy fraction-of-pool otherwise.
+        if self.cfg.specificity_max_df > 0:
+            cap_count = float(self.cfg.specificity_max_df)
+        else:
+            pool_n = await conn.fetchval(
+                "SELECT count(*) FROM articles WHERE language = $1 "
+                "AND scraped_at > NOW() - ($2 || ' hours')::interval", language, win) or 0
+            cap_count = self.cfg.specificity_cap * max(pool_n, 1)
         specific: set[str] = set()
         if entity_names:
             dfrows = await conn.fetch(

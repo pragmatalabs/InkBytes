@@ -34,12 +34,13 @@ import ulid  # noqa: E402
 from core.config import CuratorConfig  # noqa: E402
 from services.database_service import DatabaseService  # noqa: E402
 # reuse the exact greedy centroid-linkage + specificity simulation cluster.py uses
-from scripts.recluster_megabuckets import CAP, DISTANCE, MIN_SHARED, _srcs, simulate  # noqa: E402
+from scripts.recluster_megabuckets import (  # noqa: E402
+    CAP, DISTANCE, MAX_DF, MIN_SHARED, _srcs, simulate)
 
 
 async def _run(config_path: str, since_days: int, apply: bool,
                distance: float = DISTANCE, cap: float = CAP,
-               min_shared: int = MIN_SHARED) -> int:
+               min_shared: int = MIN_SHARED, max_df: int = MAX_DF) -> int:
     db = DatabaseService(CuratorConfig.load(config_path).database)
     await db.connect()
     try:
@@ -54,13 +55,13 @@ async def _run(config_path: str, since_days: int, apply: bool,
                     ORDER BY a.scraped_at""",
                 str(since_days))
             print(f"[fresh] {len(rows)} unclustered articles in last {since_days}d "
-                  f"| dist={distance} cap={cap} min_shared={min_shared} "
+                  f"| dist={distance} max_df={max_df} min_shared={min_shared} "
                   f"| mode={'APPLY' if apply else 'DRY-RUN'}")
             if len(rows) < 2:
                 print("[fresh] nothing to cluster.")
                 return 0
 
-            clusters, _assign = simulate(rows, distance, cap, min_shared)
+            clusters, _assign = simulate(rows, distance, cap, min_shared, max_df)
             sizes = sorted((len(c["members"]) for c in clusters), reverse=True)
             pub = sum(1 for c in clusters if _srcs(rows, c["members"]) >= 2)
             singles = sum(1 for c in clusters if len(c["members"]) == 1)
@@ -107,11 +108,12 @@ def main() -> None:
     ap.add_argument("--since-days", type=int, default=7)
     ap.add_argument("--distance", type=float, default=DISTANCE)
     ap.add_argument("--cap", type=float, default=CAP)
+    ap.add_argument("--max-df", type=int, default=MAX_DF)
     ap.add_argument("--min-shared", type=int, default=MIN_SHARED)
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
     sys.exit(asyncio.run(_run(args.config, args.since_days, args.apply,
-                              args.distance, args.cap, args.min_shared)))
+                              args.distance, args.cap, args.min_shared, args.max_df)))
 
 
 if __name__ == "__main__":
