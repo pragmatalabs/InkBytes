@@ -24,6 +24,16 @@ _MAX_GRAPH_NODES  = 200
 _MAX_GRAPH_EDGES  = 500
 _MAX_QUESTION_LEN = 500  # assistant /ask question cap (ADR-0022)
 
+# Wire services / outlet bylines that get NER-tagged on every article from that
+# source → ubiquitous by event_count but not newsmakers. Excluded from /graph
+# nodes (lowercased name match). Keep to clear agencies/outlets — NOT real orgs
+# like FIFA/UEFA/EU that are genuine subjects of coverage.
+_GRAPH_SOURCE_STOPWORDS = [
+    "efe", "ap", "associated press", "the associated press", "reuters", "afp",
+    "agence france-presse", "europa press", "europapress", "dpa", "ansa",
+    "bloomberg", "bbc", "cnn", "infobae", "reuters news", "ap news",
+]
+
 
 class AskRequest(BaseModel):
     """Body for POST /ask (ADR-0022 corpus chat assistant)."""
@@ -606,9 +616,18 @@ def build_app(app: Application) -> FastAPI:
         limit_nodes = min(limit_nodes, _MAX_GRAPH_NODES)  # ADR-0006 §D1
         limit_edges = min(limit_edges, _MAX_GRAPH_EDGES)
         response.headers["Cache-Control"] = "public, max-age=120"
+        # Per-type quotas so the graph is a balanced NEWSMAKER network, not a list
+        # of ubiquitous countries: ranking purely by event_count let places
+        # (estados unidos, españa, méxico) + wire services crowd out people/orgs
+        # → "People = 1". PERSON/ORG lead; LOC/EVENT are context. (2026-06-26)
+        person_cap = max(1, round(limit_nodes * 0.45))
+        org_cap    = max(1, round(limit_nodes * 0.30))
+        loc_cap    = max(1, round(limit_nodes * 0.18))
+        event_cap  = max(1, round(limit_nodes * 0.07))
+        other_cap  = max(1, round(limit_nodes * 0.04))
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             row = await conn.fetchrow(
-                """
+                f"""
                 WITH published AS (
                     SELECT e.id       AS event_id,
                            p.id       AS page_id,
@@ -621,8 +640,8 @@ def build_app(app: Application) -> FastAPI:
                        AND e.status = 'published'
                 ),
                 -- One row per (event_id, entity_name_lower) — deduplicates
-                -- articles that share the same entity within one event.
-                -- Uses the normalized `entities` table (has type from ENRICH skill).
+                -- articles that share the same entity within one event. Keeps the
+                -- highest-salience mention's display name.
                 ev_ents AS (
                     SELECT DISTINCT ON (a.event_id, LOWER(ent.name))
                            a.event_id,
@@ -631,40 +650,63 @@ def build_app(app: Application) -> FastAPI:
                            pub.freshness_at,
                            pub.source_count,
                            LOWER(ent.name)       AS name_key,
-                           ent.name              AS name_orig,
-                           UPPER(ent.type)       AS etype
+                           ent.name              AS name_orig
                       FROM articles a
                       JOIN published pub ON pub.event_id = a.event_id
                       JOIN entities  ent ON ent.article_id = a.id
                      WHERE LENGTH(ent.name) >= 2
-                     ORDER BY a.event_id, LOWER(ent.name), ent.type
+                     ORDER BY a.event_id, LOWER(ent.name), ent.salience DESC
                 ),
-                -- Nodes: entities with enough event coverage
+                -- Dominant type per entity from RAW mentions (not the per-event
+                -- collapse), tiebreak prefers concrete types over OTHER. Fixes the
+                -- old alphabetical tiebreak that demoted PERSON (sorts last).
+                dom_type AS (
+                    SELECT DISTINCT ON (name_key) name_key, type
+                      FROM (
+                               SELECT LOWER(ent.name) AS name_key,
+                                      UPPER(ent.type)  AS type,
+                                      COUNT(*)         AS cnt
+                                 FROM entities ent
+                                 JOIN articles  a   ON a.id = ent.article_id
+                                 JOIN published pub ON pub.event_id = a.event_id
+                                GROUP BY 1, 2
+                           ) t
+                     ORDER BY name_key, cnt DESC,
+                              (CASE type WHEN 'PERSON' THEN 0 WHEN 'ORG' THEN 1
+                                         WHEN 'LOC' THEN 2 WHEN 'EVENT' THEN 3 ELSE 4 END)
+                ),
+                counts AS (
+                    SELECT name_key, COUNT(DISTINCT event_id) AS event_count
+                      FROM ev_ents GROUP BY name_key
+                ),
+                -- Rank WITHIN type, drop wire-service/outlet bylines (they tag
+                -- every article from that source → ubiquitous but not newsmakers).
+                ranked AS (
+                    SELECT c.name_key, c.event_count, dt.type,
+                           ROW_NUMBER() OVER (PARTITION BY dt.type
+                                              ORDER BY c.event_count DESC) AS rn
+                      FROM counts c
+                      JOIN dom_type dt USING (name_key)
+                     WHERE c.event_count >= $1
+                       AND c.name_key <> ALL($5::text[])
+                ),
+                -- Per-type quota → balanced node set
                 node_cands AS (
-                    SELECT name_key,
-                           COUNT(DISTINCT event_id) AS event_count
-                      FROM ev_ents
-                     GROUP BY name_key
-                    HAVING COUNT(DISTINCT event_id) >= $1
+                    SELECT name_key, type, event_count
+                      FROM ranked
+                     WHERE (type = 'PERSON' AND rn <= {person_cap})
+                        OR (type = 'ORG'    AND rn <= {org_cap})
+                        OR (type = 'LOC'    AND rn <= {loc_cap})
+                        OR (type = 'EVENT'  AND rn <= {event_cap})
+                        OR (type = 'OTHER'  AND rn <= {other_cap})
                      ORDER BY event_count DESC
                      LIMIT $2
-                ),
-                -- Most common type per entity
-                node_types AS (
-                    SELECT DISTINCT ON (name_key) name_key, etype AS type
-                      FROM (
-                               SELECT name_key, etype, COUNT(*) AS cnt
-                                 FROM ev_ents
-                                WHERE name_key IN (SELECT name_key FROM node_cands)
-                                GROUP BY name_key, etype
-                           ) t
-                     ORDER BY name_key, cnt DESC
                 ),
                 -- Full node rows with page summaries for the side panel
                 nodes_agg AS (
                     SELECT nc.name_key                                       AS id,
                            MIN(ee.name_orig)                                 AS label,
-                           COALESCE(nt.type, 'OTHER')                        AS type,
+                           nc.type                                           AS type,
                            nc.event_count,
                            JSON_AGG(DISTINCT
                                JSONB_BUILD_OBJECT(
@@ -676,8 +718,7 @@ def build_app(app: Application) -> FastAPI:
                            )                                                  AS pages
                       FROM node_cands nc
                       JOIN ev_ents    ee ON ee.name_key = nc.name_key
-                      LEFT JOIN node_types nt ON nt.name_key = nc.name_key
-                     GROUP BY nc.name_key, nc.event_count, nt.type
+                     GROUP BY nc.name_key, nc.event_count, nc.type
                 ),
                 -- Edges: entity pairs co-appearing in the same event
                 edges_agg AS (
@@ -703,6 +744,7 @@ def build_app(app: Application) -> FastAPI:
                     (SELECT COUNT(*) FROM published)                             AS event_count
                 """,
                 min_event_count, limit_nodes, min_edge_weight, limit_edges,
+                _GRAPH_SOURCE_STOPWORDS,
             )
         return {
             "nodes": _decode_json_col(row["nodes"]),
