@@ -16,6 +16,8 @@ export default function EventCover({
 }: { id: string; category?: string | null; cover?: CoverImage | null; className?: string }) {
   const [ok, setOk] = useState(true);
   const url = cover && ok ? (cover.thumb || cover.url) : null;
+  // CC BY / BY-SA require a visible credit; CC0 / public domain do not.
+  const credit = url && cover?.attribution ? cover : null;
   return (
     <div className={`relative overflow-hidden ${className}`}>
       <ProceduralCover id={id} category={category} className="w-full h-full" />
@@ -28,6 +30,18 @@ export default function EventCover({
           onError={() => setOk(false)}
           className="absolute inset-0 w-full h-full object-cover"
         />
+      )}
+      {credit && (
+        <a
+          href={credit.source_url || credit.license_url || "#"}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-0 right-0 max-w-full truncate bg-black/45 text-white/90 text-[9px] leading-tight px-1.5 py-0.5 rounded-tl hover:bg-black/65"
+          title={`${credit.attribution} — ${credit.license ?? ""} (via ${credit.provider ?? "Wikimedia"})`}
+        >
+          {credit.attribution} · {credit.license}
+        </a>
       )}
     </div>
   );

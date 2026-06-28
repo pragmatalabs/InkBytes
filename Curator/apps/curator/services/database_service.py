@@ -622,6 +622,34 @@ class DatabaseService:
                 url, event_id,
             )
 
+    async def write_cover_image(self, event_id: str, cover: dict[str, Any]) -> None:
+        """Persist a license-clean generic cover to events.cover_image (ADR-0034 T2)."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE events SET cover_image = $2::jsonb WHERE id = $1",
+                event_id, json.dumps(cover),
+            )
+
+    async def get_event_cover_inputs(self, event_id: str) -> dict[str, Any] | None:
+        """For the cover agent: whether the event already has a cover, plus the
+        majority theme + top LOC/ORG entity used to key the image lookup."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            row = await conn.fetchrow(
+                """
+                SELECT (cover_image IS NOT NULL) AS has_cover,
+                       (SELECT a.theme FROM articles a
+                         WHERE a.event_id = $1 AND a.theme IS NOT NULL
+                         GROUP BY a.theme ORDER BY count(*) DESC LIMIT 1) AS theme,
+                       (SELECT ent.name FROM entities ent JOIN articles a ON a.id = ent.article_id
+                         WHERE a.event_id = $1 AND ent.type = 'LOC' AND length(ent.name) >= 3
+                         GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_loc,
+                       (SELECT ent.name FROM entities ent JOIN articles a ON a.id = ent.article_id
+                         WHERE a.event_id = $1 AND ent.type = 'ORG' AND length(ent.name) >= 3
+                         GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_org
+                  FROM events WHERE id = $1
+                """, event_id)
+        return dict(row) if row else None
+
     async def get_last_synth_source_count(self, event_id: str) -> int:
         """Distinct-outlet count at the event's last synthesis (migration 015).
 

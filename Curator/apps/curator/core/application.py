@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+
+import httpx
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,6 +20,7 @@ from services.media_validation import MediaValidator
 from services.message_service import MessageService, ProcessingPausedError
 from services import taxonomy
 from services.ner_prepass import NerPrepass
+from services.cover_image import pick_cover, _UA as _COVER_UA
 from skills.assistant import AssistantSkill
 from skills.cluster import ClusterSkill
 from skills.enrich import EnrichSkill
@@ -105,6 +108,9 @@ class Application:
         # browsers close — illustration is always fire-and-forget so the delay
         # never affects the RabbitMQ ACK or synthesis latency.
         self._illustrate_sem = asyncio.Semaphore(1)
+        # Cover-image agent (ADR-0034 T2): bound concurrent Wikimedia/Openverse
+        # lookups. Cheap HTTP, but throttle to be a polite API citizen.
+        self._cover_sem = asyncio.Semaphore(2)
         # Per-event synthesis locks: if synthesis is already in-flight for an
         # event, concurrent requests skip rather than pile up.  Prevents the
         # N-articles-in-one-event → N synthesis calls explosion during batch
@@ -594,6 +600,33 @@ class Application:
             except Exception:
                 logger.exception("ILLUSTRATE %s failed (non-fatal)", event_id)
 
+    async def _cover_safe(self, event_id: str) -> None:
+        """Cover-image agent (ADR-0034 Tier 2). Fire-and-forget after synthesis:
+        if the event has no cover yet, pick a license-clean generic image —
+        Wikimedia/Wikidata P18 for its top LOC/ORG entity, else an Openverse CC0
+        keyword image — and store it. Reader renders it over the procedural cover.
+        Fail-open: a failed lookup never affects the event (procedural cover stays).
+        """
+        async with self._cover_sem:
+            try:
+                row = await self.db.get_event_cover_inputs(event_id)
+                if not row or row.get("has_cover"):
+                    return
+                async with httpx.AsyncClient(
+                    timeout=20.0, headers={"User-Agent": _COVER_UA}
+                ) as client:
+                    cover = await pick_cover(
+                        row.get("theme"), row.get("top_loc"), row.get("top_org"),
+                        event_id, client,
+                    )
+                if cover:
+                    await self.db.write_cover_image(event_id, cover)
+                    logger.info("COVER %s → [%s/%s] %s", event_id,
+                                cover.get("provider"), cover.get("license"),
+                                (cover.get("url") or "")[:48])
+            except Exception:
+                logger.exception("COVER %s failed (non-fatal)", event_id)
+
     async def _handle_event(self, payload: dict[str, Any]) -> None:
         # Kill-switch (Backoffice "Stop Curator", ADR-0023): when processing is
         # disabled, requeue the article untouched (no loss) and let the consumer
@@ -766,6 +799,7 @@ class Application:
                     asyncio.create_task(
                         self._illustrate_safe(cluster_result.event_id, page.headline)
                     )
+                    asyncio.create_task(self._cover_safe(cluster_result.event_id))
             else:
                 logger.info(
                     "Hold synthesize: event %s has %d/%d sources",
@@ -894,6 +928,7 @@ class Application:
                 asyncio.create_task(
                     self._illustrate_safe(cluster_result.event_id, page.headline)
                 )
+                asyncio.create_task(self._cover_safe(cluster_result.event_id))
 
         logger.info("reenriched %s (%s)", article.id, article.outlet.name)
 

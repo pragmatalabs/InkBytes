@@ -28,6 +28,9 @@ export interface CoverImage {
   url: string;
   thumb?: string | null;
   license?: string | null;
+  license_url?: string | null;
+  /** Set for CC BY / BY-SA (must be credited); null for CC0 / public domain. */
+  attribution?: string | null;
   source_url?: string | null;
   provider?: string | null;
 }
