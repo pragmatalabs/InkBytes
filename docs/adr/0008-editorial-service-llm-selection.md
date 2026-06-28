@@ -1,6 +1,8 @@
 # ADR-0008 — Editorial service: daily per-theme editorial persona, provider-pluggable LLM
 
-> *Status: accepted (design-only) · Owner: Julian · Date: 2026-06-11*
+> *Status: **Phase 1 scaffolded** (2026-06-28, committed) · Owner: Julian · Date: 2026-06-11*
+>
+> **Phase 1 (scaffold):** new standalone service `Editorial/apps/editorial/` (Curator conventions, pydantic v2): config (provider-pluggable LLM — ollama|deepseek|anthropic), `services/db.py` (reads published pages/events, writes `editorials`, applies migration `001_editorials.sql`), `services/llm.py` (plain-text completion), `personas.py` (15 named per-theme voices — La Mesa/El Balance/…), `prompts/editorial.md`, orchestrator (gather → min-events gate → render persona → generate → store), CLI (`--generate [--theme] [--lang] [--date] [--dry-run]`). The `editorials` table carries `input_context` + `prompt` → it doubles as the **Phase-2 distilled-SLM training set** (the cost-at-scale, local editorial model). Plumbing validated on dev. **Next:** validate generation quality on prod data; Reader "Editorial" surface; daily cron + Dockerfile/compose; then Phase 2 distillation. Open questions below answered: single-language (es) to start; per-theme named personas; min_events gate = 3.
 
 ## Context
 
