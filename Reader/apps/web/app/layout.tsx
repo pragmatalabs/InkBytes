@@ -5,6 +5,7 @@ import BottomNav from "./bottom-nav";
 import { LogoMark } from "@/components/logo";
 import PwaInstallBanner from "@/components/pwa-install-banner";
 import ChatAssistant from "@/components/chat-assistant";
+import Analytics from "@/components/analytics";
 import "./globals.css";
 
 const inter = Inter({
@@ -105,6 +106,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         {/* Bottom nav — only visible on mobile (md:hidden inside component) */}
         <BottomNav />
+
+        {/* Self-hosted Umami analytics (privacy-first, cookieless). Inert until
+            UMAMI_SRC + UMAMI_WEBSITE_ID are set in the Reader's runtime env. */}
+        <Analytics />
 
         <footer className="hidden md:block border-t border-[var(--border)] py-6 text-center text-xs text-[var(--ink-muted)]">
           InkBytes · paid, ad-free · one page per event

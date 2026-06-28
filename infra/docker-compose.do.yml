@@ -88,3 +88,22 @@ services:
       - "traefik.http.middlewares.inkbytes-backoffice-ratelimit.ratelimit.average=30"
       - "traefik.http.middlewares.inkbytes-backoffice-ratelimit.ratelimit.burst=60"
       - "traefik.http.middlewares.inkbytes-backoffice-inflight.inflightreq.amount=40"
+
+  inkbytes-umami:
+    mem_limit: 384m
+    networks:
+      - inkbytes-internal
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.inkbytes-umami.rule=Host(`${ANALYTICS_DOMAIN:-analytics.inkbytes.org}`)"
+      - "traefik.http.routers.inkbytes-umami.entrypoints=websecure"
+      - "traefik.http.routers.inkbytes-umami.tls.certresolver=letsencrypt"
+      - "traefik.http.services.inkbytes-umami.loadbalancer.server.port=3000"
+      # Same edge rate-limit shape as the Reader — the tracking endpoint takes one
+      # hit per pageview/event; generous for humans, brutal for a flood.
+      - "traefik.http.routers.inkbytes-umami.middlewares=inkbytes-umami-ratelimit,inkbytes-umami-inflight"
+      - "traefik.http.middlewares.inkbytes-umami-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.inkbytes-umami-ratelimit.ratelimit.burst=200"
+      - "traefik.http.middlewares.inkbytes-umami-inflight.inflightreq.amount=100"
