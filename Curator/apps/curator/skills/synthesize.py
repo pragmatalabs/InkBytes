@@ -203,7 +203,23 @@ class SynthesizeSkill:
                                    evidence_rail, entities, freshness_at, published_at)
                 VALUES ($1, $1, $2, $3, $4, $5, $6, NOW())
                 ON CONFLICT (id) DO UPDATE
-                  SET headline = EXCLUDED.headline,
+                  -- ADR-0035: when the headline EVOLVES on re-synthesis, append the
+                  -- PREVIOUS headline (with its publish time + source count) to the
+                  -- history before overwriting. SET exprs see the OLD row (pages.*),
+                  -- so this captures the outgoing title even though headline is also
+                  -- being replaced in the same statement.
+                  SET title_history = CASE
+                        WHEN pages.headline IS NOT NULL
+                         AND pages.headline IS DISTINCT FROM EXCLUDED.headline
+                        THEN COALESCE(pages.title_history, '[]'::jsonb)
+                             || jsonb_build_array(jsonb_build_object(
+                                  'headline', pages.headline,
+                                  'at',       pages.published_at,
+                                  'sources',  COALESCE(jsonb_array_length(pages.evidence_rail), 0)
+                                ))
+                        ELSE COALESCE(pages.title_history, '[]'::jsonb)
+                      END,
+                      headline = EXCLUDED.headline,
                       synthesis_md = EXCLUDED.synthesis_md,
                       evidence_rail = EXCLUDED.evidence_rail,
                       entities = EXCLUDED.entities,

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
-import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem } from "@/lib/types";
+import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem, TitleHistoryEntry } from "@/lib/types";
 import ShareButton from "./share-button";
 import MediaRailDrawer from "./media-rail-drawer";
 import { NewsMarkdown } from "@/components/news-markdown";
@@ -72,6 +72,7 @@ export default async function EventPage(
 
   const evidence = parseJson<EvidenceItem[]>(page.evidence_rail);
   const entities = parseJson<EntityItem[]>(page.entities);
+  const titleHistory = parseJson<TitleHistoryEntry[]>(page.title_history ?? []);
   // Note: isDeveloping uses Date.now() — server value may differ from client.
   // The Developing badge element has suppressHydrationWarning to prevent #418.
   const developing = isDeveloping(page.freshness_at);
@@ -233,6 +234,35 @@ export default async function EventPage(
       <div className="synthesis-body text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-10">
         <NewsMarkdown source={page.synthesis_md} />
       </div>
+
+      {/* Story timeline — how the headline evolved as the story developed (ADR-0035).
+          Hidden until the story has re-synthesized with a changed title. */}
+      {titleHistory.length > 0 && (
+        <details className="border-t border-[var(--border)] pt-7 mb-10">
+          <summary className="cursor-pointer list-none flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+            <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Story timeline · {titleHistory.length} earlier {titleHistory.length === 1 ? "headline" : "headlines"}
+          </summary>
+          <ol className="mt-4 space-y-3 border-l border-[var(--border)] pl-4">
+            {titleHistory.map((t, i) => (
+              <li key={i}>
+                <span className="text-sm text-[var(--ink)] leading-snug">{t.headline}</span>
+                {t.at && (
+                  <span suppressHydrationWarning className="block text-[11px] text-[var(--ink-muted)] mt-0.5">
+                    {relativeTime(t.at)} · {t.sources} {t.sources === 1 ? "source" : "sources"}
+                  </span>
+                )}
+              </li>
+            ))}
+            <li>
+              <span className="text-sm font-semibold text-[var(--ink)] leading-snug">{page.headline}</span>
+              <span className="block text-[11px] text-[var(--accent)] mt-0.5">current</span>
+            </li>
+          </ol>
+        </details>
+      )}
 
       {/* Evidence rail */}
       {evidence.length > 0 && (

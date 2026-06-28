@@ -157,6 +157,13 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'events' "
                 "AND column_name = 'centroid')"
             ),
+            # 020 adds pages.title_history (ADR-0035). TRUE once present.
+            "020_page_title_history.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'pages' "
+                "AND column_name = 'title_history')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):

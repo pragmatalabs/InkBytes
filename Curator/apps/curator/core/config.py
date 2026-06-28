@@ -134,7 +134,13 @@ class LlmCfg(BaseModel):
     enrich_model: str = "claude-haiku-4-5"
     synthesize_model: str = "claude-haiku-4-5"
     max_tokens_enrich: int = 1500
-    max_tokens_synth: int = 2500
+    # Synthesis output budget. 2500 truncated ~5% of large clusters ("output
+    # incomplete due to max_tokens"): the structured PageV1 JSON (synthesis_md +
+    # per-source evidence_rail + entities) scales with source count, and on
+    # deepseek-reasoner it competes with thinking tokens. 8000 is the deepseek
+    # answer ceiling and ample for Haiku/V3 too. NOTE: the live value is the
+    # Backoffice `curator_settings.max_tokens_synth` overlay — bump that too.
+    max_tokens_synth: int = 8000
     temperature: float = 0.2
     api_key: str = PLACEHOLDER           # Anthropic key  — env: ANTHROPIC_API_KEY
     openai_api_key: str = PLACEHOLDER    # OpenAI key     — env: OPENAI_API_KEY;    provider=openai

@@ -1,6 +1,8 @@
 # Curator ADR-0035 — Evolving event titles + a story-title timeline (history of mutations)
 
-> *Status: **proposed** · Owner: Julian De La Rosa · Date: 2026-06-25*
+> *Status: **P0+P1 implemented** (2026-06-28, committed, not deployed) · Owner: Julian De La Rosa · Date: 2026-06-25*
+>
+> **Implemented:** P0 capture — migration `020_page_title_history.sql` (`pages.title_history` JSONB) + `SynthesizeSkill._persist` upsert appends the PREVIOUS headline (with publish time + source count) on re-synthesis *only when it changed* (validated on dev: changed re-synth captured, same-headline re-synth did not duplicate). P1 Reader — `/events/{id}` decodes `title_history`; the event page renders a collapsible "Story timeline · N earlier headlines" (hidden until history accrues). P2 (carry into `story_arcs` on conclude) pending. Titles already evolve via re-synthesis; this preserves + surfaces the trail.
 
 ## Context
 

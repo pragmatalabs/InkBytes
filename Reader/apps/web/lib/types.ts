@@ -136,6 +136,13 @@ export interface TimelineEntry {
   scraped_at: string;
 }
 
+/** A previous headline preserved when the story's title evolved (ADR-0035). */
+export interface TitleHistoryEntry {
+  headline: string;
+  at: string | null;
+  sources: number;
+}
+
 export interface EventPage extends EventSummary {
   event_id: string;
   synthesis_md: string;
@@ -145,6 +152,8 @@ export interface EventPage extends EventSummary {
   schema_version: string;
   /** Story development timeline: articles ordered by published_at. */
   timeline: TimelineEntry[] | null;
+  /** Prior headlines, oldest→newest, kept as the story's title evolved (ADR-0035). */
+  title_history?: TitleHistoryEntry[] | string;
   /** IllustrateSkill media — images + videos ranked by score. Empty for pre-Phase-2 pages. */
   media_rail?: MediaRailItem[];
   /**

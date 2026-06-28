@@ -592,8 +592,9 @@ def build_app(app: Application) -> FastAPI:
             raise HTTPException(404, f"event {event_id} not found")
         result = dict(row)
         # asyncpg returns jsonb_agg as a raw JSON string; normalise to a list.
-        result["timeline"]    = _decode_json_col(result.get("timeline"))
-        result["media_rail"]  = _decode_json_col(result.get("media_rail"))
+        result["timeline"]      = _decode_json_col(result.get("timeline"))
+        result["media_rail"]    = _decode_json_col(result.get("media_rail"))
+        result["title_history"] = _decode_json_col(result.get("title_history"))  # ADR-0035
         return result
 
     @api.get("/graph")
