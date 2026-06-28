@@ -7,6 +7,7 @@ import ShareButton from "./share-button";
 import MediaRailDrawer from "./media-rail-drawer";
 import { NewsMarkdown } from "@/components/news-markdown";
 import ReadTracker from "@/components/read-tracker";
+import ProceduralCover from "@/components/procedural-cover";
 
 export const revalidate = 300;
 
@@ -31,9 +32,9 @@ export async function generateMetadata(
   try {
     const page = await getEvent(id);
     const description = firstSentence(page.synthesis_md);
-    const ogImages = page.lead_image
-      ? [{ url: page.lead_image, alt: page.headline }]
-      : [];
+    // ADR-0034 / M1: do NOT redistribute the source outlet's og:image in our own
+    // share metadata either (same unlicensed-photo exposure as the hero). Omit it;
+    // a static owned OG cover is a follow-up (P1).
     return {
       title: page.headline,
       description,
@@ -44,13 +45,11 @@ export async function generateMetadata(
         publishedTime: page.published_at,
         modifiedTime: page.freshness_at,
         section: page.topic ?? "News",
-        images: ogImages,
       },
       twitter: {
-        card: page.lead_image ? "summary_large_image" : "summary",
+        card: "summary",
         title: page.headline,
         description,
-        images: page.lead_image ? [page.lead_image] : [],
       },
     };
   } catch {
@@ -111,18 +110,14 @@ export default async function EventPage(
         share={<ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />}
       />
 
-      {/* Hero cover image — rendered only when Messor extracted an og:image */}
-      {page.lead_image && (
-        <div className="w-full rounded-xl overflow-hidden mb-8 bg-gray-100 aspect-video">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={page.lead_image}
-            alt={page.headline}
-            className="w-full h-full object-cover"
-            loading="eager"
-          />
-        </div>
-      )}
+      {/* Hero — owned procedural cover (ADR-0034). Never the source outlet's
+          og:image (legal risk L3 / mitigation M1): instead a deterministic,
+          on-brand theme cover. lead_image is still stored, just not rendered. */}
+      <ProceduralCover
+        id={page.id}
+        category={page.category}
+        className="w-full rounded-xl mb-8 aspect-video"
+      />
 
 
       {/* Meta row */}

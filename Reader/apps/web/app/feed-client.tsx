@@ -7,6 +7,7 @@ import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/li
 import type { EventSummary, TrendingTopic } from "@/lib/types";
 import { CategoryIcon } from "@/components/icons";
 import { DailySplash } from "@/components/daily-splash";
+import ProceduralCover from "@/components/procedural-cover";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -286,19 +287,9 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
       href={`/event/${event.id}`}
       className={`group block bg-white border border-[var(--border)] border-l-4 ${freshnessClass(event.freshness_at)} rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all`}
     >
-      {/* Cover image — only rendered when Messor extracted an og:image */}
-      {event.lead_image && (
-        <div className="w-full h-48 sm:h-56 overflow-hidden bg-gray-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={event.lead_image}
-            alt=""
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-            loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-        </div>
-      )}
+      {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
+      <ProceduralCover id={event.id} category={event.category}
+        className="w-full h-48 sm:h-56 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-6 sm:p-8">
         <div className="flex flex-wrap items-center gap-2 mb-4">
           {event.category && <CategoryChip category={event.category} />}
@@ -342,19 +333,9 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
       href={`/event/${event.id}`}
       className="group block bg-white border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
     >
-      {/* Thumbnail — 16:9 strip above text when image available */}
-      {event.lead_image && (
-        <div className="w-full h-36 overflow-hidden bg-gray-100 shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={event.lead_image}
-            alt=""
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-            loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-        </div>
-      )}
+      {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
+      <ProceduralCover id={event.id} category={event.category}
+        className="w-full h-36 shrink-0 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-5 flex flex-col flex-1">
         <div className="flex flex-wrap items-center gap-1.5 mb-3">
           {event.category && <CategoryChip category={event.category} />}

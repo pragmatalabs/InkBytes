@@ -1,7 +1,9 @@
 # Curator ADR-0034 — Safe event imagery: owned procedural covers over hotlinked source photos
 
-> *Status: **proposed** · Owner: Julian De La Rosa · Date: 2026-06-25*
+> *Status: **P0 implemented** (2026-06-28, committed) · Owner: Julian De La Rosa · Date: 2026-06-25*
 > *Implements legal-risk mitigation **M1** (`docs/legal-risk.md`): stop displaying source `og:image`s. "Variation, not a copy" — owned/generic imagery instead of branded source photos.*
+>
+> **Implemented (P0, Tier 1):** `Reader/components/procedural-cover.tsx` — a deterministic owned cover (seed=event id → theme-color gradient + seeded blobs + category glyph). Replaces the source og:image as the hero (event page) AND on the feed Lead/Secondary cards; the source `og:image` (an outlet LOGO triggered this — infobae's brand card) is no longer rendered. Also dropped the source photo from the event page's OpenGraph/Twitter share metadata (same M1 exposure). `lead_image` still stored, not rendered. `/events/{id}` now returns the majority `theme` → cover color. P1 (Tier 2 CC0/Openverse + Wikidata generic photos for variety) and P2 (gated AI illustration) still pending.
 
 ## Context
 
