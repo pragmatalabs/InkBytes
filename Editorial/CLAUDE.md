@@ -1,0 +1,50 @@
+# Editorial — Service Briefing
+
+> *Daily per-theme editorial columns. Separate service (ADR-0008), NOT a Curator skill.*
+> *Status: Phase 1 scaffold · Last updated: 2026-06-28*
+
+## What this is
+
+Editorial consumes Curator's **published event pages** and produces one **~450–600
+word opinionated column per theme/day** in a named persona voice (`La Mesa` for
+politics, `El Balance` for business, …), citing events inline as `[n]`. It's the
+"vertical curator persona" — something no aggregator has — and the **data factory**
+for the Phase-2 distilled editorial SLM (every row stores its input + prompt).
+
+It is deliberately separate from Curator (different cadence — nightly batch vs
+continuous; different LLM needs; opinion vs neutral synthesis). See
+[`docs/adr/0008-editorial-service-llm-selection.md`](../docs/adr/0008-editorial-service-llm-selection.md).
+
+## Layout
+```
+Editorial/apps/editorial/
+  main.py                 ← CLI: --generate [--theme X] [--lang es] [--date Y] [--dry-run]
+  core/config.py          ← YAML + env overlay (provider-pluggable LLM)
+  core/application.py     ← orchestrator: gather → gate → render persona → LLM → store
+  services/db.py          ← asyncpg; reads pages/events, writes editorials, applies migration
+  services/llm.py         ← ollama|deepseek → OpenAI-compatible; anthropic → native
+  personas.py             ← theme → (key, name, voice)
+  prompts/editorial.md    ← persona prompt template
+  db/migrations/001_editorials.sql
+  env.example.yaml · requirements.txt
+```
+
+## Run
+```bash
+cd Editorial/apps/editorial
+DATABASE_URL=postgresql://... python main.py --config env.yaml --generate --dry-run
+# real run (writes editorials): drop --dry-run
+```
+
+## Model (ADR-0008 bake-off)
+**~12B is the quality floor** for publishable Spanish editorial prose (gemma4 passed;
+4B-class fail). Dev: `ollama`+gemma4 (Mac). Prod: `ollama`+gemma4 on the Hostinger box
+(16 GB) or `deepseek` fallback — set `EDITORIAL_LLM_PROVIDER`/`_BASE_URL`/`_MODEL`.
+
+## Phase 1 status / next steps
+- [x] Scaffold: config, db, llm, personas, prompt, orchestrator, CLI, migration
+- [ ] Validate generation quality on real prod data (dry-run on the droplet vs gemma4/DeepSeek)
+- [ ] Reader surface: per-theme "Editorial" card/section + an API endpoint
+- [ ] Daily cron (quiet hour) + Dockerfile + compose entry
+- [ ] Phase 2 (SLM): bulk-distill the `editorials` rows → LoRA a 2–3B → GGUF on Hostinger
+```
