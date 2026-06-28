@@ -50,11 +50,23 @@ const CATEGORIES: { key: Category; label: string }[] = [
 
 const GLOBAL_BONUS_MS = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
+// The "last update" clock used for the card timestamp, the DEVELOPING badge, AND
+// the sort — so all three agree and the card matches the event page's "Updated".
+// We use freshness_at (= newest article scraped, what the event page already shows
+// as "Updated") rather than occurred_at (the days-old start — that's the bug: an
+// actively-developing story read "5d ago" at the top of "most recent") and rather
+// than last_material_update_at (currently processing-contaminated: the post-reset
+// pipeline clusters backlogged articles NOW, stamping it ~now even when the newest
+// article is 1.5d old). freshness_at is the honest last-news time, and tight
+// clustering (ADR-0031) is what now prevents the off-topic float ADR-0033 used the
+// material clock to avoid.
+function lastUpdate(ev: EventSummary): string {
+  return ev.freshness_at;
+}
+
 function importance(ev: EventSummary): number {
   const bonus = ev.has_global_outlet ? GLOBAL_BONUS_MS : 0;
-  // ADR-0033: rank by the material clock (mirrors the server's lifecycle
-  // ordering) so a tangential touch can't re-float a stale event client-side.
-  return new Date(ev.last_material_update_at ?? ev.freshness_at).getTime() + bonus;
+  return new Date(lastUpdate(ev)).getTime() + bonus;
 }
 
 // ── Category chip styles ──────────────────────────────────────────────────────
@@ -234,7 +246,7 @@ function BreakingCard({ event, showLang }: { event: EventSummary; showLang: bool
       <div className="flex items-center justify-between gap-2">
         <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={16} />
         <span className="text-xs text-[var(--ink-muted)] tabular-nums shrink-0">
-          <TimeAgo iso={event.occurred_at ?? event.freshness_at} />
+          <TimeAgo iso={lastUpdate(event)} />
         </span>
       </div>
     </Link>
@@ -244,7 +256,7 @@ function BreakingCard({ event, showLang }: { event: EventSummary; showLang: bool
 // ── LEAD card ─────────────────────────────────────────────────────────────────
 
 function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
-  const developing = isDeveloping(event.freshness_at);
+  const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
@@ -288,7 +300,7 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
               {event.article_count} {event.article_count === 1 ? "article" : "articles"}
             </span>
             <span aria-hidden>·</span>
-            <span><TimeAgo iso={event.occurred_at ?? event.freshness_at} /></span>
+            <span><TimeAgo iso={lastUpdate(event)} /></span>
           </div>
         </div>
       </div>
@@ -299,7 +311,7 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
 // ── SECONDARY card ────────────────────────────────────────────────────────────
 
 function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
-  const developing = isDeveloping(event.freshness_at);
+  const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
@@ -336,7 +348,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
         <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
           <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
           <span className="text-xs text-[var(--ink-muted)]">
-            {event.article_count} art · <TimeAgo iso={event.occurred_at ?? event.freshness_at} />
+            {event.article_count} art · <TimeAgo iso={lastUpdate(event)} />
           </span>
         </div>
       </div>
@@ -347,7 +359,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
 // ── STREAM row ────────────────────────────────────────────────────────────────
 
 function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean }) {
-  const developing = isDeveloping(event.freshness_at);
+  const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
@@ -375,7 +387,7 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
           {event.source_count}
         </span>
         <span aria-hidden>·</span>
-        <span><TimeAgo iso={event.occurred_at ?? event.freshness_at} /></span>
+        <span><TimeAgo iso={lastUpdate(event)} /></span>
       </div>
     </Link>
   );
@@ -384,7 +396,7 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
 // ── Flat card (filtered view) ─────────────────────────────────────────────────
 
 function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
-  const developing = isDeveloping(event.freshness_at);
+  const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
@@ -411,7 +423,7 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
             {event.article_count} {event.article_count === 1 ? "article" : "articles"}
           </span>
           <span>·</span>
-          <span><TimeAgo iso={event.occurred_at ?? event.freshness_at} /></span>
+          <span><TimeAgo iso={lastUpdate(event)} /></span>
         </div>
       </div>
     </Link>

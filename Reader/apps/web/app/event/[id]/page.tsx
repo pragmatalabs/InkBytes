@@ -136,7 +136,16 @@ export default async function EventPage(
         </span>
         <span>·</span>
         {/* suppressHydrationWarning: relativeTime uses Date.now() — differs
-            between server (UTC) and client (local tz), causing error #418. */}
+            between server (UTC) and client (local tz), causing error #418.
+            The event page shows BOTH clocks: when the story started
+            (occurred_at) and when it was last updated (freshness_at). The feed
+            card shows only the update time. */}
+        {page.occurred_at && (
+          <>
+            <span suppressHydrationWarning>Started {relativeTime(page.occurred_at)}</span>
+            <span>·</span>
+          </>
+        )}
         <span suppressHydrationWarning>Updated {relativeTime(page.freshness_at)}</span>
         {developing && (
           <span suppressHydrationWarning className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-[10px] text-red-600">

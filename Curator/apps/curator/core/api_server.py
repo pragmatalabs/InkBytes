@@ -542,6 +542,7 @@ def build_app(app: Application) -> FastAPI:
             row = await conn.fetchrow(
                 """
                 SELECT p.*, e.source_count, e.article_count, e.topic,
+                       e.first_seen_at AS occurred_at,   -- "Started" date (event page)
 
                        -- Cover image: same rollup as the /events list endpoint
                        -- with ADR-0016 COALESCE fallback to events.hero_image.
