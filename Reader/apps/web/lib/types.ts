@@ -38,6 +38,13 @@ export interface EventSummary {
   source_count: number;
   article_count: number;
   topic: string | null;
+  /** ADR-0037 cross-language dedup: false when a richer same-story sibling in
+   *  another language exists, so the "All" feed shows only the primary. Absent
+   *  (treated as true) on pre-ADR-0037 / lifecycle-off responses. */
+  primary?: boolean;
+  /** ADR-0037: same-story siblings in OTHER languages → { "es": "<page_id>" }.
+   *  Powers the "also in {lang}" link. */
+  also_languages?: Record<string, string>;
   /** Broad enrichment theme (Curator ADR-0032, 15 values): politics | business |
    *  technology | sports | health | environment | culture | world | science |
    *  entertainment | crime | education | lifestyle | religion | disaster */

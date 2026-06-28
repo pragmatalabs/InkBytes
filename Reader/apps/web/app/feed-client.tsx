@@ -202,6 +202,29 @@ function LangChip({ lang }: { lang: string }) {
   );
 }
 
+// ADR-0037: "also in {lang}" links to the same story's other-language page(s).
+// Shown only in the "All" view (where cross-language duplicates are collapsed).
+// stopPropagation so tapping the chip opens the sibling, not the card's own link.
+function AlsoIn({ also }: { also?: Record<string, string> }) {
+  const entries = Object.entries(also ?? {});
+  if (entries.length === 0) return null;
+  return (
+    <>
+      {entries.map(([lng, id]) => (
+        <Link
+          key={lng}
+          href={`/event/${id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--accent)]/8 text-[var(--accent)] uppercase tracking-wide hover:underline"
+          title={`Also covered in ${lng.toUpperCase()}`}
+        >
+          also {lng}
+        </Link>
+      ))}
+    </>
+  );
+}
+
 /**
  * Relative timestamp ("29m ago"). relativeTime() uses Date.now(), so the
  * server render and the client hydration straddle different instants and can
@@ -236,6 +259,7 @@ function BreakingCard({ event, showLang }: { event: EventSummary; showLang: bool
       <div className="flex flex-wrap items-center gap-1.5 mb-2">
         {event.category && <CategoryChip category={event.category} />}
         {showLang && event.language !== "en" && <LangChip lang={event.language} />}
+        {showLang && <AlsoIn also={event.also_languages} />}
       </div>
       <h3
         className="text-[13px] font-bold leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-3 mb-3"
@@ -280,6 +304,7 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
           {event.category && <CategoryChip category={event.category} />}
           {developing && <DevelopingBadge />}
           {showLang && event.language !== "en" && <LangChip lang={event.language} />}
+        {showLang && <AlsoIn also={event.also_languages} />}
         </div>
         <h2
           className="text-[1.5rem] sm:text-[1.75rem] font-extrabold leading-tight tracking-tight group-hover:text-[var(--accent)] transition-colors mb-2"
@@ -335,6 +360,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
           {event.category && <CategoryChip category={event.category} />}
           {developing && <DevelopingBadge />}
           {showLang && event.language !== "en" && <LangChip lang={event.language} />}
+        {showLang && <AlsoIn also={event.also_languages} />}
         </div>
         <h3
           className="text-[15px] font-bold leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors flex-1 mb-1"
@@ -377,6 +403,7 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
               {event.language}
             </span>
           )}
+          {showLang && <AlsoIn also={event.also_languages} />}
         </span>
       </span>
       <div className="shrink-0 flex items-center gap-1.5 text-xs text-[var(--ink-muted)] tabular-nums">
@@ -406,6 +433,7 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
         {event.category && <CategoryChip category={event.category} />}
         {developing && <DevelopingBadge />}
         {showLang && event.language !== "en" && <LangChip lang={event.language} />}
+        {showLang && <AlsoIn also={event.also_languages} />}
       </div>
       <h2 className="text-[15px] sm:text-[16px] font-semibold leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors mb-1">
         {event.headline}
@@ -511,6 +539,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
   const filtered = useMemo(() => {
     let list = events;
+    // ADR-0037 cross-language dedup: in the "All" view, collapse same-story
+    // EN+ES duplicates to the primary (the richer-source one) so each story
+    // appears once. The EN/ES tabs filter by language and show every event of
+    // that language (no collapse) — so switching tabs never loses a story.
+    if (lang === "all")           list = list.filter((e) => e.primary !== false);
     if (lang !== "all")           list = list.filter((e) => e.language === lang);
     if (activeCategory !== "all") list = list.filter((e) => (e.category ?? "world") === activeCategory);
     // NB: topic filtering is done server-side (events arrive pre-filtered to

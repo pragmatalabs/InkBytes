@@ -23,6 +23,11 @@ _MAX_EVENTS_LIMIT = 500
 _MAX_GRAPH_NODES  = 200
 _MAX_GRAPH_EDGES  = 500
 _MAX_QUESTION_LEN = 500  # assistant /ask question cap (ADR-0022)
+# Cross-language dedup (ADR-0037): two events are the same story in different
+# languages when their centroids are this close. Measured on prod: EN/ES pairs of
+# the same story sit at 0.03–0.06 (bge-m3 is multilingual); distinct stories are
+# well above. 0.12 is a safe margin. Only different-language events are grouped.
+_CROSSLANG_DUP_DIST = 0.12
 
 # Wire services / outlet bylines that get NER-tagged on every article from that
 # source → ubiquitous by event_count but not newsmakers. Excluded from /graph
@@ -458,6 +463,36 @@ def build_app(app: Application) -> FastAPI:
                 """).replace("__WINDOW_CLAUSE__", _window_clause).replace("__ORDER_COL__", _order_col),
                 limit, theme_filter, category_filter, topic_filter,
             )
+            # Cross-language dedup (ADR-0037): for each event, find its same-story
+            # OTHER-language siblings by centroid proximity. `has_better` → a richer
+            # sibling exists, so this one is NOT the group's primary; `also_languages`
+            # maps each sibling language → its (richest) page id. pgvector does the
+            # distance in C (one self-join over the windowed set), so the Reader can
+            # collapse the "All" view to primaries + link "also in {lang}". Gated on
+            # the lifecycle window so the self-join stays bounded to recent events.
+            dup_rows = []
+            if app.cfg.application.lifecycle_feed and rows:
+                dup_rows = await conn.fetch(
+                    f"""
+                    WITH win AS (
+                        SELECT e.id, e.language, e.centroid, e.source_count
+                          FROM events e JOIN pages p ON p.event_id = e.id
+                         WHERE p.published_at IS NOT NULL AND e.status = 'published'
+                           AND e.centroid IS NOT NULL
+                           {_window_clause}
+                    )
+                    SELECT a.id,
+                           jsonb_object_agg(b.language, b.id ORDER BY b.source_count, b.id)
+                               AS also_languages,
+                           bool_or((b.source_count, b.id) > (a.source_count, a.id))
+                               AS has_better
+                      FROM win a JOIN win b
+                        ON a.id <> b.id AND a.language <> b.language
+                       AND (a.centroid <=> b.centroid) < {_CROSSLANG_DUP_DIST}
+                     GROUP BY a.id
+                    """
+                )
+        dup_map = {r["id"]: r for r in dup_rows}
         result = []
         for r in rows:
             d = dict(r)
@@ -466,6 +501,10 @@ def build_app(app: Application) -> FastAPI:
             # for older articles that pre-date the theme column.
             raw_theme = d.get("theme")
             d["category"] = raw_theme if raw_theme else _derive_category(d.get("topic"))
+            # ADR-0037 cross-language dedup tags (default: unique, primary).
+            dr = dup_map.get(d["id"])
+            d["primary"] = not (dr and dr["has_better"])
+            d["also_languages"] = _decode_json_col(dr["also_languages"]) if dr else {}
             result.append(d)
         return result
 
