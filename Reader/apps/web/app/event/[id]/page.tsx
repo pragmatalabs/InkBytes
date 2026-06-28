@@ -7,7 +7,7 @@ import ShareButton from "./share-button";
 import MediaRailDrawer from "./media-rail-drawer";
 import { NewsMarkdown } from "@/components/news-markdown";
 import ReadTracker from "@/components/read-tracker";
-import ProceduralCover from "@/components/procedural-cover";
+import EventCover from "@/components/event-cover";
 
 export const revalidate = 300;
 
@@ -110,12 +110,13 @@ export default async function EventPage(
         share={<ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />}
       />
 
-      {/* Hero — owned procedural cover (ADR-0034). Never the source outlet's
-          og:image (legal risk L3 / mitigation M1): instead a deterministic,
-          on-brand theme cover. lead_image is still stored, just not rendered. */}
-      <ProceduralCover
+      {/* Hero (ADR-0034). NEVER the source outlet's og:image (legal risk L3 / M1).
+          Tier 2 license-clean generic image when available (cover_image), else the
+          owned procedural cover. lead_image is still stored, just not rendered. */}
+      <EventCover
         id={page.id}
         category={page.category}
+        cover={page.cover_image}
         className="w-full rounded-xl mb-8 aspect-video"
       />
 

@@ -323,6 +323,7 @@ def build_app(app: Application) -> FastAPI:
                 SELECT p.id, p.headline, p.freshness_at, p.published_at,
                        e.first_seen_at AS occurred_at, e.last_material_update_at,
                        e.source_count, e.article_count, e.language,
+                       e.cover_image,   -- ADR-0034 Tier 2 license-clean cover (JSONB)
 
                        -- Topic: prefer the event-level topic (set by synthesize);
                        -- fall back to the most common article-level topic derived
@@ -501,6 +502,7 @@ def build_app(app: Application) -> FastAPI:
             # for older articles that pre-date the theme column.
             raw_theme = d.get("theme")
             d["category"] = raw_theme if raw_theme else _derive_category(d.get("topic"))
+            d["cover_image"] = _decode_json_col(d.get("cover_image"))  # ADR-0034 Tier 2
             # ADR-0037 cross-language dedup tags (default: unique, primary).
             dr = dup_map.get(d["id"])
             d["primary"] = not (dr and dr["has_better"])
@@ -584,6 +586,7 @@ def build_app(app: Application) -> FastAPI:
                        e.first_seen_at AS occurred_at,   -- "Started" date (event page)
                        -- Majority article theme → drives the procedural cover color
                        -- (ADR-0034) + the category chip on the event page.
+                       e.cover_image,   -- ADR-0034 Tier 2 license-clean cover (JSONB)
                        (SELECT a.theme FROM articles a
                          WHERE a.event_id = e.id AND a.theme IS NOT NULL
                          GROUP BY a.theme ORDER BY COUNT(*) DESC LIMIT 1) AS theme,
@@ -639,6 +642,7 @@ def build_app(app: Application) -> FastAPI:
         result["timeline"]      = _decode_json_col(result.get("timeline"))
         result["media_rail"]    = _decode_json_col(result.get("media_rail"))
         result["title_history"] = _decode_json_col(result.get("title_history"))  # ADR-0035
+        result["cover_image"]   = _decode_json_col(result.get("cover_image"))    # ADR-0034
         # category = LLM theme (else keyword-derived) — same as the feed; drives
         # the procedural cover color + the event-page chip (ADR-0034).
         result["category"] = result.get("theme") or _derive_category(result.get("topic"))

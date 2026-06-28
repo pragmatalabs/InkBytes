@@ -23,6 +23,15 @@ export interface TrendingTopic {
   theme: string | null;
 }
 
+/** ADR-0034 Tier 2 — a license-clean generic cover image (provenance kept). */
+export interface CoverImage {
+  url: string;
+  thumb?: string | null;
+  license?: string | null;
+  source_url?: string | null;
+  provider?: string | null;
+}
+
 export interface EventSummary {
   id: string;
   headline: string;
@@ -45,6 +54,9 @@ export interface EventSummary {
   /** ADR-0037: same-story siblings in OTHER languages → { "es": "<page_id>" }.
    *  Powers the "also in {lang}" link. */
   also_languages?: Record<string, string>;
+  /** ADR-0034 Tier 2: license-clean generic cover (Openverse CC0/PDM). Null →
+   *  the Reader renders the owned procedural cover (Tier 1). */
+  cover_image?: CoverImage | null;
   /** Broad enrichment theme (Curator ADR-0032, 15 values): politics | business |
    *  technology | sports | health | environment | culture | world | science |
    *  entertainment | crime | education | lifestyle | religion | disaster */

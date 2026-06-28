@@ -7,7 +7,7 @@ import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/li
 import type { EventSummary, TrendingTopic } from "@/lib/types";
 import { CategoryIcon } from "@/components/icons";
 import { DailySplash } from "@/components/daily-splash";
-import ProceduralCover from "@/components/procedural-cover";
+import EventCover from "@/components/event-cover";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -288,7 +288,7 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
       className={`group block bg-white border border-[var(--border)] border-l-4 ${freshnessClass(event.freshness_at)} rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all`}
     >
       {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
-      <ProceduralCover id={event.id} category={event.category}
+      <EventCover id={event.id} category={event.category} cover={event.cover_image}
         className="w-full h-48 sm:h-56 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-6 sm:p-8">
         <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -334,7 +334,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
       className="group block bg-white border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
     >
       {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
-      <ProceduralCover id={event.id} category={event.category}
+      <EventCover id={event.id} category={event.category} cover={event.cover_image}
         className="w-full h-36 shrink-0 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-5 flex flex-col flex-1">
         <div className="flex flex-wrap items-center gap-1.5 mb-3">

@@ -164,6 +164,13 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'pages' "
                 "AND column_name = 'title_history')"
             ),
+            # 021 adds events.cover_image (ADR-0034 Tier 2). TRUE once present.
+            "021_event_cover_image.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'events' "
+                "AND column_name = 'cover_image')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
