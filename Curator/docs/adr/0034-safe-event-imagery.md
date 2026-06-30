@@ -88,6 +88,15 @@ image, nearly free. Guardrails:
   personality/publicity-rights + recency/context concerns beyond the photo's copyright.
 
 ### Tier 3 (top stories only, gated) — **stylized AI editorial illustration**
+> **DEFERRED by decision (2026-06-28).** Considered adding OpenAI image generation
+> (gpt-image-1) as a Tier-3 source. Declined for now: the license-clean chain
+> (Wikimedia → Unsplash → Openverse → procedural) already gives every event a clean,
+> relevant cover, and Tier 3 adds (a) recurring per-image cost, (b) re-hosting infra
+> (boto3 + a public Spaces bucket — AI images expire and are owned), and (c) the
+> "AI imagery on news" trust question. Marginal value (a bespoke illustration for the
+> few biggest stories) didn't justify those. Revisit if a clear need emerges; the
+> hard rules below still bind any future build.
+
 For `importance ≥ major` only (gate on the ADR-0033 importance score, so cost is
 bounded): generate an **original, deliberately non-photoreal** editorial
 illustration from the headline + theme. Always **labelled "Illustration."**
