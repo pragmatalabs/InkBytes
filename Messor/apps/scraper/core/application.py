@@ -369,15 +369,37 @@ class Application:
                     self.logger.error(f"Error during scheduled scraping: {e}")
                     print(f"❌ Error during scheduled scraping: {e}")
                 
-                # Wait for the next cycle
-                wait_seconds = interval_minutes * 60
-                next_run = time.time() + wait_seconds
-                next_run_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_run))
-                
-                self.logger.info(f"Next scraping cycle scheduled for: {next_run_str}")
-                print(f"Next scraping cycle scheduled for: {next_run_str}")
-                print(f"Waiting {interval_minutes} minutes...\n")
-                
+                # Wait for the next cycle. Valley-anchor mode (DeepSeek peak
+                # avoidance): if harvest anchor hours are configured, sleep until
+                # the next anchor (UTC) instead of a flat interval — keeps the
+                # expensive enrich/synthesize work OUT of the 2× peak windows.
+                anchor_hours = self.config.get_harvest_anchor_hours_utc()
+                if anchor_hours:
+                    from datetime import datetime, timezone, timedelta
+                    now_utc = datetime.now(timezone.utc)
+                    nxt = None
+                    for day in (0, 1):
+                        base = (now_utc + timedelta(days=day)).replace(
+                            minute=0, second=0, microsecond=0)
+                        for h in anchor_hours:
+                            t = base.replace(hour=h)
+                            if t > now_utc and (nxt is None or t < nxt):
+                                nxt = t
+                    wait_seconds = max(60.0, (nxt - now_utc).total_seconds())
+                    next_run_str = nxt.strftime('%Y-%m-%d %H:%M UTC')
+                    self.logger.info(
+                        f"Next harvest at valley anchor {next_run_str} "
+                        f"(DeepSeek peak-avoidance) — in {wait_seconds/3600:.1f}h")
+                    print(f"Next harvest (valley-anchored): {next_run_str} "
+                          f"— in {wait_seconds/3600:.1f}h\n")
+                else:
+                    wait_seconds = interval_minutes * 60
+                    next_run = time.time() + wait_seconds
+                    next_run_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_run))
+                    self.logger.info(f"Next scraping cycle scheduled for: {next_run_str}")
+                    print(f"Next scraping cycle scheduled for: {next_run_str}")
+                    print(f"Waiting {interval_minutes} minutes...\n")
+
                 time.sleep(wait_seconds)
                 
         except KeyboardInterrupt:

@@ -52,6 +52,32 @@ class Config:
         except (AttributeError, ValueError, TypeError):
             return 360
 
+    def get_harvest_anchor_hours_utc(self) -> list[int] | None:
+        """Fixed UTC hours to run the scheduled harvest at, or None (interval mode).
+
+        When set, the scheduler runs at these hours-of-day (UTC) instead of every
+        `schedule_interval_minutes` — used to keep cycles OUT of the DeepSeek peak
+        windows (UTC 01–04 + 06–10, where Curator's enrich/synthesize bills 2×).
+        Peak ≈ overnight in the Americas (LATAM-primary audience), so the routine
+        sweep pauses there; the pulse lane still catches breaking news.
+
+        Priority: MESSOR_HARVEST_ANCHORS_UTC ("0,4,10,...") → env.yaml
+        `scraping.harvest_anchors_utc` → None. Invalid/empty → None (interval mode).
+        """
+        import os
+        raw = os.environ.get("MESSOR_HARVEST_ANCHORS_UTC")
+        if raw is None:
+            val = getattr(self._config.scraping, 'harvest_anchors_utc', None)
+            raw = getattr(val, 'value', val) if val is not None else None
+        if not raw:
+            return None
+        try:
+            hours = sorted({int(h) for h in str(raw).split(',') if h.strip() != ""}
+                           & set(range(24)))
+            return hours or None
+        except (ValueError, TypeError):
+            return None
+
     def get_startup_delay_minutes(self) -> int:
         """Minutes to wait before the FIRST scraping cycle on startup.
 

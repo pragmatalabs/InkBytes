@@ -157,6 +157,9 @@ class LlmCfg(BaseModel):
     price_in_per_mtok: float = 0.14            # cache-miss input  ($0.14/M)
     price_cache_hit_per_mtok: float = 0.0028   # cache-hit input   ($0.0028/M)
     price_out_per_mtok: float = 0.28           # output            ($0.28/M)
+    # DeepSeek peak-valley pricing (from mid-July 2026): peak-hour calls cost 2×
+    # (UTC 01–04 + 06–10). Off until the policy is live; flip via DEEPSEEK_PEAK_PRICING.
+    deepseek_peak_pricing: bool = False
 
 
 class EmbedCfg(BaseModel):
@@ -445,6 +448,9 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         "S3_BUCKET":         ("spaces", "bucket"),
         "CURATOR_LOG_LEVEL": ("application", "log_level"),
         "CURATOR_MODE":      ("application", "mode"),
+        # DeepSeek peak-valley pricing (mid-July 2026): peak-hour calls cost 2×.
+        # Flip to true in infra/.env when the policy goes live → accurate cost meter.
+        "DEEPSEEK_PEAK_PRICING": ("llm", "deepseek_peak_pricing"),
         # Pre-enrich triage gate (ADR-0030). Enable + point at the Hostinger
         # Ollama in prod via infra/.env; bool/str coerced by re-validation.
         "TRIAGE_ENABLED":    ("triage", "enabled"),

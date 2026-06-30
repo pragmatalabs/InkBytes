@@ -22,6 +22,7 @@ import asyncio
 import logging
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,17 @@ logger = logging.getLogger(__name__)
 # DatabaseService.record_model_usage's keyword args.
 UsageSink = Callable[..., Awaitable[None]]
 
+# DeepSeek peak-valley pricing (from mid-July 2026): peak-hour prices are 2× the
+# regular rate, all billing items. Peak windows (UTC): 01:00–04:00 + 06:00–10:00
+# → hour-of-day in {1,2,3} ∪ {6,7,8,9} = 7h/day. Gated by `peak_pricing` so it
+# stays a no-op until the policy is live.
+_PEAK_HOURS_UTC = frozenset({1, 2, 3, 6, 7, 8, 9})
+_PEAK_MULTIPLIER = 2.0
+
+
+def _is_peak_utc() -> bool:
+    return datetime.now(timezone.utc).hour in _PEAK_HOURS_UTC
+
 
 @dataclass
 class _Bucket:
@@ -37,6 +49,9 @@ class _Bucket:
     input_tokens: int = 0           # total input (cache hit + miss)
     output_tokens: int = 0
     cache_hit_tokens: int = 0       # subset of input_tokens served from cache
+    cost_usd: float = 0.0           # accumulated cost, locked per-call at record
+                                    # time (peak multiplier applied then) so the
+                                    # total stays correct as the rate varies.
 
 
 class CostMeter:
@@ -54,7 +69,11 @@ class CostMeter:
         price_in_per_mtok: float,
         price_out_per_mtok: float,
         price_cache_hit_per_mtok: float | None = None,
+        peak_pricing: bool = False,
     ) -> None:
+        # When True, calls made during the DeepSeek peak window cost 2× (mid-July
+        # 2026 policy). Off → flat pricing (pre-policy behaviour, unchanged).
+        self._peak_pricing = peak_pricing
         self._in_price = price_in_per_mtok          # cache-MISS input rate
         self._out_price = price_out_per_mtok
         # When no cache-hit rate is given, fall back to the full input rate —
@@ -79,11 +98,16 @@ class CostMeter:
         # the remainder at the full (cache-miss) rate.
         hit = max(0, min(cache_hit_tokens, input_tokens))
         miss = input_tokens - hit
-        return (
+        base = (
             (miss / 1_000_000) * self._in_price
             + (hit / 1_000_000) * self._cache_hit_price
             + (output_tokens / 1_000_000) * self._out_price
         )
+        # Peak-hour surcharge (mid-July 2026 DeepSeek policy). Evaluated at the
+        # moment the call is recorded — the cost is then frozen into the bucket.
+        if self._peak_pricing and _is_peak_utc():
+            base *= _PEAK_MULTIPLIER
+        return base
 
     def record(
         self,
@@ -102,24 +126,31 @@ class CostMeter:
         billed at the discounted cache-hit rate. The in-memory accumulation and
         the COST log line are otherwise unchanged. DB persistence is non-fatal.
         """
+        # Cost is frozen here (peak multiplier applied at this moment) and
+        # accumulated, so the running total stays correct as the rate changes
+        # through the day. Computed outside the lock (uses datetime.now).
+        call_cost = self._call_cost(input_tokens, output_tokens, cache_hit_tokens)
         with self._lock:
             b = self._buckets.setdefault(label, _Bucket())
             b.calls += 1
             b.input_tokens += input_tokens
             b.output_tokens += output_tokens
             b.cache_hit_tokens += max(0, min(cache_hit_tokens, input_tokens))
+            b.cost_usd += call_cost
             total = self._total_cost_locked()
             articles = self._buckets.get("enrich", _Bucket()).calls
             projected = (total / articles * 1000) if articles else 0.0
+            peak = " PEAK" if (self._peak_pricing and _is_peak_utc()) else ""
             logger.info(
-                "COST %-6s in=%-6d out=%-5d cache_hit=%-6d | run-total=$%.4f"
+                "COST %-6s in=%-6d out=%-5d cache_hit=%-6d%s | run-total=$%.4f"
                 " over %d article(s) | projected $%.2f / 1000 articles",
-                label, input_tokens, output_tokens, cache_hit_tokens,
+                label, input_tokens, output_tokens, cache_hit_tokens, peak,
                 total, articles, projected,
             )
 
         # DB sink — outside the lock, fire-and-forget, never fatal.
-        self._persist(label, input_tokens, output_tokens, cache_hit_tokens, model, event_id)
+        self._persist(label, input_tokens, output_tokens, cache_hit_tokens,
+                      model, event_id, cost=call_cost)
 
     def _persist(
         self,
@@ -129,12 +160,13 @@ class CostMeter:
         cache_hit_tokens: int,
         model: str | None,
         event_id: str | None,
+        cost: float,
     ) -> None:
-        """Schedule the async DB write without blocking; swallow all errors."""
+        """Schedule the async DB write without blocking; swallow all errors.
+        `cost` is the per-call cost computed at record time (peak-aware)."""
         sink = self._sink
         if sink is None:
             return
-        cost = self._call_cost(input_tokens, output_tokens, cache_hit_tokens)
 
         async def _run() -> None:
             try:
@@ -164,7 +196,7 @@ class CostMeter:
         loop.create_task(_run())
 
     def _bucket_cost(self, b: _Bucket) -> float:
-        return self._call_cost(b.input_tokens, b.output_tokens, b.cache_hit_tokens)
+        return b.cost_usd  # accumulated per-call (peak-aware), not re-derived
 
     def _total_cost_locked(self) -> float:
         return sum(self._bucket_cost(b) for b in self._buckets.values())
