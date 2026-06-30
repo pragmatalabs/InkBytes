@@ -612,12 +612,16 @@ class Application:
                 row = await self.db.get_event_cover_inputs(event_id)
                 if not row or row.get("has_cover"):
                     return
+                # Context disambiguates ambiguous entity names in the Wikimedia
+                # lookup (e.g. "Proton" tech story → Proton AG, not the carmaker).
+                context = " ".join(filter(None, [
+                    row.get("headline"), row.get("theme"), row.get("entity_terms")]))
                 async with httpx.AsyncClient(
                     timeout=20.0, headers={"User-Agent": _COVER_UA}
                 ) as client:
                     cover = await pick_cover(
                         row.get("theme"), row.get("top_loc"), row.get("top_org"),
-                        event_id, client,
+                        event_id, client, context=context,
                     )
                 if cover:
                     await self.db.write_cover_image(event_id, cover)

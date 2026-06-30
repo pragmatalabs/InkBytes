@@ -637,6 +637,7 @@ class DatabaseService:
             row = await conn.fetchrow(
                 """
                 SELECT (cover_image IS NOT NULL) AS has_cover,
+                       (SELECT headline FROM pages WHERE event_id = $1) AS headline,
                        (SELECT a.theme FROM articles a
                          WHERE a.event_id = $1 AND a.theme IS NOT NULL
                          GROUP BY a.theme ORDER BY count(*) DESC LIMIT 1) AS theme,
@@ -645,7 +646,11 @@ class DatabaseService:
                          GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_loc,
                        (SELECT ent.name FROM entities ent JOIN articles a ON a.id = ent.article_id
                          WHERE a.event_id = $1 AND ent.type = 'ORG' AND length(ent.name) >= 3
-                         GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_org
+                         GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_org,
+                       -- co-entities → disambiguation context for the Wikimedia lookup
+                       (SELECT string_agg(DISTINCT ent.name, ' ')
+                          FROM entities ent JOIN articles a ON a.id = ent.article_id
+                         WHERE a.event_id = $1 AND length(ent.name) >= 3) AS entity_terms
                   FROM events WHERE id = $1
                 """, event_id)
         return dict(row) if row else None

@@ -159,18 +159,34 @@ def _license_gate(ext: dict) -> tuple[str, bool] | None:
     return None  # unknown license → reject (conservative)
 
 
-async def wikimedia_entity_cover(entity: str,
-                                 client: httpx.AsyncClient) -> dict[str, Any] | None:
+async def wikimedia_entity_cover(entity: str, client: httpx.AsyncClient,
+                                 context: str = "") -> dict[str, Any] | None:
     """Canonical Wikimedia Commons image for an entity (Wikidata P18), license-gated.
+
+    `context` (headline + theme + co-entities) DISAMBIGUATES an ambiguous name:
+    among the top candidates, pick the one whose label+description best overlaps the
+    story context — e.g. "Proton" in a tech story → Proton AG (Swiss tech company),
+    NOT Proton Holdings (the Malaysian carmaker, Wikidata's top bare-string hit).
+    Empty/no-overlap context → falls back to the most prominent hit (old behaviour).
+
     Returns the provenance dict or None (no Q-id / no P18 / license rejected / error)."""
     try:
         r = await client.get(_WIKIDATA, params={
             "action": "wbsearchentities", "search": entity, "language": "en",
-            "format": "json", "limit": "1"})
+            "format": "json", "limit": "7"})
         hits = (r.json() or {}).get("search") or []
         if not hits:
             return None
-        qid = hits[0]["id"]
+        ctx = set(re.findall(r"[a-z0-9]+", context.lower()))
+
+        def _score(h: dict) -> int:
+            words = set(re.findall(
+                r"[a-z0-9]+",
+                (h.get("label", "") + " " + (h.get("description") or "")).lower()))
+            return len(words & ctx)
+
+        # Re-rank by context overlap; ties keep Wikidata's prominence order.
+        qid = hits[min(range(len(hits)), key=lambda i: (-_score(hits[i]), i))]["id"]
         r = await client.get(_WIKIDATA, params={
             "action": "wbgetentities", "ids": qid, "props": "claims", "format": "json"})
         claims = (((r.json() or {}).get("entities") or {}).get(qid) or {}).get("claims") or {}
@@ -259,18 +275,25 @@ async def unsplash_cover(query: str, seed: str,
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 async def pick_cover(theme: str | None, top_loc: str | None, top_org: str | None,
-                     seed: str, client: httpx.AsyncClient) -> dict[str, Any] | None:
+                     seed: str, client: httpx.AsyncClient,
+                     context: str = "") -> dict[str, Any] | None:
     """Wikimedia entity-canonical (prefer places, then orgs) → Unsplash generic
     (if UNSPLASH_ACCESS_KEY set) → Openverse CC0 keyword → None (procedural).
     Deterministic; fail-open at each step. Entity-canonical wins because a country's
     own flag/landmark is more relevant than a stock photo; Unsplash beats Openverse
-    on aesthetic quality for the generic case."""
+    on aesthetic quality for the generic case. `context` (headline + theme +
+    co-entities) disambiguates ambiguous entity names in the Wikimedia step."""
     for ent in (top_loc, top_org):
         if ent and len(ent) >= 3:
-            cov = await wikimedia_entity_cover(ent, client)
+            cov = await wikimedia_entity_cover(ent, client, context)
             if cov:
                 return cov
-    q = build_query(theme, top_loc or top_org)
+    # Keyword fallback: a LOC is a safe, unambiguous photo query (a place → its
+    # landscape); an ORG is often an ambiguous brand name ("Proton", "Apple") that
+    # returns off-topic stock — so for ORGs fall to the THEME concept instead.
+    # ORGs are best served by the Wikimedia canonical step above (the org's own
+    # image); when that finds nothing, the theme concept is the safe generic.
+    q = build_query(theme, top_loc)
     if q:
         return (await unsplash_cover(q, seed, client)
                 or await fetch_cover(q, seed, client=client))

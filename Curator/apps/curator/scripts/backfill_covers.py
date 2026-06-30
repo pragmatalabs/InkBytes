@@ -52,7 +52,11 @@ async def _run(config_path: str, since_hours: int, limit: int,
                           FROM entities ent JOIN articles a ON a.id = ent.article_id
                          WHERE a.event_id = e.id AND ent.type = 'ORG'
                            AND length(ent.name) >= 3
-                         GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_org
+                         GROUP BY ent.name ORDER BY count(*) DESC LIMIT 1) AS top_org,
+                       p.headline,
+                       (SELECT string_agg(DISTINCT ent.name, ' ')
+                          FROM entities ent JOIN articles a ON a.id = ent.article_id
+                         WHERE a.event_id = e.id AND length(ent.name) >= 3) AS entity_terms
                   FROM events e JOIN pages p ON p.event_id = e.id
                  WHERE p.published_at IS NOT NULL AND e.status = 'published'
                    {cover_filter}
@@ -66,8 +70,10 @@ async def _run(config_path: str, since_hours: int, limit: int,
             async with httpx.AsyncClient(timeout=20.0, headers={"User-Agent": _UA}) as client:
                 for r in rows:
                     n_q += 1
+                    context = " ".join(filter(None, [
+                        r.get("headline"), r["theme"], r.get("entity_terms")]))
                     cover = await pick_cover(r["theme"], r["top_loc"], r["top_org"],
-                                             r["id"], client)
+                                             r["id"], client, context=context)
                     if not cover:
                         print(f"  {r['id']} loc={r['top_loc']!r} -> none")
                         await asyncio.sleep(sleep)
