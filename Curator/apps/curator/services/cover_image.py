@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import html
 import logging
+import os
 import re
 from typing import Any
 
@@ -32,6 +33,11 @@ logger = logging.getLogger(__name__)
 _OPENVERSE = "https://api.openverse.org/v1/images/"
 _WIKIDATA  = "https://www.wikidata.org/w/api.php"
 _COMMONS   = "https://commons.wikimedia.org/w/api.php"
+_UNSPLASH  = "https://api.unsplash.com/search/photos"
+# Unsplash needs an app Access Key (register at unsplash.com/developers). Gated:
+# blank → Unsplash is skipped and pick_cover falls through to Openverse CC0.
+_UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "")
+_UTM = "?utm_source=inkbytes&utm_medium=referral"   # Unsplash ToS: attribution links
 _UA = "InkBytes/1.0 (https://inkbytes.org; news aggregator; covers; contact@inkbytes.org)"
 _CANDIDATES = 8        # top-N to pick from (deterministic by event seed)
 _TIMEOUT = 20.0
@@ -201,12 +207,64 @@ async def wikimedia_entity_cover(entity: str,
         return None
 
 
+# ── Unsplash (high-quality generic photos; Unsplash License = commercial-OK) ──
+
+async def unsplash_cover(query: str, seed: str,
+                         client: httpx.AsyncClient) -> dict[str, Any] | None:
+    """A high-quality GENERIC photo from Unsplash for `query` (theme/entity keyword).
+    Unsplash License is commercial-use OK with no *legal* attribution requirement,
+    but the API ToS requires (a) crediting the photographer + Unsplash and (b) hitting
+    the photo's download endpoint on use — both honored here. Strictly a generic
+    representation, never event footage. Gated on UNSPLASH_ACCESS_KEY (else None)."""
+    if not _UNSPLASH_KEY:
+        return None
+    try:
+        r = await client.get(_UNSPLASH, headers={"Authorization": f"Client-ID {_UNSPLASH_KEY}"},
+                             params={"query": query, "per_page": _CANDIDATES,
+                                     "content_filter": "high", "orientation": "landscape"})
+        if r.status_code != 200:
+            logger.warning("cover: Unsplash %s for %r", r.status_code, query)
+            return None
+        chosen = _pick((r.json() or {}).get("results") or [], seed)
+        if not chosen:
+            return None
+        urls = chosen.get("urls") or {}
+        url = urls.get("regular") or urls.get("full") or urls.get("raw")
+        if not url:
+            return None
+        user = chosen.get("user") or {}
+        name = user.get("name") or "Unsplash"
+        user_link = (user.get("links") or {}).get("html") or "https://unsplash.com"
+        # ToS: trigger the download endpoint (best-effort, fire-and-forget).
+        if dl := (chosen.get("links") or {}).get("download_location"):
+            try:
+                await client.get(dl, headers={"Authorization": f"Client-ID {_UNSPLASH_KEY}"})
+            except Exception:
+                pass
+        return {
+            "url":         url,
+            "thumb":       urls.get("small") or url,
+            "license":     "Unsplash",
+            "license_url": "https://unsplash.com/license",
+            "attribution": f"Photo by {name}",   # rendered + linked → credits photographer
+            "source_url":  f"{user_link}{_UTM}",
+            "provider":    "unsplash",
+            "query":       query,
+        }
+    except Exception as exc:
+        logger.warning("cover: Unsplash failed for %r: %s", query, exc)
+        return None
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 async def pick_cover(theme: str | None, top_loc: str | None, top_org: str | None,
                      seed: str, client: httpx.AsyncClient) -> dict[str, Any] | None:
-    """Wikimedia entity-canonical (prefer places, then orgs) → Openverse keyword →
-    None (procedural). Deterministic; fail-open at each step."""
+    """Wikimedia entity-canonical (prefer places, then orgs) → Unsplash generic
+    (if UNSPLASH_ACCESS_KEY set) → Openverse CC0 keyword → None (procedural).
+    Deterministic; fail-open at each step. Entity-canonical wins because a country's
+    own flag/landmark is more relevant than a stock photo; Unsplash beats Openverse
+    on aesthetic quality for the generic case."""
     for ent in (top_loc, top_org):
         if ent and len(ent) >= 3:
             cov = await wikimedia_entity_cover(ent, client)
@@ -214,5 +272,6 @@ async def pick_cover(theme: str | None, top_loc: str | None, top_org: str | None
                 return cov
     q = build_query(theme, top_loc or top_org)
     if q:
-        return await fetch_cover(q, seed, client=client)
+        return (await unsplash_cover(q, seed, client)
+                or await fetch_cover(q, seed, client=client))
     return None

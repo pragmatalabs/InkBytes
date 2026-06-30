@@ -226,6 +226,9 @@ services:
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
       S3_BUCKET: ${DO_SPACES_BUCKET:-inkbytes-prod}
+      # ADR-0034 Tier 2 cover source. Blank → Unsplash skipped (Openverse/Wikimedia
+      # still work). Register an app at unsplash.com/developers for the Access Key.
+      UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }
@@ -286,6 +289,9 @@ services:
       S3_KEY: ${DO_SPACES_KEY}
       S3_SECRET: ${DO_SPACES_SECRET}
       S3_BUCKET: ${DO_SPACES_BUCKET:-inkbytes-prod}
+      # ADR-0034 Tier 2 cover source. Blank → Unsplash skipped (Openverse/Wikimedia
+      # still work). Register an app at unsplash.com/developers for the Access Key.
+      UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }
