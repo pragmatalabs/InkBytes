@@ -5,6 +5,7 @@ are intentionally minimal.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json as _json
 import logging
 from typing import Any
@@ -581,6 +582,15 @@ def build_app(app: Application) -> FastAPI:
         the archive of available edition dates. `date` (YYYY-MM-DD) reads a past
         edition; default = the latest. Returns {} if no edition (editorial not run)."""
         response.headers["Cache-Control"] = "public, max-age=300"
+        # asyncpg needs a real date object for the DATE column param, not the
+        # raw query string (a str raises DataError). Malformed → ignore the
+        # filter and fall back to the latest edition.
+        d3: _dt.date | None = None
+        if date:
+            try:
+                d3 = _dt.date.fromisoformat(date)
+            except ValueError:
+                d3 = None
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             if not await conn.fetchval("SELECT to_regclass('public.editorials')"):
                 return {}
@@ -588,9 +598,9 @@ def build_app(app: Application) -> FastAPI:
                 "SELECT theme, language, edition_date, persona, headline, body_md, "
                 "       event_ids, model "
                 "  FROM editorials WHERE theme=$1 AND language=$2 "
-                + ("AND edition_date=$3 " if date else "")
+                + ("AND edition_date=$3 " if d3 else "")
                 + "ORDER BY edition_date DESC LIMIT 1",
-                *( (theme, lang, date) if date else (theme, lang) ))
+                *( (theme, lang, d3) if d3 else (theme, lang) ))
             if not ed:
                 return {}
             dates = await conn.fetch(
@@ -623,6 +633,25 @@ def build_app(app: Application) -> FastAPI:
                 "FROM editorials WHERE language=$1 ORDER BY theme, edition_date DESC", lang)
         return {"topics": [{"theme": r["theme"], "edition_date": str(r["edition_date"]),
                             "headline": r["headline"], "persona": r["persona"]} for r in rows]}
+
+    @api.get("/outlook/archive")
+    async def outlook_archive(response: Response, lang: str = "es",
+                              days: int = 14) -> dict[str, Any]:
+        """Every published edition over the last `days` days (newest first) — the
+        date-grouped Outlook timeline. The Reader groups these by edition_date so
+        the reader can browse day-by-day. `days` is clamped to 1..60."""
+        response.headers["Cache-Control"] = "public, max-age=300"
+        days = max(1, min(days, 60))
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            if not await conn.fetchval("SELECT to_regclass('public.editorials')"):
+                return {"editions": []}
+            rows = await conn.fetch(
+                "SELECT edition_date, theme, headline, persona FROM editorials "
+                "WHERE language=$1 AND edition_date >= CURRENT_DATE - $2::int "
+                "ORDER BY edition_date DESC, theme ASC", lang, days)
+        return {"editions": [{"edition_date": str(r["edition_date"]), "theme": r["theme"],
+                              "headline": r["headline"], "persona": r["persona"]}
+                             for r in rows]}
 
     @api.get("/outlets")
     async def list_outlets() -> list[dict[str, Any]]:

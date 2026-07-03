@@ -190,6 +190,13 @@ export interface OutlookTopic {
   headline: string;
   persona: string;
 }
+/** One edition in the date-grouped Outlook archive (/outlook/archive). */
+export interface OutlookArchiveEntry {
+  edition_date: string;
+  theme: string;
+  headline: string;
+  persona: string;
+}
 
 export interface EventPage extends EventSummary {
   event_id: string;

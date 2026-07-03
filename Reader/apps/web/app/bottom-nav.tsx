@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { NewspaperIcon, SearchIcon, NetworkIcon, InfoIcon } from "@/components/icons";
+import { NewspaperIcon, SearchIcon, NetworkIcon, InfoIcon, OutlookIcon } from "@/components/icons";
 
 // ── Nav item ───────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ export default function BottomNav() {
 
   const items: NavItem[] = [
     { href: "/",          label: "News",     icon: NewspaperIcon },
+    { href: "/outlook",   label: "Outlook",  icon: OutlookIcon },
     { href: "/?search=1", label: "Search",   icon: SearchIcon },
     { href: "/entities",  label: "Entities", icon: NetworkIcon },
     { href: "/about",     label: "About",    icon: InfoIcon },

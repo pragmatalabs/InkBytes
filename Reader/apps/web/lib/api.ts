@@ -1,5 +1,5 @@
 import type { EventSummary, EventPage, RelatedEvent, GraphData, TrendingTopic,
-  Outlook, OutlookTopic } from "./types";
+  Outlook, OutlookTopic, OutlookArchiveEntry } from "./types";
 
 const BASE = process.env.CURATOR_API_URL ?? "http://localhost:8060";
 
@@ -20,6 +20,12 @@ export function getOutlook(theme: string, lang = "es", date?: string): Promise<O
 /** Topics that have a published outlook edition — the /outlook index + nav. */
 export function getOutlookAvailable(lang = "es"): Promise<{ topics: OutlookTopic[] }> {
   return apiFetch<{ topics: OutlookTopic[] }>(`/outlook/available?lang=${lang}`, 300);
+}
+
+/** Every edition over the last `days` days (newest first) — the date-grouped
+ *  Outlook archive/timeline. The index page groups these by edition_date. */
+export function getOutlookArchive(lang = "es", days = 14): Promise<{ editions: OutlookArchiveEntry[] }> {
+  return apiFetch<{ editions: OutlookArchiveEntry[] }>(`/outlook/archive?lang=${lang}&days=${days}`, 300);
 }
 
 /** Entity co-occurrence graph data for /entities (ADR-0005 Approach A). */

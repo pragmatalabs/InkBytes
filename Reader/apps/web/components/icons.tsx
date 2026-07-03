@@ -444,3 +444,20 @@ export function CategoryIcon({ category, className }: { category: string; classN
   if (!Icon) return null;
   return <Icon className={className} />;
 }
+
+/** Outlook nav icon — a sunrise, for the daily "Today's Outlook" morning briefing. */
+export function OutlookIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <path d="M34 36a10 10 0 0 0-20 0" />
+      <line x1="24" y1="4" x2="24" y2="16" />
+      <polyline points="16 12 24 4 32 12" />
+      <line x1="8.4" y1="20.4" x2="11.2" y2="23.2" />
+      <line x1="39.6" y1="20.4" x2="36.8" y2="23.2" />
+      <line x1="2" y1="36" x2="6" y2="36" />
+      <line x1="42" y1="36" x2="46" y2="36" />
+      <line x1="4" y1="44" x2="44" y2="44" />
+    </svg>
+  );
+}

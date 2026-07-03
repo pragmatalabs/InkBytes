@@ -5,7 +5,7 @@ import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "r
 import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
 import type { EventSummary, TrendingTopic } from "@/lib/types";
-import { CategoryIcon } from "@/components/icons";
+import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 
@@ -718,6 +718,32 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
             })}
           </div>
         </div>
+      )}
+
+      {/* ── Outlook promo — discoverability entry point (ADR-0008) ───────────── */}
+      {!error && (
+        <Link
+          href="/outlook"
+          className="group flex items-center gap-3 mb-5 rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--accent)]/5 to-transparent px-4 py-3 hover:border-[var(--accent)]/40 hover:shadow-sm transition-all"
+        >
+          <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full bg-[var(--accent)]/10 text-[var(--accent)]">
+            <OutlookIcon className="w-5 h-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold leading-tight">Today&apos;s Outlooks</span>
+            <span className="block text-[12px] text-[var(--ink-muted)] leading-snug">
+              {lang === "es"
+                ? "Una columna editorial diaria por tema"
+                : "A daily editorial column for every topic"}
+            </span>
+          </span>
+          <svg
+            className="w-4 h-4 shrink-0 text-[var(--ink-muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 transition-all"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </Link>
       )}
 
       {/* ── Search + clear ───────────────────────────────────────────────────── */}
