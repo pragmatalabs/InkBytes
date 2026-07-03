@@ -165,6 +165,32 @@ export interface TitleHistoryEntry {
   sources: number;
 }
 
+// ── Today's [Topic] Outlook — daily editorial (ADR-0008) ───────────────────
+export interface OutlookTimelineItem {
+  id: string;
+  headline: string;
+  freshness_at: string;
+  source_count: number;
+}
+/** A daily editorial column for a topic (empty object when no edition exists). */
+export interface Outlook {
+  theme: string;
+  language: string;
+  edition_date: string;
+  persona: string;
+  headline: string;
+  body_md: string;
+  model: string;
+  timeline: OutlookTimelineItem[];
+  available_dates: string[];
+}
+export interface OutlookTopic {
+  theme: string;
+  edition_date: string;
+  headline: string;
+  persona: string;
+}
+
 export interface EventPage extends EventSummary {
   event_id: string;
   synthesis_md: string;

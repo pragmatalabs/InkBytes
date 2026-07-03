@@ -79,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             <nav className="flex items-center gap-4 text-sm text-white/70 shrink-0">
               <Link href="/" className="hover:text-white transition-colors font-medium">News</Link>
+              <Link href="/outlook" className="hover:text-white transition-colors">Outlook</Link>
               <Link href="/entities" className="hover:text-white transition-colors">Entities</Link>
               <Link href="/about" className="hover:text-white transition-colors">About</Link>
             </nav>

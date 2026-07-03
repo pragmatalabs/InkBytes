@@ -1,4 +1,5 @@
-import type { EventSummary, EventPage, RelatedEvent, GraphData, TrendingTopic } from "./types";
+import type { EventSummary, EventPage, RelatedEvent, GraphData, TrendingTopic,
+  Outlook, OutlookTopic } from "./types";
 
 const BASE = process.env.CURATOR_API_URL ?? "http://localhost:8060";
 
@@ -6,6 +7,19 @@ async function apiFetch<T>(path: string, revalidate = 300): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { next: { revalidate } });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+/** Today's [Topic] Outlook — the daily editorial (ADR-0008). Returns an empty
+ *  object when no edition exists yet (editorial service not run for that day). */
+export function getOutlook(theme: string, lang = "es", date?: string): Promise<Outlook | Record<string, never>> {
+  const q = new URLSearchParams({ theme, lang });
+  if (date) q.set("date", date);
+  return apiFetch<Outlook | Record<string, never>>(`/outlook?${q.toString()}`, 120);
+}
+
+/** Topics that have a published outlook edition — the /outlook index + nav. */
+export function getOutlookAvailable(lang = "es"): Promise<{ topics: OutlookTopic[] }> {
+  return apiFetch<{ topics: OutlookTopic[] }>(`/outlook/available?lang=${lang}`, 300);
 }
 
 /** Entity co-occurrence graph data for /entities (ADR-0005 Approach A). */

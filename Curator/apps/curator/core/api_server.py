@@ -573,6 +573,57 @@ def build_app(app: Application) -> FastAPI:
         # Collapse same-story label variants, then trim to the requested limit.
         return _dedupe_trending([dict(r) for r in rows], limit)
 
+    @api.get("/outlook")
+    async def get_outlook(response: Response, theme: str, lang: str = "es",
+                          date: str | None = None) -> dict[str, Any]:
+        """Today's [Topic] Outlook — the daily editorial column (ADR-0008) for a
+        theme + language, plus the day's cited-events timeline (chronological) and
+        the archive of available edition dates. `date` (YYYY-MM-DD) reads a past
+        edition; default = the latest. Returns {} if no edition (editorial not run)."""
+        response.headers["Cache-Control"] = "public, max-age=300"
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            if not await conn.fetchval("SELECT to_regclass('public.editorials')"):
+                return {}
+            ed = await conn.fetchrow(
+                "SELECT theme, language, edition_date, persona, headline, body_md, "
+                "       event_ids, model "
+                "  FROM editorials WHERE theme=$1 AND language=$2 "
+                + ("AND edition_date=$3 " if date else "")
+                + "ORDER BY edition_date DESC LIMIT 1",
+                *( (theme, lang, date) if date else (theme, lang) ))
+            if not ed:
+                return {}
+            dates = await conn.fetch(
+                "SELECT edition_date FROM editorials WHERE theme=$1 AND language=$2 "
+                "ORDER BY edition_date DESC LIMIT 30", theme, lang)
+            eids = list(ed["event_ids"] or [])
+            tl = await conn.fetch(
+                "SELECT p.id, p.headline, p.freshness_at, e.source_count "
+                "  FROM pages p JOIN events e ON e.id = p.event_id "
+                " WHERE p.id = ANY($1::text[]) ORDER BY p.freshness_at ASC", eids) if eids else []
+        return {
+            "theme": ed["theme"], "language": ed["language"],
+            "edition_date": str(ed["edition_date"]), "persona": ed["persona"],
+            "headline": ed["headline"], "body_md": ed["body_md"], "model": ed["model"],
+            "timeline": [{"id": r["id"], "headline": r["headline"],
+                          "freshness_at": r["freshness_at"], "source_count": r["source_count"]}
+                         for r in tl],
+            "available_dates": [str(r["edition_date"]) for r in dates],
+        }
+
+    @api.get("/outlook/available")
+    async def outlook_available(response: Response, lang: str = "es") -> dict[str, Any]:
+        """Topics that have a published edition (latest per theme) — the Outlook index/nav."""
+        response.headers["Cache-Control"] = "public, max-age=300"
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            if not await conn.fetchval("SELECT to_regclass('public.editorials')"):
+                return {"topics": []}
+            rows = await conn.fetch(
+                "SELECT DISTINCT ON (theme) theme, edition_date, headline, persona "
+                "FROM editorials WHERE language=$1 ORDER BY theme, edition_date DESC", lang)
+        return {"topics": [{"theme": r["theme"], "edition_date": str(r["edition_date"]),
+                            "headline": r["headline"], "persona": r["persona"]} for r in rows]}
+
     @api.get("/outlets")
     async def list_outlets() -> list[dict[str, Any]]:
         return await app.db.get_outlets_with_stats()

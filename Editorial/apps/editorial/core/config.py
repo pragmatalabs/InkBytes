@@ -31,10 +31,10 @@ class LlmCfg(BaseModel):
 
 
 class EditorialCfg(BaseModel):
-    window_hours: int = 24      # "today" = published events in the last N hours
+    window_hours: int = 24      # morning-briefing cut: cover the prior ~24h
     min_events: int = 3         # skip a theme below this (don't pad thin days)
     max_events: int = 12        # top-N events fed to the model
-    languages: list[str] = ["es"]   # start single-language (dominant); add "en" later
+    languages: list[str] = ["es", "en"]   # "Today's [Topic] Outlook" — bilingual
     persona_dir: str = "prompts"
 
 

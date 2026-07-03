@@ -16,6 +16,10 @@ REGLAS (estrictas):
 - Tono sobrio y adulto; sin sensacionalismo, sin relleno, sin frases hechas.
 - Cierre memorable de una o dos frases.
 
+IMPORTANTE — IDIOMA: escribe TODA la columna (titular + cuerpo) ENTERAMENTE en
+{{language_name}}. Si {{language_name}} es English, redacta en inglés natural y
+nativo (el nombre de la sección/persona puede quedar como está).
+
 FORMATO DE SALIDA (exacto):
 - Primera línea: SOLO el titular de la columna (sin `#`, sin comillas, sin "Titular:").
 - Una línea en blanco.
