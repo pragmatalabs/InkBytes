@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Today's Outlooks" };
 
 const titleCase = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const prettyPersona = (p: string) => p.split("-").map(titleCase).join(" ");
 
 export default async function OutlookIndex({
   searchParams,
@@ -39,7 +40,7 @@ export default async function OutlookIndex({
                 Today&apos;s {titleCase(t.theme)} Outlook
               </div>
               <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
-                {t.persona} · <span suppressHydrationWarning>{t.edition_date}</span>
+                {prettyPersona(t.persona)} · <span suppressHydrationWarning>{t.edition_date}</span>
               </div>
               <div className="text-[15px] font-bold leading-snug mt-2 line-clamp-2"
                    style={{ textWrap: "balance" } as React.CSSProperties}>

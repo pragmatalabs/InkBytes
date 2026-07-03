@@ -10,6 +10,8 @@ import OutlookActions from "@/components/outlook-actions";
 export const dynamic = "force-dynamic";
 
 const titleCase = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+// Persona keys are stored kebab-case ("el-circuito"); show the display name ("El Circuito").
+const prettyPersona = (p: string) => p.split("-").map(titleCase).join(" ");
 
 export async function generateMetadata(
   { params }: { params: Promise<{ topic: string }> },
@@ -51,7 +53,7 @@ export default async function OutlookPage({
       {o ? (
         <>
           <div className="text-[11px] text-[var(--ink-muted)] mt-1 mb-3">
-            {o.persona} · <span suppressHydrationWarning>{o.edition_date}</span>
+            {prettyPersona(o.persona)} · <span suppressHydrationWarning>{o.edition_date}</span>
           </div>
           <h1 className="text-2xl sm:text-[2rem] font-extrabold leading-tight tracking-tight mb-4"
               style={{ textWrap: "balance" } as React.CSSProperties}>
