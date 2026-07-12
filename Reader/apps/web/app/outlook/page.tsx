@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getOutlookArchive } from "@/lib/api";
 import type { OutlookArchiveEntry } from "@/lib/types";
+import { themeAccent, personaInitials } from "@/lib/theme-colors";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Today's Outlooks" };
@@ -68,24 +69,43 @@ export default async function OutlookIndex({
                 </span>
               </div>
 
-              <div className="grid gap-2.5">
-                {items.map((t) => (
-                  <Link
-                    key={`${date}-${t.theme}`}
-                    href={`/outlook/${t.theme}?lang=${lang}&date=${date}`}
-                    className="block bg-white border border-[var(--border)] rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all"
-                  >
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--accent)]">
-                      {titleCase(t.theme)} · {prettyPersona(t.persona)}
-                    </div>
-                    <div
-                      className="text-[15px] font-bold leading-snug mt-1 line-clamp-2"
-                      style={{ textWrap: "balance" } as React.CSSProperties}
+              {/* Latest day: 2-col grid of persona cards (theme accents doing the
+                  identity work); older days: the same cards, denser. */}
+              <div className={`grid gap-2.5 ${di === 0 ? "sm:grid-cols-2" : ""}`}>
+                {items.map((t) => {
+                  const a = themeAccent(t.theme);
+                  return (
+                    <Link
+                      key={`${date}-${t.theme}`}
+                      href={`/outlook/${t.theme}?lang=${lang}&date=${date}`}
+                      className="block bg-white border border-[var(--border)] rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all"
                     >
-                      {t.headline}
-                    </div>
-                  </Link>
-                ))}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span
+                          className="grid place-items-center w-7 h-7 rounded-full text-white text-[11px] font-extrabold shrink-0"
+                          style={{ background: a }}
+                          aria-hidden
+                        >
+                          {personaInitials(t.persona)}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: a }}>
+                            {prettyPersona(t.persona)}
+                          </span>
+                          <span className="block text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">
+                            {titleCase(t.theme)}
+                          </span>
+                        </span>
+                      </div>
+                      <div
+                        className="text-[14px] font-bold leading-snug line-clamp-2"
+                        style={{ textWrap: "balance" } as React.CSSProperties}
+                      >
+                        {t.headline}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           ))}

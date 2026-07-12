@@ -239,3 +239,18 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .vcf-card { transition: none; }
 }
+
+/* ── Outlook column citations ────────────────────────────────────────────────
+   Inside the column body, [n] citation links (always internal /event/ links)
+   become superscript in the theme accent — texture, not interruption. Scoped
+   to .outlook-body so event-page synthesis links are untouched. */
+.outlook-body a[href^="/event/"] {
+  font-size: 0.72em;
+  vertical-align: super;
+  line-height: 0;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--outlook-accent, var(--accent));
+  padding: 0 0.08em;
+}
+.outlook-body a[href^="/event/"]:hover { text-decoration: underline; }
