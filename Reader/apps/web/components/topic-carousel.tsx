@@ -191,19 +191,27 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
               >
                 <span
                   className="tc-folder"
-                  style={{ background: `linear-gradient(165deg, ${c1}, ${c2})` }}
+                  style={{ "--f1": c1, "--f2": c2 } as React.CSSProperties}
                 >
-                  <span className="tc-ficon">
-                    {it.key === "all" ? (
-                      <NewspaperIcon className="w-5 h-5 text-white/95" />
-                    ) : (
-                      <CategoryIcon category={it.key} className="w-5 h-5 text-white/95" />
-                    )}
-                  </span>
-                  <span className="tc-meta">
-                    <span className="tc-label">{it.label}</span>
-                    <span className="tc-sub">
-                      {it.count} {it.count === 1 ? "story" : "stories"}
+                  {/* Folder anatomy (back flap + tab → paper sheets → front
+                      panel with raised right shoulder) — pure CSS layers */}
+                  <span className="tcf-back" aria-hidden />
+                  <span className="tcf-paper tcf-paper-b" aria-hidden />
+                  <span className="tcf-paper" aria-hidden />
+                  <span className="tcf-front" aria-hidden />
+                  <span className="tcf-content">
+                    <span className="tc-ficon">
+                      {it.key === "all" ? (
+                        <NewspaperIcon className="w-5 h-5 text-white/95" />
+                      ) : (
+                        <CategoryIcon category={it.key} className="w-5 h-5 text-white/95" />
+                      )}
+                    </span>
+                    <span className="tc-meta">
+                      <span className="tc-label">{it.label}</span>
+                      <span className="tc-sub">
+                        {it.count} {it.count === 1 ? "story" : "stories"}
+                      </span>
                     </span>
                   </span>
                 </span>
