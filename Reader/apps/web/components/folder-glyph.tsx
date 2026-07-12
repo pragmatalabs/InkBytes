@@ -1,29 +1,34 @@
 /**
- * FolderGlyph — the "live folder" (open folder + document) from Julian's
- * reference asset (folders/SVG/live-folder.svg), re-tinted to a single theme
- * accent via `currentColor`: the source blues map to the accent (outlines) and
- * two accent tints (folder faces); the document stays white. Set `color` on a
- * parent to theme it. Faithful to the original geometry (viewBox 40×40).
+ * FolderGlyph — the folder artwork from Julian's Folder.svg (2026-07-12), just
+ * the shape: open folder body + white document + front flap. The placeholder
+ * "Category Name" / "200" / icon circle from the source are NOT drawn here —
+ * the carousel overlays live data over the white document region instead.
+ *
+ * Re-tinted to one theme accent via `currentColor`: source blues → accent
+ * (outlines) + accent tints (folder faces); the document stays white. Set
+ * `color` on a parent to theme it. Faithful geometry (viewBox 1024×1024).
  */
 export default function FolderGlyph({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 40 40" className={className} role="img" aria-hidden="true">
+    <svg viewBox="117 83 888 772" className={className} role="img" aria-hidden="true"
+      preserveAspectRatio="xMidYMid meet">
       {/* back folder body — accent tint */}
       <path fill="currentColor" fillOpacity="0.42"
-        d="M1.5 35.5L1.5 4.5 11.793 4.5 14.793 7.5 35.5 7.5 35.5 35.5z" />
+        d="M127.32,843.14V95.81h208.4l60.74,72.32h419.24v675H127.32Z" />
       {/* back folder outline — accent */}
       <path fill="currentColor"
-        d="M11.586,5l2.707,2.707L14.586,8H15h20v27H2V5H11.586 M12,4H1v32h35V7H15L12,4L12,4z" />
+        d="M331.52,107.87l54.81,65.26,5.93,7.06h413.31v650.89H137.44V107.87h194.08M339.91,83.76H117.19v771.43h708.62V156.08h-425.17l-60.74-72.32h0Z" />
       {/* document sheet — white */}
-      <path fill="#ffffff" d="M4.5 7.5H35.5V25.5H4.5z" />
+      <path fill="#ffffff" d="M188.06,168.14h627.64v433.93H188.06V168.14Z" />
       {/* document outline — accent */}
-      <path fill="currentColor" d="M35,8v17H5V8H35 M36,7H4v19h32V7L36,7z" />
+      <path fill="currentColor"
+        d="M805.57,180.19v409.82H198.18V180.19h607.39M825.82,156.08H177.93v458.04h647.89V156.08h0Z" />
       {/* front flap — lighter accent tint */}
-      <path fill="currentColor" fillOpacity="0.20"
-        d="M1.599 35.5L5.417 14.5 16.151 14.5 19.151 12.5 39.41 12.5 35.577 35.5z" />
+      <path fill="currentColor" fillOpacity="0.22"
+        d="M130.83,843.14l86.93-506.25h244.39l68.3-48.21h461.26l-87.27,554.46H130.83Z" />
       {/* front flap outline — accent */}
       <path fill="currentColor"
-        d="M38.82,13l-3.667,22H2.198l3.636-20H16h0.303l0.252-0.168L19.303,13H38.82 M40,12H19l-3,2H5L1,36 h35L40,12L40,12z" />
+        d="M978.29,300.73l-83.49,530.36H144.47l82.79-482.14h238.36l5.74-4.05,62.57-44.16h444.37M1005.16,276.62h-478.13l-68.3,48.21h-250.45l-91.07,530.36h796.89l91.07-578.57h0Z" />
     </svg>
   );
 }

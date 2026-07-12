@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import FolderGlyph from "@/components/folder-glyph";
+import { CategoryIcon, NewspaperIcon } from "@/components/icons";
 
 export interface TopicItem {
   key: string;
@@ -51,7 +52,7 @@ const THEME_ACCENT: Record<string, string> = {
   disaster:      "#f97316",
 };
 
-const CARD_W = 148;         // folder width (px) — must match .tc-ring CSS
+const CARD_W = 152;         // folder width (px) — must match .tc-ring CSS
 const PX_PER_STEP = 80;     // horizontal drag distance = one card step
 const TAP_SLOP = 8;         // px of movement below which a drag is a tap
 
@@ -193,14 +194,15 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
                   className="tc-plate"
                   style={{ "--fa": accent } as React.CSSProperties}
                 >
-                  <span className="tc-fglyph">
-                    <FolderGlyph className="w-full h-full" />
-                  </span>
-                  <span className="tc-meta">
-                    <span className="tc-label">{it.label}</span>
-                    <span className="tc-sub">
-                      {it.count} {it.count === 1 ? "story" : "stories"}
-                    </span>
+                  <FolderGlyph className="tc-fart" />
+                  <span className="tcf-name">{it.label}</span>
+                  <span className="tcf-count">{it.count}</span>
+                  <span className="tcf-badge">
+                    {it.key === "all" ? (
+                      <NewspaperIcon className="w-full h-full" />
+                    ) : (
+                      <CategoryIcon category={it.key} className="w-full h-full" />
+                    )}
                   </span>
                 </span>
               </button>
