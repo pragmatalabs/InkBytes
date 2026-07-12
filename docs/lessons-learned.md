@@ -7,6 +7,27 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-07-12 — Next dev's on-disk fetch cache survives restarts and serves days-old data
+
+**What happened**: While verifying the Outlook redesign on a dev server (prod
+data via SSH tunnel), `/outlook/technology` rendered the **July 3** edition with
+a 2-date archive — the API was returning July 11 with 14 dates. The dev server
+had been restarted several times; the data was still nine days old.
+
+**Root cause**: `apiFetch` uses `next: { revalidate: N }`. In dev, those fetch
+responses are cached **on disk** (`.next/cache/fetch-cache`) and survive dev
+restarts. This working directory had run a dev server on July 3 — the cache
+entry was still being served (and dev revalidation kept it alive).
+
+**Fix**: `rm -rf .next/cache/fetch-cache` before trusting any dev verification
+that flows through `fetch` + `revalidate`. Same fetch-cache class as the
+/entities inline-revalidation lesson above — different symptom (stale vs slow).
+
+**Lesson**: when a dev page contradicts the API, suspect the `.next` disk cache
+before the code. Verify data-freshness claims against the API directly.
+
+---
+
 ## 2026-07-12 — "Entities does nothing on mobile": 23 s TTFB from a slow upstream + Next's fetch cache revalidating INLINE
 
 **What happened**: Hours after the mobile entity browser deployed (ADR-R-0010),
