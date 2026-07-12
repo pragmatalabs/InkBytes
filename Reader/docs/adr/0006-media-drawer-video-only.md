@@ -1,6 +1,17 @@
 # ADR-R-0006 — Media drawer shows videos only
 
 > *Status: accepted · Owner: Julian · Date: 2026-06-08*
+>
+> **Update 2026-07-12 — video coverflow (committed, NOT deployed):** the drawer's
+> flat chip row is now a 3D coverflow (`components/video-coverflow.tsx`, same
+> zero-dependency CSS `perspective`/`rotateY` technique as the ADR-R-0010 topic
+> carousel): dark stage, glowing center card, 16:9 thumbs + play overlay +
+> quality badge (derived from `width`/`height` — no durations in the rail),
+> title·source·date caption, swipe/chevrons/dots/arrow keys; tap center = open,
+> tap side = focus; cards beyond ±3 culled; reduced-motion safe. The center card
+> is a top-level `<a>` (the drawer is not inside a card `<Link>` — respects the
+> ADR-R-0010 no-nested-anchors rule). Verified on dev against prod data
+> (6-video events) at 375px + 1280px.
 
 ## Context
 
