@@ -7,6 +7,41 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-07-12 — "Entities does nothing on mobile": 23 s TTFB from a slow upstream + Next's fetch cache revalidating INLINE
+
+**What happened**: Hours after the mobile entity browser deployed (ADR-R-0010),
+Julian reported /entities "does nothing" on his phone. DevTools: **22.7 s
+waiting-for-server** + 1.5 s downloading a **5.5 MB** page. The dev demo had
+been instant.
+
+**Root causes (compounding)**:
+1. The Curator `/graph` query costs **~16–22 s on prod** (entity co-occurrence
+   aggregation over ~91k+ mentions). Dev never showed it because Next's fetch
+   data-cache happened to be warm.
+2. `/entities` is `force-dynamic` and `getGraph()` used `revalidate: 120`.
+   Next's fetch cache revalidates **expired entries inline** — the request that
+   finds the entry stale BLOCKS on the upstream. TTL 120 s + low traffic ⇒
+   nearly every real visitor was the unlucky one paying the full 22 s.
+3. `/graph` ships each node's COMPLETE `pages` array (1,128 entries for the top
+   entity) and the page serialized it twice (SSR + RSC) → 5.5 MB HTML and a
+   1,128-row bottom sheet.
+
+**Fix**: (a) module-level stale-while-revalidate cache around `getGraph()`
+(`cache: "no-store"` underneath — the wrapper owns caching; expiry refreshes in
+the *background*, visitors always get the cached graph instantly; measured
+24.3 s → 1.1 s). (b) server-side trim to 15 freshest pages/node before
+serialization (5.46 MB → 331 KB), UI labels "15 most recent of N".
+(c) The 20 s query itself = Curator follow-up (indexes / precomputed rollup).
+
+**Lessons**: (1) `next: { revalidate: N }` is NOT stale-while-revalidate — an
+expired entry blocks a real user's request for the full upstream latency. If
+upstream is slow, own the cache and refresh in the background. (2) A fast dev
+demo proves nothing about TTFB when a data cache sits between you and a slow
+query — time the upstream call itself, cold. (3) Never serialize an unbounded
+upstream collection into a page; trim server-side and label the cap.
+
+---
+
 ## 2026-07-12 — Nested `<a>` inside card `<Link>`s: hydration errors + parser DOM surgery, and the bug is data-dependent
 
 **What happened**: The Reader home logged `In HTML, <a> cannot be a descendant
