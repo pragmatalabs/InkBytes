@@ -15,7 +15,7 @@
  * per pointermove); React state only owns the settled angle.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CategoryIcon, NewspaperIcon } from "@/components/icons";
 
 export interface TopicItem {
@@ -51,8 +51,8 @@ const FOLDER_GRADIENTS: Record<string, [string, string]> = {
   disaster:      ["#f97316", "#c2410c"],
 };
 
-const CARD_W = 124;         // folder width (px) — must match .tc-ring CSS
-const PX_PER_STEP = 80;     // horizontal drag distance = one card step
+const CARD_W = 176;         // folder width (px) — must match .tc-ring CSS
+const PX_PER_STEP = 90;     // horizontal drag distance = one card step
 const TAP_SLOP = 8;         // px of movement below which a drag is a tap
 
 function mod(n: number, m: number): number {
@@ -153,11 +153,6 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
     if (key && key !== active) onSelect(key);
   }
 
-  const activeItem = useMemo(
-    () => items.find((i) => i.key === active) ?? items[0],
-    [items, active],
-  );
-
   if (N === 0) return null;
 
   return (
@@ -198,12 +193,13 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
                   className="tc-folder"
                   style={{ background: `linear-gradient(165deg, ${c1}, ${c2})` }}
                 >
-                  <span className="tc-count">{it.count}</span>
-                  {it.key === "all" ? (
-                    <NewspaperIcon className="w-8 h-8 text-white/90" />
-                  ) : (
-                    <CategoryIcon category={it.key} className="w-8 h-8 text-white/90" />
-                  )}
+                  <span className="tc-ficon">
+                    {it.key === "all" ? (
+                      <NewspaperIcon className="w-5 h-5 text-white/95" />
+                    ) : (
+                      <CategoryIcon category={it.key} className="w-5 h-5 text-white/95" />
+                    )}
+                  </span>
                   <span className="tc-meta">
                     <span className="tc-label">{it.label}</span>
                     <span className="tc-sub">
@@ -239,18 +235,6 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
         </svg>
       </button>
 
-      {/* Caption: what's front-and-center + how to use it */}
-      <p className="mt-1 text-center">
-        <span className="block text-[13px] font-bold text-[var(--ink)]">
-          {activeItem.label}
-          <span className="font-normal text-[var(--ink-muted)]">
-            {" "}· {activeItem.count} {activeItem.count === 1 ? "story" : "stories"}
-          </span>
-        </span>
-        <span className="block text-[10px] uppercase tracking-widest text-[var(--ink-muted)] opacity-60 mt-0.5">
-          Swipe to explore topics
-        </span>
-      </p>
     </div>
   );
 }
