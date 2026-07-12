@@ -206,3 +206,13 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .tc-ring { transition: none; }
 }
+
+/* ── Entity details bottom sheet (mobile entity browser) ─────────────────── */
+@keyframes sheet-in {
+  from { transform: translateY(28px); opacity: 0.4; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.sheet-in { animation: sheet-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in { animation: none; }
+}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getGraph } from "@/lib/api";
-import GraphClient from "./graph-client";
+import EntitiesView from "./entities-view";
 
 // Force SSR — the graph data comes from an internal service (inkbytes-curator-api)
 // that is only resolvable at runtime inside the Docker network, not at build time.
@@ -47,5 +47,5 @@ export default async function EntitiesPage() {
     );
   }
 
-  return <GraphClient data={data} />;
+  return <EntitiesView data={data} />;
 }

@@ -3,18 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { relativeTime } from "@/lib/api";
-import type { GraphData, GraphNode, GraphEdge, EntityType } from "@/lib/types";
-
-// ── Type metadata ────────────────────────────────────────────────────────────
-
-const TYPE_META: Record<EntityType, { label: string; color: string }> = {
-  PERSON: { label: "People",        color: "#3b82f6" },
-  ORG:    { label: "Organisations", color: "#8b5cf6" },
-  LOC:    { label: "Places",        color: "#10b981" },
-  EVENT:  { label: "Events",        color: "#f97316" },
-  OTHER:  { label: "Topics",        color: "#6b7280" },
-};
-const TYPE_ORDER: EntityType[] = ["PERSON", "ORG", "LOC", "EVENT", "OTHER"];
+import type { GraphData, GraphNode, EntityType } from "@/lib/types";
+import { TYPE_META, TYPE_ORDER } from "./type-meta";
 
 // ── Force simulation constants ───────────────────────────────────────────────
 const REP    = 6200;
