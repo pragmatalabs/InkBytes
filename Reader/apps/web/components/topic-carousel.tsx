@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { CategoryIcon, NewspaperIcon } from "@/components/icons";
+import FolderGlyph from "@/components/folder-glyph";
 
 export interface TopicItem {
   key: string;
@@ -190,28 +190,16 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
                 onClick={() => goTo(i)}
               >
                 <span
-                  className="tc-folder"
+                  className="tc-plate"
                   style={{ "--fa": accent } as React.CSSProperties}
                 >
-                  {/* Folder anatomy (back flap + tab → paper sheets → front
-                      panel with raised right shoulder) — pure CSS layers */}
-                  <span className="tcf-back" aria-hidden />
-                  <span className="tcf-paper tcf-paper-b" aria-hidden />
-                  <span className="tcf-paper" aria-hidden />
-                  <span className="tcf-front" aria-hidden />
-                  <span className="tcf-content">
-                    <span className="tc-ficon">
-                      {it.key === "all" ? (
-                        <NewspaperIcon className="w-4 h-4" />
-                      ) : (
-                        <CategoryIcon category={it.key} className="w-4 h-4" />
-                      )}
-                    </span>
-                    <span className="tc-meta">
-                      <span className="tc-label">{it.label}</span>
-                      <span className="tc-sub">
-                        {it.count} {it.count === 1 ? "story" : "stories"}
-                      </span>
+                  <span className="tc-fglyph">
+                    <FolderGlyph className="w-full h-full" />
+                  </span>
+                  <span className="tc-meta">
+                    <span className="tc-label">{it.label}</span>
+                    <span className="tc-sub">
+                      {it.count} {it.count === 1 ? "story" : "stories"}
                     </span>
                   </span>
                 </span>
