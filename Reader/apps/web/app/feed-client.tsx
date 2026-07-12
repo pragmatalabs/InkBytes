@@ -8,6 +8,7 @@ import type { EventSummary, TrendingTopic } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
+import TopicCarousel from "@/components/topic-carousel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -203,24 +204,33 @@ function LangChip({ lang }: { lang: string }) {
   );
 }
 
-// ADR-0037: "also in {lang}" links to the same story's other-language page(s).
+// ADR-0037: "also in {lang}" opens the same story's other-language page(s).
 // Shown only in the "All" view (where cross-language duplicates are collapsed).
-// stopPropagation so tapping the chip opens the sibling, not the card's own link.
+// NOT a <Link>: every AlsoIn renders inside a card that is itself an <a>, and
+// nested anchors are invalid HTML — browsers DOM-correct them unpredictably and
+// React logs a hydration error on every card. A button + router.push navigates
+// identically without the nesting; stopPropagation/preventDefault keep the tap
+// from also following the card's own link.
 function AlsoIn({ also }: { also?: Record<string, string> }) {
+  const router = useRouter();
   const entries = Object.entries(also ?? {});
   if (entries.length === 0) return null;
   return (
     <>
       {entries.map(([lng, id]) => (
-        <Link
+        <button
           key={lng}
-          href={`/event/${id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--accent)]/8 text-[var(--accent)] uppercase tracking-wide hover:underline"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            router.push(`/event/${id}`);
+          }}
+          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--accent)]/8 text-[var(--accent)] uppercase tracking-wide hover:underline cursor-pointer"
           title={`Also covered in ${lng.toUpperCase()}`}
         >
           also {lng}
-        </Link>
+        </button>
       ))}
     </>
   );
@@ -585,6 +595,25 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     return CATEGORIES.filter((c) => c.key === "all" || seen.has(c.key));
   }, [events]);
 
+  // Topic-folder carousel (mobile): same categories as the chips, with live
+  // per-theme event counts so each folder reads "Politics · 24 stories".
+  const carouselItems = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of events) {
+      const k = e.category ?? "world";
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    return availableCats.map((c) => ({
+      key: c.key,
+      label: c.label,
+      count: c.key === "all" ? events.length : counts.get(c.key) ?? 0,
+    }));
+  }, [availableCats, events]);
+
+  // Trending collapses into an accordion row on mobile — one slim toggle
+  // instead of a second pill strip competing with the carousel for attention.
+  const [trendOpen, setTrendOpen] = useState(false);
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
 
@@ -656,9 +685,20 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         )}
       </div>
 
-      {/* ── Category tabs ────────────────────────────────────────────────────── */}
+      {/* ── Topic folder carousel (mobile) — replaces the chip row < sm ─────── */}
       {!error && events.length > 0 && (
-        <div className="mb-4 -mx-1 px-1 overflow-x-auto scrollbar-hide">
+        <div className="sm:hidden mb-4 -mx-4">
+          <TopicCarousel
+            items={carouselItems}
+            active={activeCategory}
+            onSelect={(k) => setCat(k as Category)}
+          />
+        </div>
+      )}
+
+      {/* ── Category tabs (≥ sm) ─────────────────────────────────────────────── */}
+      {!error && events.length > 0 && (
+        <div className="hidden sm:block mb-4 -mx-1 px-1 overflow-x-auto scrollbar-hide">
           <div className="flex items-center gap-1.5 flex-nowrap pb-1">
             {availableCats.map((c) => (
               <button
@@ -681,11 +721,32 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         </div>
       )}
 
-      {/* ── Trending topics (ADR-0027) ──────────────────────────────────────── */}
+      {/* ── Trending topics (ADR-0027) — accordion on mobile, open ≥ sm ─────── */}
       {!error && trending.length > 0 && (
-        <div className="mb-4 -mx-1 px-1 overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-1.5 flex-nowrap pb-1">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--accent)] whitespace-nowrap pr-1">
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setTrendOpen((o) => !o)}
+            aria-expanded={trendOpen}
+            className="sm:hidden flex w-full items-center gap-2 py-2 -my-1"
+          >
+            <span className="developing-dot shrink-0" aria-hidden="true" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--accent)]">
+              Trending
+            </span>
+            <span className="text-[11px] text-[var(--ink-muted)]">
+              — {trending.length} {trending.length === 1 ? "topic" : "topics"}
+            </span>
+            <svg
+              className={`ml-auto w-3.5 h-3.5 text-[var(--ink-muted)] transition-transform ${trendOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          <div className={`${trendOpen ? "" : "hidden"} sm:block -mx-1 px-1 overflow-x-auto scrollbar-hide`}>
+          <div className="flex items-center gap-1.5 flex-nowrap pb-1 pt-1 sm:pt-0">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--accent)] whitespace-nowrap pr-1">
               <span className="developing-dot shrink-0" aria-hidden="true" />
               Trending
             </span>
@@ -716,6 +777,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                 </button>
               );
             })}
+          </div>
           </div>
         </div>
       )}

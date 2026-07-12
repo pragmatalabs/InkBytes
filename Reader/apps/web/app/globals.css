@@ -104,3 +104,105 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .animate-splash-in { animation: none; }
 }
+
+/* ── Topic folder carousel (mobile home nav) ─────────────────────────────────
+   CSS 3D ring: stage supplies perspective, ring rotates on Y, each card is
+   pre-rotated onto the ring and pushed out by the radius (set inline — radius
+   depends on how many themes are live that day). GPU-composited; no JS libs. */
+.tc-stage {
+  position: relative;
+  height: 192px;
+  perspective: 1000px;
+  touch-action: pan-y;            /* horizontal drag is ours, page scroll stays */
+  cursor: grab;
+  outline: none;
+  overflow: hidden;               /* 3D cards must not grow the document scroll
+                                     area (grouping ctx lands on the stage; the
+                                     ring's preserve-3d is among its own cards) */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.tc-stage:active { cursor: grabbing; }
+
+.tc-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 124px;                    /* = CARD_W in topic-carousel.tsx */
+  height: 150px;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tc-ring.tc-dragging { transition: none; }
+
+.tc-card {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  backface-visibility: hidden;     /* hide cards facing away — Nexora depth look */
+  -webkit-backface-visibility: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The folder itself: gradient body + tab (::before inherits the gradient) */
+.tc-folder {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  box-shadow: 0 12px 26px -10px rgba(17, 17, 46, 0.45);
+}
+.tc-folder::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 10px;
+  width: 44px;
+  height: 14px;
+  border-radius: 7px 7px 0 0;
+  background: inherit;
+}
+.tc-count {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tc-meta { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.tc-label { color: #fff; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.tc-sub   { color: rgba(255, 255, 255, 0.72); font-size: 10px; font-weight: 500; }
+
+.tc-chev {
+  position: absolute;
+  top: 78px;                       /* vertically centered on the ring */
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--ink-muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: color 0.15s, border-color 0.15s;
+}
+.tc-chev:hover { color: var(--ink); border-color: #9ca3af; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-ring { transition: none; }
+}
