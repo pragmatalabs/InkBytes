@@ -15,10 +15,27 @@ export const metadata: Metadata = {
   openGraph: { title: "Entity Graph — InkBytes", type: "website" },
 };
 
+// Per-node coverage cap. /graph ships every node's COMPLETE pages array —
+// on prod that's 1,000+ entries for a top entity, ~5.5 MB of HTML once
+// serialized twice (SSR + RSC payload). A phone chokes on the transfer and
+// on rendering a thousand-row sheet ("entities aren't working on mobile",
+// 2026-07-12). Trim to the freshest N per node BEFORE anything is serialized
+// to the client; `event_count` still carries the true total for display.
+const PAGES_PER_NODE = 15;
+
 export default async function EntitiesPage() {
   let data;
   try {
     data = await getGraph();
+    data = {
+      ...data,
+      nodes: data.nodes.map((n) => ({
+        ...n,
+        pages: [...n.pages]
+          .sort((a, b) => new Date(b.freshness_at).getTime() - new Date(a.freshness_at).getTime())
+          .slice(0, PAGES_PER_NODE),
+      })),
+    };
   } catch {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">

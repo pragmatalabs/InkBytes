@@ -96,6 +96,9 @@ function EntityPanel({
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-2">
           Appears in
+          {node.event_count > sortedPages.length && (
+            <span className="normal-case tracking-normal font-normal"> — {sortedPages.length} most recent of {node.event_count}</span>
+          )}
         </p>
         <div className="flex flex-col divide-y divide-[var(--border)]">
           {sortedPages.map((pg) => (

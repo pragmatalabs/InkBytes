@@ -166,10 +166,14 @@ function EntitySheet({
             </div>
           )}
 
-          {/* Coverage */}
+          {/* Coverage — pages are pre-trimmed server-side to the freshest N
+              (see PAGES_PER_NODE in page.tsx); event_count is the true total. */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1">
               Appears in
+              {node.event_count > pages.length && (
+                <span className="normal-case tracking-normal font-normal"> — {pages.length} most recent of {node.event_count}</span>
+              )}
             </p>
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {pages.map((pg) => (

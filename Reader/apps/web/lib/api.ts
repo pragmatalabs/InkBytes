@@ -28,17 +28,54 @@ export function getOutlookArchive(lang = "es", days = 14): Promise<{ editions: O
   return apiFetch<{ editions: OutlookArchiveEntry[] }>(`/outlook/archive?lang=${lang}&days=${days}`, 300);
 }
 
-/** Entity co-occurrence graph data for /entities (ADR-0005 Approach A). */
+/** Entity co-occurrence graph data for /entities (ADR-0005 Approach A).
+ *
+ * Stale-while-revalidate, module-level. The Curator /graph query costs ~16–22 s
+ * on prod (measured 2026-07-12) and /entities is force-dynamic, so relying on
+ * Next's fetch cache (revalidate=120 → expired entries revalidate INLINE) made
+ * most real visits stall ~23 s TTFB ("clicking Entities does nothing").
+ * Here: first request after boot pays the query once; afterwards every visitor
+ * gets the cached graph instantly and an expired cache refreshes in the
+ * BACKGROUND. Optimizing the /graph SQL itself is the Curator-side follow-up.
+ */
+const GRAPH_TTL_MS = 10 * 60_000;
+const _graphCache = new Map<string, { data: GraphData; at: number }>();
+const _graphInflight = new Map<string, Promise<GraphData>>();
+
 export function getGraph(
   minEventCount = 2,
   limitNodes = 80,
   minEdgeWeight = 2,
   limitEdges = 250,
 ): Promise<GraphData> {
-  return apiFetch<GraphData>(
-    `/graph?min_event_count=${minEventCount}&limit_nodes=${limitNodes}&min_edge_weight=${minEdgeWeight}&limit_edges=${limitEdges}`,
-    120, // revalidate every 2 min — graph changes as new events are published
-  );
+  const path = `/graph?min_event_count=${minEventCount}&limit_nodes=${limitNodes}&min_edge_weight=${minEdgeWeight}&limit_edges=${limitEdges}`;
+
+  const refresh = (): Promise<GraphData> => {
+    let p = _graphInflight.get(path);
+    if (!p) {
+      // no-store: this wrapper owns caching — Next's data cache would otherwise
+      // block a request whenever its entry expires (the 23 s stall).
+      p = fetch(`${BASE}${path}`, { cache: "no-store" })
+        .then((res) => {
+          if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+          return res.json() as Promise<GraphData>;
+        })
+        .then((data) => {
+          _graphCache.set(path, { data, at: Date.now() });
+          return data;
+        })
+        .finally(() => _graphInflight.delete(path));
+      _graphInflight.set(path, p);
+    }
+    return p;
+  };
+
+  const hit = _graphCache.get(path);
+  if (hit) {
+    if (Date.now() - hit.at > GRAPH_TTL_MS) void refresh().catch(() => {});
+    return Promise.resolve(hit.data);
+  }
+  return refresh();
 }
 
 /** Related events by entity + topic overlap (ADR-0005, Approach A). */
