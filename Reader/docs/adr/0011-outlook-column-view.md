@@ -1,6 +1,6 @@
 # ADR-R-0011 — The Column view: Outlook pages as editorial objects (masthead, glyphs, functional citations)
 
-> *Status: v1 · Owner: Julian · Date: 2026-07-12*
+> *Status: v1 · **DEPLOYED + verified live 2026-07-12** · Owner: Julian · Date: 2026-07-12*
 
 ## Context
 
