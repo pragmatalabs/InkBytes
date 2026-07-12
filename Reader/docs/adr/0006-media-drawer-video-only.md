@@ -2,7 +2,7 @@
 
 > *Status: accepted · Owner: Julian · Date: 2026-06-08*
 >
-> **Update 2026-07-12 — video coverflow (committed, NOT deployed):** the drawer's
+> **Update 2026-07-12 — video coverflow (DEPLOYED + verified live same day):** the drawer's
 > flat chip row is now a 3D coverflow (`components/video-coverflow.tsx`, same
 > zero-dependency CSS `perspective`/`rotateY` technique as the ADR-R-0010 topic
 > carousel): dark stage, glowing center card, 16:9 thumbs + play overlay +
