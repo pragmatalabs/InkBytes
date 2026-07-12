@@ -114,7 +114,7 @@ html, body {
    the first portrait build. */
 .tc-stage {
   position: relative;
-  height: 112px;
+  height: 100px;
   perspective: 1000px;
   touch-action: pan-y;            /* horizontal drag is ours, page scroll stays */
   cursor: grab;
@@ -131,8 +131,8 @@ html, body {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 176px;                    /* = CARD_W in topic-carousel.tsx */
-  height: 84px;
+  width: 148px;                    /* = CARD_W in topic-carousel.tsx */
+  height: 76px;
   transform-style: preserve-3d;
   will-change: transform;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
@@ -150,85 +150,88 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* The folder itself — anatomy modeled on the classic file-folder icon
-   (Julian's reference asset, 2026-07-12): back flap with a trapezoid tab,
-   two paper sheets peeking out, front panel with a raised right shoulder.
-   Pure CSS layers; theme colors arrive as --f1/--f2 custom props. */
+/* The folder itself — anatomy from Julian's reference folders (2026-07-12):
+   rounded tab top-left, paper sheets peeking, and a SMOOTH notched front edge
+   (low on the left → ramp → taller right shoulder). Built clean: the front
+   body is a rounded rect (outer overflow-clip) and the notch is a clip-path on
+   an inner face — no skew hacks. Theme colors arrive as --f1/--f2. */
 .tc-folder {
   position: relative;
   display: block;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 9px 14px rgba(17, 17, 46, 0.32));
+  filter: drop-shadow(0 8px 13px rgba(17, 17, 46, 0.30));
 }
+
+/* Back flap + tab — the darker tone, peeking above/behind the front */
 .tcf-back {
   position: absolute;
-  left: 0; right: 0; top: 6px; bottom: 0;
+  inset: 8px 0 0 0;            /* sits 8px down; tab lives in the space above */
   border-radius: 12px;
   background: var(--f2);
 }
-.tcf-back::before {          /* trapezoid tab, top-left */
+.tcf-back::before {            /* rounded tab, left-of-centre */
   content: "";
   position: absolute;
-  top: -9px; left: 10px;
-  width: 54px; height: 11px;
-  background: inherit;
-  clip-path: polygon(0 100%, 16% 0, 84% 0, 100% 100%);
+  top: -9px; left: 12px;
+  width: 50px; height: 13px;
+  background: var(--f2);
+  border-radius: 8px 8px 0 0;
 }
+
+/* Paper sheets peeking above the front's low edge */
 .tcf-paper {
   position: absolute;
-  top: 0; left: 16px; right: 20px;
-  height: 34px;
-  background: #f5f5f2;
-  border-radius: 6px 6px 0 0;
+  top: 3px; left: 15px; right: 16px;
+  height: 25px;
+  background: #f4f3ef;
+  border-radius: 5px 5px 0 0;
 }
-.tcf-paper-b {                /* second sheet, offset behind */
-  top: 3px; left: 24px; right: 12px;
-  background: #e3e3df;
+.tcf-paper-b {                 /* second sheet, offset behind */
+  top: 6px; left: 21px; right: 9px;
+  background: #e4e3de;
 }
+
+/* Front panel: rounded body (outer clips corners) + notched top (inner clip) */
 .tcf-front {
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 57px;
+  inset: 0;
   border-radius: 12px;
-  background: linear-gradient(170deg, var(--f1), var(--f2));
+  overflow: hidden;
 }
-.tcf-front::before {          /* raised right shoulder */
-  content: "";
+.tcf-face {
   position: absolute;
-  top: -8px; right: 0;
-  width: 50%; height: 10px;
-  background: inherit;
-  border-radius: 10px 10px 0 0;
+  inset: 0;
+  background: linear-gradient(166deg, var(--f1), var(--f2));
+  /* low-left (42%) → smooth ramp → taller right shoulder (24%) */
+  clip-path: polygon(
+    0% 42%, 39% 42%, 43% 40%, 49% 27%, 53% 25%, 100% 25%,
+    100% 100%, 0% 100%
+  );
 }
-.tcf-front::after {           /* diagonal step joining shoulder to front edge */
-  content: "";
-  position: absolute;
-  top: -8px; right: calc(50% - 6px);
-  width: 16px; height: 10px;
-  background: inherit;
-  transform: skewX(30deg);
-}
+
+/* Label plate — icon disc + name + count, on the solid front */
 .tcf-content {
   position: absolute;
-  left: 14px; right: 10px; top: 30px; bottom: 6px;
+  left: 12px; right: 9px; top: 33px; bottom: 6px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
+  z-index: 1;
 }
 .tc-ficon {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18);
   flex-shrink: 0;
 }
 .tc-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
 .tc-label {
   color: #fff;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -236,11 +239,11 @@ html, body {
   text-overflow: ellipsis;
   max-width: 100%;
 }
-.tc-sub { color: rgba(255, 255, 255, 0.72); font-size: 10.5px; font-weight: 500; }
+.tc-sub { color: rgba(255, 255, 255, 0.74); font-size: 10.5px; font-weight: 500; }
 
 .tc-chev {
   position: absolute;
-  top: 39px;                       /* vertically centered on the ring */
+  top: 33px;                       /* vertically centered on the ring */
   z-index: 10;
   display: grid;
   place-items: center;
