@@ -1,11 +1,17 @@
 """Per-theme editorial personas (ADR-0008).
 
-A named editorial voice per vertical. The corpus is LATAM-first, so the names are
-Spanish; the persona is injected into the prompt (prompts/editorial.md). One shared
-template + a per-theme persona keeps iteration fast; split into per-theme .md files
-later if a voice needs heavier divergence.
+A named, READER-FACING editorial voice per vertical — the masthead/glyph on the
+Outlook Column page (ADR-R-0011). The corpus is LATAM-first, so the names are
+Spanish. Keys map 1:1 to the 15 `articles.theme` values (Curator ADR-0032).
 
-Keys map 1:1 to the 15 `articles.theme` values (Curator ADR-0032).
+⚠️ ADR-0010 (method-persona rosters): the RICH per-column reporting-method
+rosters live in `prompts/personas-spec.md` (10 journalist-METHOD archetypes per
+column — method/structure/evidence only, NOT identity; the journalist names are
+internal routing references and must NEVER reach the reader or be imitated in
+prose). This module stays the reader-facing (key, display name, mission) map;
+the generator selects an internal method-persona from the spec per assignment.
+The one-line `voice` below is the interim single-voice until ADR-0010's
+selection step is wired.
 """
 from __future__ import annotations
 

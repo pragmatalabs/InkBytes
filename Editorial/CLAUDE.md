@@ -23,8 +23,11 @@ Editorial/apps/editorial/
   core/application.py     ← orchestrator: gather → gate → render persona → LLM → store
   services/db.py          ← asyncpg; reads pages/events, writes editorials, applies migration
   services/llm.py         ← ollama|deepseek → OpenAI-compatible; anthropic → native
-  personas.py             ← theme → (key, name, voice)
-  prompts/editorial.md    ← persona prompt template
+  personas.py             ← theme → (key, reader display name, mission)
+  prompts/editorial.md    ← persona prompt template (interim single-voice)
+  prompts/personas-spec.md ← ADR-0010 method-persona ROSTERS (150; 10/column;
+                             method NOT identity — journalist names are internal
+                             routing refs, never shown to readers or imitated)
   db/migrations/001_editorials.sql
   env.example.yaml · requirements.txt
 ```
@@ -46,5 +49,7 @@ DATABASE_URL=postgresql://... python main.py --config env.yaml --generate --dry-
 - [ ] Validate generation quality on real prod data (dry-run on the droplet vs gemma4/DeepSeek)
 - [ ] Reader surface: per-theme "Editorial" card/section + an API endpoint
 - [ ] Daily cron (quiet hour) + Dockerfile + compose entry
+- [ ] **ADR-0010: wire method-persona selection** — load `personas-spec.md` rosters,
+      select by reporting-problem, Global Editorial Policy preamble, store method label
 - [ ] Phase 2 (SLM): bulk-distill the `editorials` rows → LoRA a 2–3B → GGUF on Hostinger
 ```
