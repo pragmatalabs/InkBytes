@@ -15,6 +15,11 @@ selection step is wired.
 """
 from __future__ import annotations
 
+import re
+from functools import lru_cache
+from pathlib import Path
+from typing import NamedTuple
+
 # theme → (persona key, display name, one-line voice/stance injected into the prompt)
 PERSONAS: dict[str, tuple[str, str, str]] = {
     "politics":      ("la-mesa",       "La Mesa",        "análisis político sobrio y equilibrado; explica el porqué detrás de las maniobras, sin partidismo."),
@@ -39,3 +44,73 @@ _DEFAULT = ("el-editor", "El Editor", "análisis sobrio que sintetiza el día en
 
 def persona_for(theme: str | None) -> tuple[str, str, str]:
     return PERSONAS.get((theme or "").lower(), _DEFAULT)
+
+
+# ── ADR-0010: method-persona rosters (parsed from prompts/personas-spec.md) ────
+#
+# Each column has a roster of ~10 journalist-METHOD archetypes. These are
+# INTERNAL routing references (method / structure / evidence discipline only) —
+# the journalist names must never reach the reader or be imitated in prose. The
+# reader-facing identity stays the Spanish persona above (PERSONAS / persona_for).
+
+_SPEC = Path(__file__).resolve().parent / "prompts" / "personas-spec.md"
+
+
+class MethodPersona(NamedTuple):
+    role: str          # e.g. "Institutional presidency correspondent"
+    use_when: str       # the reporting problem this method fits
+    ready_prompt: str   # the vendored ready-to-use method prompt
+
+
+def _display_to_theme() -> dict[str, str]:
+    return {name: theme for theme, (_k, name, _v) in PERSONAS.items()}
+
+
+@lru_cache(maxsize=1)
+def _parse_spec() -> tuple[str, dict[str, list[MethodPersona]]]:
+    """Parse personas-spec.md once → (global policy, {theme|'_default': roster})."""
+    text = _SPEC.read_text("utf-8")
+
+    pol = re.search(r"## Global Editorial Policy\n(.*?)\n## ", text, re.S)
+    policy = pol.group(1).strip() if pol else ""
+
+    disp2theme = _display_to_theme()
+    rosters: dict[str, list[MethodPersona]] = {}
+
+    # level-1 headers split the columns (front matter is skipped: no theme match)
+    for part in re.split(r"\n# ", "\n" + text):
+        if not part.strip():
+            continue
+        header = part.splitlines()[0].strip()
+        colname = header.replace("Fallback —", "").strip()
+        theme = disp2theme.get(colname)
+        bucket = theme or ("_default" if "El Editor" in header else None)
+        if bucket is None:
+            continue
+
+        roster: list[MethodPersona] = []
+        for chunk in re.split(r"\n## ", part)[1:]:  # each h2 = a persona (skip mission)
+            ready = re.search(r"```text\n(.*?)```", chunk, re.S)
+            if not ready:
+                continue  # the mission chunk / non-persona sections have no prompt
+            title = chunk.splitlines()[0].strip()
+            role_m = re.search(r"\*\*Persona role:\*\*\s*(.+)", chunk)
+            use_m = re.search(r"\*\*Use this persona when:\*\*\s*(.+)", chunk)
+            role = role_m.group(1).strip() if role_m else re.sub(r"^\d+\.\s*", "", title)
+            use_when = use_m.group(1).strip() if use_m else "no specialized method fits"
+            roster.append(MethodPersona(role, use_when, ready.group(1).strip()))
+        if roster:
+            rosters[bucket] = roster
+
+    return policy, rosters
+
+
+def global_policy() -> str:
+    """The Global Editorial Policy preamble (ADR-0010), from the vendored spec."""
+    return _parse_spec()[0]
+
+
+def roster_for(theme: str | None) -> list[MethodPersona]:
+    """The column's method-persona roster; falls back to El Editor's single method."""
+    _policy, rosters = _parse_spec()
+    return rosters.get((theme or "").lower()) or rosters.get("_default", [])

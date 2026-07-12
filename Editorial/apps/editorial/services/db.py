@@ -64,10 +64,11 @@ class Database:
     async def write_editorial(self, *, ed_id: str, theme: str, language: str,
                               edition_date, persona: str, headline: str, body_md: str,
                               event_ids: list[str], model: str,
-                              input_context: list[dict], prompt: str) -> None:
+                              input_context: Any, prompt: str) -> None:
         """Upsert the day's editorial for (theme, language, edition_date) — a
         re-run replaces it. Carries the full generation provenance (input_context
-        + prompt) so the table doubles as the Phase-2 SLM training set."""
+        {method_persona + events} + prompt) so the table doubles as the Phase-2
+        SLM training set (method-conditioned, ADR-0010)."""
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             await conn.execute(
                 """
