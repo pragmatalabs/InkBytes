@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { MediaRailItem } from "@/lib/types";
+import VideoCoverflow from "@/components/video-coverflow";
 
 // ── Streaming icon (SVG from design assets) ───────────────────────────────────
 
@@ -67,39 +68,10 @@ export default function MediaRailDrawer({ rail, back, share }: Props) {
         </div>
       </div>
 
-      {/* Expandable video panel */}
+      {/* Expandable video panel — 3D coverflow (was a flat chip row) */}
       {open && hasMedia && (
-        <div className="mt-4 pt-4 border-t border-[var(--border)]">
-          <div className="flex flex-wrap gap-2">
-            {videos.map((vid, i) => (
-              <a
-                key={i}
-                href={vid.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 hover:border-red-300 hover:shadow-sm transition-all group/vid"
-              >
-                {vid.thumb_url && (
-                  <div className="relative flex-none w-12 h-8 rounded overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={vid.thumb_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/vid:bg-black/20 transition-colors">
-                      <svg className="w-3 h-3 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                    </div>
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-[10px] font-mono uppercase tracking-wide text-red-600 mb-0.5">Watch</div>
-                  {vid.title && (
-                    <div className="text-[12px] font-medium text-[var(--ink)] line-clamp-1 max-w-[160px]">{vid.title}</div>
-                  )}
-                  {vid.source_domain && (
-                    <div className="text-[10px] text-[var(--ink-muted)]">{vid.source_domain}</div>
-                  )}
-                </div>
-              </a>
-            ))}
-          </div>
+        <div className="mt-4">
+          <VideoCoverflow videos={videos} />
         </div>
       )}
     </div>

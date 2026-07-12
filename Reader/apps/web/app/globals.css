@@ -228,3 +228,14 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .skel { animation: none; }
 }
+
+/* ── Video coverflow (event page media drawer) ───────────────────────────── */
+.vcf-card {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s, box-shadow 0.3s;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vcf-card { transition: none; }
+}
