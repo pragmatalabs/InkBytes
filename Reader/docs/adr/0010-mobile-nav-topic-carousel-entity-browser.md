@@ -2,6 +2,26 @@
 
 > *Status: v1 · **DEPLOYED + verified live 2026-07-12** · Owner: Julian · Date: 2026-07-12*
 
+> **Update 2026-07-12 — folder carousel v2 (Nexora layout, iterated live with Julian):**
+> The topic carousel's card art went through several rounds and settled on
+> Julian's `folder-definitive.svg` rendered as a **live tile** (`components/
+> folder-glyph.tsx`): a **white folder with a category-coloured border**
+> (source greys → white fills, strokes → `currentColor` accent), a soft accent
+> **sheen dimming in from the top-right** of the front face, and the Nexora
+> content layout — accent **icon tile** top-left, **count** top-right,
+> **left-aligned** category name + small grey "N stories" bottom-left. The
+> front/selected folder carries an **accent glow**. A staggered **entrance
+> animation** (`tc-enter`, delay `i*45ms`, reduced-motion-safe) makes it read
+> as a true carousel on load. Landscape geometry (158×124, aspect 512:400) to
+> keep vertical spend low. Colour lives in the border + icon + count, not the
+> folder body. All still driven by the existing client-side category filter;
+> desktop (≥ sm) unchanged.
+>
+> Process notes worth keeping: Turbopack served stale global CSS through dev
+> restarts several times — `rm -rf .next` was required each visual iteration
+> (compile-cache cousin of the fetch-cache lessons). SVG gradient ids must be
+> unique per instance (`useId`) or every folder binds the first one's accent.
+
 ## Context
 
 Julian flagged the mobile home as "not looking good, confusing" and asked whether
