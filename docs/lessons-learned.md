@@ -1,9 +1,44 @@
 # InkBytes — Lessons Learned
 
-> *Status: living doc · Owner: Julián · Last updated: 2026-06-09*
+> *Status: living doc · Owner: Julián · Last updated: 2026-07-12*
 
 Hard-won, non-obvious gotchas. Add to this whenever something surprises you or
 costs real debugging time. Newest first.
+
+---
+
+## 2026-07-12 — Nested `<a>` inside card `<Link>`s: hydration errors + parser DOM surgery, and the bug is data-dependent
+
+**What happened**: The Reader home logged `In HTML, <a> cannot be a descendant
+of <a>` + a full hydration failure on every load. First fix targeted the found
+instance (`AlsoIn`'s "also es/en" chips inside feed-card `<Link>`s) and a live
+DOM check (`document.querySelectorAll("a a").length === 0`) passed — yet hours
+later Julian hit the same error again on the same page.
+
+**Root cause (two layers)**: (1) Feed cards are `<Link>`s (anchors); any child
+component that renders its own `<a>` produces nested anchors — invalid HTML.
+The HTML parser DOM-corrects it by closing the outer anchor early, so the
+server HTML and React's client tree disagree → React regenerates the whole
+feed client-side on every visit (a real per-visitor cost, live on prod).
+(2) There was a SECOND instance — `EventCover`'s CC BY/BY-SA attribution
+overlay (ADR-0034) — that only renders when a credit-bearing Wikimedia cover
+lands in a cover-rendering card slot. It was **data-dependent**: the feed at
+check-time had no such cover in a Lead/Secondary slot, so the DOM probe passed
+while the bug survived.
+
+**Fix**: ADR-R-0010 rule — interactive children of link-cards must be
+`<button>`s (`router.push` for internal, `window.open` for external) with
+`preventDefault` + `stopPropagation`. Both instances converted; a repo-wide
+audit of every raw `<a>` in `app/` + `components/` confirmed the remaining
+ones (media-rail chips, source-quote cards, markdown prose links) are all
+top-level.
+
+**Lesson**: When a bug is a *class* (invalid nesting) don't verify by *instance*
+(one selector probe at one moment). A DOM spot-check only proves the data on
+screen at that moment; grep the codebase for the whole class — every `<a>`
+render — and audit each one's call sites. Also: hydration errors aren't
+cosmetic dev noise; nested-anchor DOM correction breaks layout unpredictably
+and forces a full client re-render for every visitor.
 
 ---
 
