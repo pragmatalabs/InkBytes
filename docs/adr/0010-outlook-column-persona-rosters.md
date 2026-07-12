@@ -1,6 +1,6 @@
 # ADR-0010 — Outlook columns: method-persona rosters (Editorial service)
 
-> *Status: **Accepted — spec vendored, backend integration planned** · Owner: Julian · Date: 2026-07-12*
+> *Status: **Implemented + DEPLOYED + verified live 2026-07-12** · Owner: Julian · Date: 2026-07-12*
 > *Extends [ADR-0008](./0008-editorial-service-llm-selection.md) (Editorial service). Source of truth: [`Editorial/apps/editorial/prompts/personas-spec.md`](../../Editorial/apps/editorial/prompts/personas-spec.md).*
 
 ## Context
@@ -61,7 +61,7 @@ controls **method, structure, evidence discipline** — never identity.
    selected method-persona label makes the training data **method-conditioned**
    — the distilled SLM can learn "write this as accountability vs explainer."
 
-## Backend integration plan (to build; not yet implemented)
+## Backend integration (IMPLEMENTED 2026-07-12 — `personas.py` roster loader, LLM routing in `application.py`, policy preamble, method stored in `input_context.method_persona`)
 
 | Piece | Change |
 |---|---|
