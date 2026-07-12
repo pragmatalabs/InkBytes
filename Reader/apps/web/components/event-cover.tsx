@@ -32,16 +32,23 @@ export default function EventCover({
         />
       )}
       {credit && (
-        <a
-          href={credit.source_url || credit.license_url || "#"}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-0 right-0 max-w-full truncate bg-black/45 text-white/90 text-[9px] leading-tight px-1.5 py-0.5 rounded-tl hover:bg-black/65"
+        // NOT an <a>: feed cards wrap EventCover in their own <Link>, and nested
+        // anchors are invalid HTML — the parser DOM-corrects them (breaking the
+        // card) and React logs a hydration error. A button + window.open keeps
+        // the CC credit clickable everywhere, including the event-page hero.
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const href = credit.source_url || credit.license_url;
+            if (href) window.open(href, "_blank", "noopener,noreferrer");
+          }}
+          className="absolute bottom-0 right-0 max-w-full truncate bg-black/45 text-white/90 text-[9px] leading-tight px-1.5 py-0.5 rounded-tl hover:bg-black/65 cursor-pointer"
           title={`${credit.attribution} — ${credit.license ?? ""} (via ${credit.provider ?? "Wikimedia"})`}
         >
           {credit.attribution} · {credit.license}
-        </a>
+        </button>
       )}
     </div>
   );
