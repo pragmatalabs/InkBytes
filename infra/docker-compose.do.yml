@@ -54,6 +54,10 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-public"
       - "traefik.http.routers.inkbytes-reader.rule=Host(`${READER_DOMAIN:-inkbytes.org}`)"
+      # Explicit priority: the fallback catch-all below shares this exact Host
+      # rule (same rule length = same default priority) — pin the reader higher
+      # so it always wins while its container is up.
+      - "traefik.http.routers.inkbytes-reader.priority=100"
       - "traefik.http.routers.inkbytes-reader.entrypoints=websecure"
       - "traefik.http.routers.inkbytes-reader.tls.certresolver=letsencrypt"
       - "traefik.http.services.inkbytes-reader.loadbalancer.server.port=3000"
@@ -63,10 +67,38 @@ services:
       # cross-origin from outlet CDNs, so a page load hits this origin ~5-15×) and
       # brutal for a flood (which does thousands/s). Names are inkbytes-prefixed so
       # they don't collide on the shared Traefik. Tune average/burst if false 429s.
-      - "traefik.http.routers.inkbytes-reader.middlewares=inkbytes-reader-ratelimit,inkbytes-reader-inflight"
+      - "traefik.http.routers.inkbytes-reader.middlewares=inkbytes-reader-ratelimit,inkbytes-reader-inflight,inkbytes-reader-errors"
       - "traefik.http.middlewares.inkbytes-reader-ratelimit.ratelimit.average=100"
       - "traefik.http.middlewares.inkbytes-reader-ratelimit.ratelimit.burst=200"
       - "traefik.http.middlewares.inkbytes-reader-inflight.inflightreq.amount=100"
+      # 5xx → branded "we're updating" page (covers backend-dead-while-router-
+      # exists; the router-GONE case is covered by the fallback catch-all below).
+      - "traefik.http.middlewares.inkbytes-reader-errors.errors.status=502-504"
+      - "traefik.http.middlewares.inkbytes-reader-errors.errors.service=inkbytes-fallback@docker"
+      - "traefik.http.middlewares.inkbytes-reader-errors.errors.query=/"
+
+  # Maintenance fallback (2026-07-12): a 5 MB nginx serving one branded
+  # "we're updating" page. Two jobs: (a) catch-all router at priority 1 —
+  # when the reader container is down/swapping its router vanishes and this
+  # answers instead of Traefik's bare "404 page not found"; (b) target of the
+  # reader's 5xx errors middleware above. Auto-retries via meta refresh.
+  inkbytes-fallback:
+    image: nginx:alpine
+    restart: unless-stopped
+    mem_limit: 32m
+    networks:
+      - traefik-public
+    volumes:
+      - ./fallback/html:/usr/share/nginx/html:ro
+      - ./fallback/default.conf:/etc/nginx/conf.d/default.conf:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.inkbytes-fallback.rule=Host(`${READER_DOMAIN:-inkbytes.org}`)"
+      - "traefik.http.routers.inkbytes-fallback.priority=1"
+      - "traefik.http.routers.inkbytes-fallback.entrypoints=websecure"
+      - "traefik.http.routers.inkbytes-fallback.tls.certresolver=letsencrypt"
+      - "traefik.http.services.inkbytes-fallback.loadbalancer.server.port=80"
 
   inkbytes-backoffice:
     mem_limit: 384m

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getGraph } from "@/lib/api";
 import EntitiesView from "./entities-view";
+import RetryButton from "@/components/retry-button";
 
 // Force SSR — the graph data comes from an internal service (inkbytes-curator-api)
 // that is only resolvable at runtime inside the Docker network, not at build time.
@@ -37,13 +38,16 @@ export default async function EntitiesPage() {
       })),
     };
   } catch {
+    // Reader-facing copy — never leak internals (service names, ports).
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <h1 className="text-xl font-bold tracking-tight mb-2">Entity Graph</h1>
-        <p className="text-sm text-[var(--ink-muted)] max-w-xs mx-auto">
-          Could not reach the Curator service. Make sure it is running on port 8060.
+        <p className="text-2xl mb-3" aria-hidden>🕸️</p>
+        <h1 className="text-xl font-bold tracking-tight mb-2">Entities</h1>
+        <p className="text-sm text-[var(--ink-muted)] max-w-xs mx-auto mb-6">
+          We&rsquo;re having trouble loading the entity map right now. It usually resolves in a moment.
         </p>
-        <Link href="/" className="inline-block mt-8 text-sm text-[var(--accent)] underline hover:no-underline">
+        <RetryButton />
+        <Link href="/" className="block mt-5 text-sm text-[var(--accent)] underline hover:no-underline">
           ← Back to events
         </Link>
       </div>

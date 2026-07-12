@@ -32,7 +32,8 @@ export default async function HomePage({
       getTrendingTopics().catch(() => [] as TrendingTopic[]),
     ]);
   } catch {
-    error = "Could not reach the Curator service. Is it running on port 8060?";
+    // Reader-facing copy — never leak internals (service names, ports).
+    error = "We're having trouble loading the latest stories right now. It usually resolves in a moment.";
   }
 
   return (

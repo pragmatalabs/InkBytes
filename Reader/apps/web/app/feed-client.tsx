@@ -9,6 +9,7 @@ import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import TopicCarousel from "@/components/topic-carousel";
+import RetryButton from "@/components/retry-button";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -850,8 +851,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
       {/* ── States ───────────────────────────────────────────────────────────── */}
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          {error}
+        <div className="rounded-xl border border-[var(--border)] bg-white px-6 py-10 text-center">
+          <p className="text-2xl mb-3" aria-hidden>📰</p>
+          <p className="text-sm font-semibold mb-1">The news feed is catching its breath</p>
+          <p className="text-xs text-[var(--ink-muted)] mb-5 max-w-xs mx-auto">{error}</p>
+          <RetryButton />
         </div>
 
       ) : events.length === 0 ? (
