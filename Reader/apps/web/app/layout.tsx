@@ -37,7 +37,10 @@ export const metadata: Metadata = {
     url: BASE_URL,
   },
   twitter: {
-    card: "summary",
+    // summary_large_image: unfurls show the branded card (app/opengraph-image.png),
+    // not a favicon fallback — icons/OG were create-next-app defaults until
+    // 2026-07-12 (shares rendered the Vercel mark).
+    card: "summary_large_image",
     site: "@inkbytes",
   },
   robots: { index: true, follow: true },
