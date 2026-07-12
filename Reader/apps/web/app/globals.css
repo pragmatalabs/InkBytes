@@ -174,29 +174,27 @@ html, body {
 /* Overlays — positioned over the white document (cropped-viewBox %s) */
 .tcf-name {
   position: absolute;
-  top: 15%; left: 10%; right: 9%;
-  font-size: 10px;
+  top: 16%; left: 12%; right: 9%;
+  text-align: left;
+  font-size: 12.5px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #6b7280;
+  letter-spacing: -0.01em;
+  color: #374151;              /* dark-grey category title, left-aligned */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .tcf-count {
   position: absolute;
-  right: 9%; top: 30%;
-  font-size: 38px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #374151;
+  left: 12%; top: 33%;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;              /* small, discreet story count */
   font-variant-numeric: tabular-nums;
 }
 .tcf-badge {
   position: absolute;
-  left: 13%; bottom: 15%;
+  left: 12%; bottom: 16%;
   width: 30px; height: 30px;
   display: grid;
   place-items: center;

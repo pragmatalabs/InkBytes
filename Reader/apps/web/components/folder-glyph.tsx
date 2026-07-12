@@ -4,8 +4,8 @@
  * "Category Name" / "200" / icon circle from the source are NOT drawn here —
  * the carousel overlays live data over the white document region instead.
  *
- * Re-tinted to one theme accent via `currentColor`: source blues → accent
- * (outlines) + accent tints (folder faces); the document stays white. Set
+ * Re-tinted to one theme accent via `currentColor`: source blues → accent (borders); all faces are WHITE — a white folder
+ * with category-coloured borders. Set
  * `color` on a parent to theme it. Faithful geometry (viewBox 1024×1024).
  */
 export default function FolderGlyph({ className }: { className?: string }) {
@@ -13,7 +13,7 @@ export default function FolderGlyph({ className }: { className?: string }) {
     <svg viewBox="117 83 888 772" className={className} role="img" aria-hidden="true"
       preserveAspectRatio="xMidYMid meet">
       {/* back folder body — accent tint */}
-      <path fill="currentColor" fillOpacity="0.42"
+      <path fill="#ffffff"
         d="M127.32,843.14V95.81h208.4l60.74,72.32h419.24v675H127.32Z" />
       {/* back folder outline — accent */}
       <path fill="currentColor"
@@ -24,7 +24,7 @@ export default function FolderGlyph({ className }: { className?: string }) {
       <path fill="currentColor"
         d="M805.57,180.19v409.82H198.18V180.19h607.39M825.82,156.08H177.93v458.04h647.89V156.08h0Z" />
       {/* front flap — lighter accent tint */}
-      <path fill="currentColor" fillOpacity="0.22"
+      <path fill="#ffffff"
         d="M130.83,843.14l86.93-506.25h244.39l68.3-48.21h461.26l-87.27,554.46H130.83Z" />
       {/* front flap outline — accent */}
       <path fill="currentColor"

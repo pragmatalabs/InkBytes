@@ -196,7 +196,7 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
                 >
                   <FolderGlyph className="tc-fart" />
                   <span className="tcf-name">{it.label}</span>
-                  <span className="tcf-count">{it.count}</span>
+                  <span className="tcf-count">{it.count} {it.count === 1 ? "story" : "stories"}</span>
                   <span className="tcf-badge">
                     {it.key === "all" ? (
                       <NewspaperIcon className="w-full h-full" />
