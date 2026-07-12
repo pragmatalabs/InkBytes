@@ -14,7 +14,10 @@ const inter = Inter({
   display: "swap",
 });
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://inkbytes.app";
+// Fallback must be the LIVE domain: metadataBase makes og:image/twitter:image
+// absolute, and unfurlers fetch that URL — inkbytes.app does not resolve, so
+// the old fallback pointed every share card at a dead host (2026-07-12).
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://inkbytes.org";
 
 // viewport-fit=cover lets the content reach the edges of the screen on iPhones
 // with notch/home indicator — critical for the bottom nav safe-area treatment.
