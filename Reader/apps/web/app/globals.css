@@ -114,8 +114,8 @@ html, body {
    the first portrait build. */
 .tc-stage {
   position: relative;
-  height: 156px;
-  perspective: 1100px;
+  height: 150px;
+  perspective: 1150px;
   touch-action: pan-y;            /* horizontal drag is ours, page scroll stays */
   cursor: grab;
   outline: none;
@@ -131,8 +131,8 @@ html, body {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 152px;                    /* = CARD_W in topic-carousel.tsx */
-  height: 132px;
+  width: 158px;                    /* = CARD_W in topic-carousel.tsx */
+  height: 124px;
   transform-style: preserve-3d;
   will-change: transform;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
@@ -150,64 +150,86 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Card = Julian's Folder.svg as a live tile (2026-07-12): themed folder art
-   fills the card (drop-shadow → the silhouette casts, as requested), and live
-   data overlays the white document region — category name (top), big story
-   count, and the category icon in a circle (bottom-left). Accent via --fa. */
+/* Card = folder-definitive.svg as a live carousel tile (Nexora layout,
+   2026-07-12): white folder + category-coloured border fills the card
+   (drop-shadow → the silhouette casts), with an accent icon tile (top-left),
+   the count (top-right), and the left-aligned category name (bottom-left).
+   Staggered entrance animation per card = a true carousel entrance. */
 .tc-plate {
   position: absolute;
   inset: 0;
   color: var(--fa);
+  animation: tc-enter 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes tc-enter {
+  from { opacity: 0; transform: translateY(16px) scale(0.90); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tc-plate { animation: none; }
 }
 .tc-fart {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 7px 10px rgba(17, 17, 46, 0.22));
+  filter: drop-shadow(0 7px 11px rgba(17, 17, 46, 0.18));
 }
 .tc-card[aria-selected="true"] .tc-fart {
-  filter: drop-shadow(0 3px 5px color-mix(in srgb, var(--fa) 45%, transparent))
-          drop-shadow(0 12px 18px color-mix(in srgb, var(--fa) 40%, transparent));
+  filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--fa) 40%, transparent))
+          drop-shadow(0 13px 22px color-mix(in srgb, var(--fa) 38%, transparent));
 }
 
-/* Overlays — positioned over the white document (cropped-viewBox %s) */
-.tcf-name {
+/* Accent icon tile — the pop of colour (white glyph on the accent) */
+.tcf-icon {
   position: absolute;
-  top: 16%; left: 12%; right: 9%;
-  text-align: left;
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: #374151;              /* dark-grey category title, left-aligned */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tcf-count {
-  position: absolute;
-  left: 12%; top: 33%;
-  font-size: 11px;
-  font-weight: 600;
-  color: #9ca3af;              /* small, discreet story count */
-  font-variant-numeric: tabular-nums;
-}
-.tcf-badge {
-  position: absolute;
-  left: 12%; bottom: 16%;
+  top: 26%; left: 8%;
   width: 30px; height: 30px;
   display: grid;
   place-items: center;
   padding: 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--fa) 90%, #fff);
-  color: #fff;                 /* icon reverses to white on the accent disc */
-  box-shadow: 0 2px 5px color-mix(in srgb, var(--fa) 40%, transparent);
+  border-radius: 9px;
+  background: var(--fa);
+  color: #fff;
+  box-shadow: 0 3px 7px color-mix(in srgb, var(--fa) 45%, transparent);
+}
+/* Count — top-right, discreet, in the accent */
+.tcf-count {
+  position: absolute;
+  top: 27%; right: 9%;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fa);
+  font-variant-numeric: tabular-nums;
+}
+/* Category name — bottom-left, left-aligned, dark grey */
+.tcf-name {
+  position: absolute;
+  left: 8%; right: 8%; top: 60%;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Story count line — under the name, small + discreet */
+.tcf-sub {
+  position: absolute;
+  left: 8%; right: 8%; top: 77%;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
 }
 
 .tc-chev {
   position: absolute;
-  top: 61px;                       /* vertically centered on the ring */
+  top: 58px;                       /* vertically centered on the ring */
   z-index: 10;
   display: grid;
   place-items: center;

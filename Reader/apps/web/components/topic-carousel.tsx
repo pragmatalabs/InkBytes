@@ -52,7 +52,7 @@ const THEME_ACCENT: Record<string, string> = {
   disaster:      "#f97316",
 };
 
-const CARD_W = 152;         // folder width (px) — must match .tc-ring CSS
+const CARD_W = 158;         // folder width (px) — must match .tc-ring CSS
 const PX_PER_STEP = 80;     // horizontal drag distance = one card step
 const TAP_SLOP = 8;         // px of movement below which a drag is a tap
 
@@ -192,17 +192,22 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
               >
                 <span
                   className="tc-plate"
-                  style={{ "--fa": accent } as React.CSSProperties}
+                  style={{ "--fa": accent, animationDelay: `${i * 45}ms` } as React.CSSProperties}
                 >
                   <FolderGlyph className="tc-fart" />
-                  <span className="tcf-name">{it.label}</span>
-                  <span className="tcf-count">{it.count} {it.count === 1 ? "story" : "stories"}</span>
-                  <span className="tcf-badge">
+                  {/* Nexora layout: accent icon tile (top-left), count
+                      (top-right), category name left-aligned (bottom-left) */}
+                  <span className="tcf-icon">
                     {it.key === "all" ? (
                       <NewspaperIcon className="w-full h-full" />
                     ) : (
                       <CategoryIcon category={it.key} className="w-full h-full" />
                     )}
+                  </span>
+                  <span className="tcf-count">{it.count}</span>
+                  <span className="tcf-name">{it.label}</span>
+                  <span className="tcf-sub">
+                    {it.count} {it.count === 1 ? "story" : "stories"}
                   </span>
                 </span>
               </button>
