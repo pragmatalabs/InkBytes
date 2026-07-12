@@ -4,7 +4,8 @@ import { getOutlook, getOutlookAvailable, relativeTime } from "@/lib/api";
 import type { Outlook, OutlookTopic } from "@/lib/types";
 import { NewsMarkdown } from "@/components/news-markdown";
 import OutlookActions from "@/components/outlook-actions";
-import { themeAccent, personaInitials } from "@/lib/theme-colors";
+import { themeAccent } from "@/lib/theme-colors";
+import { PersonaIcon } from "@/components/persona-icons";
 
 // force-dynamic: this calls the internal Curator API (ADR-R-0005 — never ISR
 // pre-render an internal-hostname fetch during docker build).
@@ -87,11 +88,11 @@ export default async function OutlookPage({
           {/* ── Masthead — the persona is the product ───────────────────── */}
           <div className="flex items-center gap-3">
             <span
-              className="grid place-items-center w-11 h-11 rounded-full text-white text-[15px] font-extrabold tracking-tight shrink-0"
+              className="grid place-items-center w-11 h-11 rounded-full text-white shrink-0"
               style={{ background: accent }}
               aria-hidden
             >
-              {personaInitials(o.persona)}
+              <PersonaIcon persona={o.persona} className="w-6 h-6" />
             </span>
             <div className="min-w-0">
               <div className="text-[13px] font-bold uppercase tracking-[0.14em]" style={{ color: accent }}>
@@ -192,9 +193,9 @@ export default async function OutlookPage({
                         className="snap-start shrink-0 w-[200px] rounded-xl border border-[var(--border)] bg-white p-3.5 hover:shadow-md hover:border-gray-300 transition-all"
                       >
                         <span className="flex items-center gap-2 mb-2">
-                          <span className="grid place-items-center w-7 h-7 rounded-full text-white text-[11px] font-extrabold shrink-0"
+                          <span className="grid place-items-center w-7 h-7 rounded-full text-white shrink-0"
                             style={{ background: a }} aria-hidden>
-                            {personaInitials(t.persona)}
+                            <PersonaIcon persona={t.persona} className="w-4 h-4" />
                           </span>
                           <span className="min-w-0">
                             <span className="block text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: a }}>

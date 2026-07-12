@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getOutlookArchive } from "@/lib/api";
 import type { OutlookArchiveEntry } from "@/lib/types";
-import { themeAccent, personaInitials } from "@/lib/theme-colors";
+import { themeAccent } from "@/lib/theme-colors";
+import { PersonaIcon } from "@/components/persona-icons";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Today's Outlooks" };
@@ -82,11 +83,11 @@ export default async function OutlookIndex({
                     >
                       <div className="flex items-center gap-2 mb-1.5">
                         <span
-                          className="grid place-items-center w-7 h-7 rounded-full text-white text-[11px] font-extrabold shrink-0"
+                          className="grid place-items-center w-7 h-7 rounded-full text-white shrink-0"
                           style={{ background: a }}
                           aria-hidden
                         >
-                          {personaInitials(t.persona)}
+                          <PersonaIcon persona={t.persona} className="w-4 h-4" />
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: a }}>
