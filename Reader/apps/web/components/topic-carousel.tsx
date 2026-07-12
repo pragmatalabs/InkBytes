@@ -30,29 +30,29 @@ interface Props {
   onSelect: (key: string) => void;
 }
 
-// Folder gradients per theme — hues match CAT_STYLES / TREND_ACCENT in the feed
-// (tailwind 500 → 700 stops), so the carousel and the chips speak one palette.
-const FOLDER_GRADIENTS: Record<string, [string, string]> = {
-  all:           ["#26264f", "#111127"],
-  politics:      ["#ef4444", "#b91c1c"],
-  business:      ["#3b82f6", "#1d4ed8"],
-  technology:    ["#8b5cf6", "#6d28d9"],
-  sports:        ["#22c55e", "#15803d"],
-  health:        ["#ec4899", "#be185d"],
-  environment:   ["#10b981", "#047857"],
-  culture:       ["#f59e0b", "#b45309"],
-  world:         ["#64748b", "#334155"],
-  science:       ["#06b6d4", "#0e7490"],
-  entertainment: ["#d946ef", "#a21caf"],
-  crime:         ["#475569", "#1e293b"],
-  education:     ["#6366f1", "#4338ca"],
-  lifestyle:     ["#14b8a6", "#0f766e"],
-  religion:      ["#eab308", "#a16207"],
-  disaster:      ["#f97316", "#c2410c"],
+// Per-theme accent — the icon is the ONLY colored element (the neutral-gray
+// folder is a recessive container). Hues match CAT_STYLES / TREND_ACCENT.
+const THEME_ACCENT: Record<string, string> = {
+  all:           "#26264f",
+  politics:      "#ef4444",
+  business:      "#3b82f6",
+  technology:    "#8b5cf6",
+  sports:        "#22c55e",
+  health:        "#ec4899",
+  environment:   "#10b981",
+  culture:       "#f59e0b",
+  world:         "#64748b",
+  science:       "#06b6d4",
+  entertainment: "#d946ef",
+  crime:         "#475569",
+  education:     "#6366f1",
+  lifestyle:     "#14b8a6",
+  religion:      "#eab308",
+  disaster:      "#f97316",
 };
 
-const CARD_W = 176;         // folder width (px) — must match .tc-ring CSS
-const PX_PER_STEP = 90;     // horizontal drag distance = one card step
+const CARD_W = 148;         // folder width (px) — must match .tc-ring CSS
+const PX_PER_STEP = 80;     // horizontal drag distance = one card step
 const TAP_SLOP = 8;         // px of movement below which a drag is a tap
 
 function mod(n: number, m: number): number {
@@ -178,7 +178,7 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
           style={{ transform: `translateZ(${-radius}px) rotateY(${angle}deg)` }}
         >
           {items.map((it, i) => {
-            const [c1, c2] = FOLDER_GRADIENTS[it.key] ?? FOLDER_GRADIENTS.world;
+            const accent = THEME_ACCENT[it.key] ?? THEME_ACCENT.world;
             return (
               <button
                 key={it.key}
@@ -191,7 +191,7 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
               >
                 <span
                   className="tc-folder"
-                  style={{ "--f1": c1, "--f2": c2 } as React.CSSProperties}
+                  style={{ "--fa": accent } as React.CSSProperties}
                 >
                   {/* Folder anatomy (back flap + tab → paper sheets → front
                       panel with raised right shoulder) — pure CSS layers */}
@@ -202,9 +202,9 @@ export default function TopicCarousel({ items, active, onSelect }: Props) {
                   <span className="tcf-content">
                     <span className="tc-ficon">
                       {it.key === "all" ? (
-                        <NewspaperIcon className="w-5 h-5 text-white/95" />
+                        <NewspaperIcon className="w-4 h-4" />
                       ) : (
-                        <CategoryIcon category={it.key} className="w-5 h-5 text-white/95" />
+                        <CategoryIcon category={it.key} className="w-4 h-4" />
                       )}
                     </span>
                     <span className="tc-meta">
