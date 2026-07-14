@@ -295,3 +295,50 @@ html, body {
   padding: 0 0.08em;
 }
 .outlook-body a[href^="/event/"]:hover { text-decoration: underline; }
+
+/* ── Outlook column reading typography (2026-07-12) ──────────────────────────
+   The editorial columns read long-form; a serif body + generous rhythm makes
+   them far less dense than the UI sans. Scoped to .outlook-prose so event-page
+   synthesis is untouched. Pairs with .synthesis-body (drop cap) + .outlook-body
+   (superscript citations). */
+.outlook-prose {
+  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino,
+               "Georgia", Cambria, "Times New Roman", serif;
+  font-size: 18.5px;
+  line-height: 1.75;
+  letter-spacing: 0.002em;
+  color: #23242a;                 /* softer than pure ink — kinder over a full column */
+}
+@media (min-width: 640px) {
+  .outlook-prose { font-size: 19.5px; line-height: 1.78; }
+}
+.outlook-prose p { margin-bottom: 1.55em; }
+/* Lede: first paragraph carries a touch more presence (with the drop cap). */
+.outlook-prose > p:first-of-type { color: #16171c; }
+.outlook-prose > p:first-of-type::first-letter {
+  font-size: 3.4em;
+  padding: 0.02em 0.1em 0 0;
+  color: var(--outlook-accent, var(--ink));   /* drop cap in the theme accent */
+}
+/* Editorial subheads (if the model emits ## / ###) — sans, small-caps label. */
+.outlook-prose h2, .outlook-prose h3 {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-muted);
+  margin: 2.2em 0 0.7em;
+}
+/* Pull quote */
+.outlook-prose blockquote {
+  font-style: normal;
+  font-size: 1.2em;
+  line-height: 1.45;
+  color: var(--ink);
+  border-left: 3px solid var(--outlook-accent, var(--accent));
+  padding: 0.1em 0 0.1em 1.1em;
+  margin: 1.9em 0;
+}
+/* First-letter tweaks aside, keep bold/italic legible in serif */
+.outlook-prose strong { font-weight: 700; }

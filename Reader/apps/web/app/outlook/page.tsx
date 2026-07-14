@@ -4,6 +4,7 @@ import { getOutlookArchive } from "@/lib/api";
 import type { OutlookArchiveEntry } from "@/lib/types";
 import { themeAccent } from "@/lib/theme-colors";
 import { PersonaIcon } from "@/components/persona-icons";
+import SavedOutlooks from "@/components/saved-outlooks";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Today's Outlooks" };
@@ -46,6 +47,9 @@ export default async function OutlookIndex({
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         A daily editorial per topic — one column per vertical, cut at 11:59 AM.
       </p>
+
+      {/* Reader's saved editions (localStorage; profile later) — self-hides when empty */}
+      <SavedOutlooks />
 
       {byDate.length === 0 ? (
         <p className="text-[var(--ink-muted)] text-sm">No outlooks published yet — check back after the daily cut.</p>

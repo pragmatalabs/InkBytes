@@ -4,6 +4,7 @@ import { getOutlook, getOutlookAvailable, relativeTime } from "@/lib/api";
 import type { Outlook, OutlookTopic } from "@/lib/types";
 import { NewsMarkdown } from "@/components/news-markdown";
 import OutlookActions from "@/components/outlook-actions";
+import OutlookSave from "@/components/outlook-save";
 import { themeAccent } from "@/lib/theme-colors";
 import { PersonaIcon } from "@/components/persona-icons";
 
@@ -138,14 +139,16 @@ export default async function OutlookPage({
 
           {/* ── Column body — 65ch measure, superscript citations ───────── */}
           <article
-            className="outlook-body synthesis-body max-w-[65ch] text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-8"
+            className="outlook-prose outlook-body synthesis-body max-w-[64ch] mb-9"
             style={{ "--outlook-accent": accent } as React.CSSProperties}
           >
             <NewsMarkdown source={bodyMd} />
           </article>
 
-          {/* ── Actions — after reading, one quiet row ───────────────────── */}
-          <div className="mb-10 print:hidden">
+          {/* ── Actions — after reading: Save (localStorage) + share/export ── */}
+          <div className="mb-10 print:hidden flex flex-wrap items-center gap-2">
+            <OutlookSave theme={topic} lang={lang} date={o.edition_date}
+              headline={o.headline} persona={prettyPersona(o.persona)} />
             <OutlookActions headline={o.headline} bodyMd={o.body_md} theme={topic} editionDate={o.edition_date} />
           </div>
 
