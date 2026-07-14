@@ -94,3 +94,6 @@ Reader/API surface (ADR-R-0011 Column view) needs **no change** — same
 - **Guardrail to hold forever:** journalist names never reach the reader or the
   prose; they route method only. Any output that imitates a named journalist's
   cadence/phrasing is a bug.
+- **Fix 2026-07-12 (deployed):** the model backtick-wrapped `[n]` citations (the
+  prompt demonstrated them in backticks) → they rendered as code spans. Prompt now
+  says plain [n]; Reader linkify swallows stray backticks. See lessons-learned.

@@ -7,6 +7,27 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-07-12 — Backticks in an LLM prompt come back as code spans in the output
+
+**What happened**: Outlook column citations rendered as literal monospace
+`[2](/event/…)` instead of superscript links. The Editorial prompt instructed
+*"Cita los eventos como `[n]`"* — with the `[n]` in backticks for readability.
+The model faithfully copied the formatting and wrapped every citation in
+backticks (`[2]`), i.e. an inline **code span**. The Reader then linkified `[2]`
+→ `[2](/event/ID)` — but *inside* the code span, so markdown rendered it as
+literal code, URL and all.
+
+**Fix**: (1) Reader linkify regex swallows optional surrounding backticks
+(``/`?\[(\d{1,2})\]`?/g``) → clean link; fixes already-generated editions
+with no regeneration. (2) The prompt now says PLAIN [n], no backticks.
+
+**Lesson**: an LLM treats prompt formatting as a style example. Any markdown you
+put around a token in the instructions (backticks, bold, quotes) will show up
+around that token in the output. Describe the format in words; don't demonstrate
+it in a markup that has meaning downstream.
+
+---
+
 ## 2026-07-12 — Next dev's on-disk fetch cache survives restarts and serves days-old data
 
 **What happened**: While verifying the Outlook redesign on a dev server (prod
