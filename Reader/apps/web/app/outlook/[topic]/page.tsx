@@ -56,13 +56,17 @@ export default async function OutlookPage({
   const accent = themeAccent(topic);
   const others = available.topics.filter((t) => t.theme !== topic);
 
-  // The editorial's [n] citations arrive as PLAIN TEXT — linkify each against
-  // the timeline (same [n] order, per the /outlook contract) so a citation is
-  // a tappable superscript to the cited event, not an eye-matching exercise.
+  // The editorial's [n] citations → linkify each against the timeline (same [n]
+  // order, per the /outlook contract) so a citation is a tappable superscript.
+  // The LLM often wraps them in backticks (`[2]`), which would render as a code
+  // span (and any injected link stays literal) — so the regex SWALLOWS optional
+  // surrounding backticks and emits a clean markdown link (fixes ADR-0010's
+  // backtick-wrapped citations without regenerating; the prompt also stopped
+  // instructing backticks going forward).
   const bodyMd = o
-    ? o.body_md.replace(/\[(\d{1,2})\]/g, (m, n) => {
+    ? o.body_md.replace(/`?\[(\d{1,2})\]`?/g, (_m, n) => {
         const t = o.timeline[Number(n) - 1];
-        return t ? `[${n}](/event/${t.id})` : m;
+        return t ? `[${n}](/event/${t.id})` : `[${n}]`;
       })
     : "";
 

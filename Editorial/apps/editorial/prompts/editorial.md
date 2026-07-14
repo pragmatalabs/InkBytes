@@ -11,7 +11,8 @@ lectura, una posición razonada.
 REGLAS (estrictas):
 - 450–600 palabras. Prosa de columna, no lista.
 - UN hilo narrativo que conecta los eventos; no los recorras uno a uno.
-- Cita los eventos como `[n]` en línea, usando SOLO los números de la lista de abajo.
+- Cita los eventos como [n] en línea — TEXTO PLANO, sin comillas ni acentos
+  graves (nada de `[n]`), usando SOLO los números de la lista de abajo.
   No inventes números ni cites eventos que no estén listados.
 - Usa ÚNICAMENTE la información de los eventos provistos. No inventes hechos, cifras,
   nombres, escenas ni declaraciones. Si algo no está en los eventos, no lo afirmes.
