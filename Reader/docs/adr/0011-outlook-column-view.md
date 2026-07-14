@@ -2,6 +2,17 @@
 
 > *Status: v1 · **DEPLOYED + verified live 2026-07-12** · Owner: Julian · Date: 2026-07-12*
 
+> **Update 2026-07-12 (v2 — reading + save):** columns read too dense, so the
+> body is now long-form (`.outlook-prose`, scoped — event pages untouched): a
+> **serif** stack (ui-serif/Iowan/Palatino/Georgia) at 18.5–19.5px, 1.75+ leading,
+> ~1.55em paragraph gaps, drop cap in the theme accent, sans small-caps subheads,
+> accent pull-quote. Sans headline + serif body = a real column. Also **save to
+> localStorage** (`lib/saved-outlooks.ts`, profile later): a bookmark `OutlookSave`
+> button in the actions row + a `SavedOutlooks` rail atop `/outlook` (persona
+> cards + remove, self-hides when empty). Also fixed live: the LLM backtick-wrapped
+> `[n]` citations rendered as code — linkify now swallows backticks + the prompt
+> emits plain [n] (see lessons-learned 2026-07-12).
+
 ## Context
 
 The first Outlook surface (ADR-0008 / Outlook v1.1) shipped feature-complete but
