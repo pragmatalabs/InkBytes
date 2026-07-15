@@ -47,9 +47,16 @@ function flagOf(n: { type: EntityType; label: string }): string | null {
   return n.type === "PERSON" ? null : countryFlag(n.label);
 }
 
-/** The disc contents for an entity: flag emoji (countries) or type icon. */
+/** The disc contents for an entity: photo (people) > flag (countries) > type
+ *  icon. The Commons portrait fills the disc; on load error it falls back. */
 function EntityAvatar({ node, iconClass, flagClass }:
   { node: GraphNode; iconClass: string; flagClass: string }) {
+  const [imgOk, setImgOk] = useState(true);
+  if (node.image && imgOk) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={node.image} alt="" loading="lazy" onError={() => setImgOk(false)}
+      className="w-full h-full object-cover rounded-full" />;
+  }
   const flag = flagOf(node);
   if (flag) return <span className={flagClass} aria-hidden>{flag}</span>;
   return <TypeIcon type={node.type} className={iconClass} />;
@@ -143,18 +150,38 @@ function EntitySheet({
         <div className="sticky top-0 bg-white/95 backdrop-blur px-5 pt-2.5 pb-3 border-b border-[var(--border)]">
           <div className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-gray-300" aria-hidden />
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: meta.color }}>
-                <TypeIcon type={node.type} className="w-3 h-3" />
-                {meta.label}
+            <div className="flex items-start gap-3 min-w-0">
+              {/* photo (people) / flag (countries) / type glyph */}
+              <span className="grid place-items-center w-11 h-11 rounded-full shrink-0"
+                style={{ background: `${meta.color}18`, color: meta.color }}>
+                <EntityAvatar node={node} iconClass="w-5 h-5" flagClass="text-[22px] leading-none" />
               </span>
-              <h2 className="text-xl font-bold tracking-tight mt-0.5 truncate">{node.label}</h2>
+              <div className="min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: meta.color }}>
+                  {meta.label}
+                </span>
+                <h2 className="text-xl font-bold tracking-tight mt-0.5 truncate">{node.label}</h2>
+                {node.description && (
+                  <p className="text-[12.5px] text-[var(--ink-muted)] leading-snug mt-0.5 line-clamp-2">
+                    {node.description}
+                  </p>
+                )}
+              </div>
             </div>
             <button onClick={onClose} aria-label="Close details"
               className="shrink-0 grid place-items-center w-8 h-8 rounded-full bg-gray-100 text-[var(--ink-muted)] hover:text-[var(--ink)]">
               <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
           </div>
+          {node.image && node.image_attribution && (
+            <p className="text-[9.5px] text-[var(--ink-muted)] mt-2 truncate">
+              {node.image_source ? (
+                <a href={node.image_source} target="_blank" rel="noopener noreferrer nofollow" className="hover:underline">
+                  Photo: {node.image_attribution} · Wikimedia
+                </a>
+              ) : (<>Photo: {node.image_attribution} · Wikimedia</>)}
+            </p>
+          )}
         </div>
 
         <div className="px-5 py-4 flex flex-col gap-5 pb-8">

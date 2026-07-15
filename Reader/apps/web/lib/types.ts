@@ -110,6 +110,11 @@ export interface GraphNode {
   type: EntityType;
   event_count: number;
   pages: GraphPageRef[];
+  // Wikidata/Commons enrichment (people; ADR-0034 companion) — optional.
+  image?: string | null;              // license-clean Commons portrait (thumb)
+  description?: string | null;        // Wikidata one-liner (es|en)
+  image_attribution?: string | null;  // required for CC BY / BY-SA
+  image_source?: string | null;       // Commons file page
 }
 
 export interface GraphEdge {

@@ -59,6 +59,8 @@ class DatabaseService:
             "010_story_arcs.sql":       "story_arcs",
             # 022 creates push_subscriptions (PWA "Daily Outlook ready", ADR-R-0012).
             "022_push_subscriptions.sql": "push_subscriptions",
+            # 023 creates entity_media (per-entity Wikidata photo + description).
+            "023_entity_media.sql": "entity_media",
         }
         # boolean SQL guard for each ALTER-style migration: TRUE → already applied
         ALTER_GUARDS: dict[str, str] = {

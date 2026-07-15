@@ -933,6 +933,13 @@ def build_app(app: Application) -> FastAPI:
                            MIN(ee.name_orig)                                 AS label,
                            nc.type                                           AS type,
                            nc.event_count,
+                           -- Wikidata/Commons photo + description (ADR-0034
+                           -- companion); NULL until the entity-photo backfill
+                           -- resolves it. blocked rows are excluded by the join.
+                           em.thumb_url                                      AS image,
+                           em.description                                    AS description,
+                           em.attribution                                    AS image_attribution,
+                           em.source_url                                     AS image_source,
                            JSON_AGG(DISTINCT
                                JSONB_BUILD_OBJECT(
                                    'id',           ee.page_id,
@@ -943,7 +950,10 @@ def build_app(app: Application) -> FastAPI:
                            )                                                  AS pages
                       FROM node_cands nc
                       JOIN ev_ents    ee ON ee.name_key = nc.name_key
-                     GROUP BY nc.name_key, nc.event_count, nc.type
+                      LEFT JOIN entity_media em
+                             ON em.name_norm = nc.name_key AND em.blocked = FALSE
+                     GROUP BY nc.name_key, nc.event_count, nc.type,
+                              em.thumb_url, em.description, em.attribution, em.source_url
                 ),
                 -- Edges: entity pairs co-appearing in the same event
                 edges_agg AS (
