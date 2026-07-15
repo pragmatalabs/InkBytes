@@ -29,13 +29,29 @@ logger = logging.getLogger(__name__)
 _HUMAN_QID = "Q5"
 
 
+class WikidataBusy(Exception):
+    """Transient throttle/outage (429/5xx). The caller should retry/skip — NOT
+    cache a negative, or a rate-limit would poison the cache as 'no photo'."""
+    def __init__(self, retry_after: float = 2.0) -> None:
+        super().__init__("wikidata busy")
+        self.retry_after = retry_after
+
+
+async def _get_json(client: httpx.AsyncClient, url: str, params: dict) -> dict:
+    r = await client.get(url, params=params)
+    if r.status_code == 429 or r.status_code >= 500:
+        ra = r.headers.get("Retry-After")
+        raise WikidataBusy(float(ra) if (ra and ra.isdigit()) else 2.0)
+    return r.json() or {}
+
+
 async def resolve_person(name: str, client: httpx.AsyncClient,
                          context: str = "") -> dict[str, Any] | None:
+    """A transient throttle raises WikidataBusy; a genuine miss returns None."""
     try:
-        r = await client.get(_WIKIDATA, params={
+        hits = (await _get_json(client, _WIKIDATA, {
             "action": "wbsearchentities", "search": name, "language": "en",
-            "format": "json", "limit": "7"})
-        hits = (r.json() or {}).get("search") or []
+            "format": "json", "limit": "7"})).get("search") or []
         if not hits:
             return None
 
@@ -53,10 +69,10 @@ async def resolve_person(name: str, client: httpx.AsyncClient,
         # Try the best few candidates until one is a HUMAN with a P18 image.
         for i in order[:4]:
             qid = hits[i]["id"]
-            r = await client.get(_WIKIDATA, params={
+            ent = (((await _get_json(client, _WIKIDATA, {
                 "action": "wbgetentities", "ids": qid,
-                "props": "claims|descriptions", "languages": "es|en", "format": "json"})
-            ent = (((r.json() or {}).get("entities") or {}).get(qid) or {})
+                "props": "claims|descriptions", "languages": "es|en", "format": "json"}))
+                .get("entities") or {}).get(qid) or {})
             claims = ent.get("claims") or {}
 
             # human filter — P31 must include Q5
@@ -72,10 +88,10 @@ async def resolve_person(name: str, client: httpx.AsyncClient,
                 continue
             fname = p18[0]["mainsnak"]["datavalue"]["value"]
 
-            r = await client.get(_COMMONS, params={
+            cj = await _get_json(client, _COMMONS, {
                 "action": "query", "titles": f"File:{fname}", "prop": "imageinfo",
                 "iiprop": "url|extmetadata", "iiurlwidth": "400", "format": "json"})
-            pages = ((r.json() or {}).get("query") or {}).get("pages") or {}
+            pages = (cj.get("query") or {}).get("pages") or {}
             info = ((next(iter(pages.values()), {}) or {}).get("imageinfo") or [{}])[0]
             gate = _license_gate(info.get("extmetadata") or {})
             if not gate:
@@ -100,6 +116,8 @@ async def resolve_person(name: str, client: httpx.AsyncClient,
                 "description": description,
             }
         return None
-    except Exception as exc:  # noqa: BLE001 — resolution must fail soft
+    except WikidataBusy:
+        raise  # transient — caller retries/skips, never caches a negative
+    except Exception as exc:  # noqa: BLE001 — a genuine error fails soft (real miss)
         logger.warning("entity photo: Wikidata failed for %r: %s", name, exc)
         return None

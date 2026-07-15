@@ -21,7 +21,26 @@ import os
 import asyncpg
 import httpx
 
-from services.entity_photo import resolve_person
+from services.entity_photo import WikidataBusy, resolve_person
+
+# Wikimedia asks for a descriptive UA with contact; anonymous generic UAs are
+# throttled hard (the 429 storm that poisoned the first run's cache).
+_UA = "InkBytesBot/1.0 (https://inkbytes.org; contact hello@inkbytes.org) httpx"
+
+
+async def resolve_with_retry(name, client, context):
+    """resolve_person + backoff on WikidataBusy. Returns ('photo', dict),
+    ('miss', None) for a genuine no-photo, or ('skip', None) when throttled out
+    (so the caller does NOT cache a negative)."""
+    delay = 2.0
+    for attempt in range(4):
+        try:
+            r = await resolve_person(name, client, context=context)
+            return ("photo", r) if r else ("miss", None)
+        except WikidataBusy as e:
+            await asyncio.sleep(max(e.retry_after, delay))
+            delay *= 2
+    return ("skip", None)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("backfill_entity_photos")
@@ -64,7 +83,7 @@ async def main() -> None:
     ap.add_argument("--min-events", type=int, default=2)
     ap.add_argument("--apply", action="store_true", help="write (default dry-run)")
     ap.add_argument("--overwrite", action="store_true", help="re-resolve cached names")
-    ap.add_argument("--sleep", type=float, default=0.4, help="seconds between people")
+    ap.add_argument("--sleep", type=float, default=1.2, help="seconds between people (anon Wikidata is rate-limited)")
     args = ap.parse_args()
 
     dsn = os.environ["DATABASE_URL"]
@@ -80,14 +99,19 @@ async def main() -> None:
     log.info("people: %d candidates, %d to resolve (%d already cached)",
              len(people), len(todo), len(people) - len(todo))
 
-    hits = misses = 0
-    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": "InkBytes/1.0 (entity photos)"}) as client:
+    hits = misses = skips = 0
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": _UA}) as client:
         for p in todo:
             name, label, context = p["name_key"], p["label"], (p["context"] or "")
-            photo = await resolve_person(label, client, context=context)
-            if photo:
+            kind, photo = await resolve_with_retry(label, client, context)
+            if kind == "photo":
                 hits += 1
                 log.info("  ✓ %s → %s (%s)", label, photo["wikidata_qid"], photo["license"])
+            elif kind == "skip":
+                skips += 1
+                log.info("  ~ %s → throttled, skipped (not cached)", label)
+                await asyncio.sleep(args.sleep)
+                continue  # don't write — a transient throttle must not cache a negative
             else:
                 misses += 1
                 log.info("  · %s → no license-clean human photo", label)
@@ -115,7 +139,7 @@ async def main() -> None:
             await asyncio.sleep(args.sleep)
 
     await pool.close()
-    log.info("done: %d photos, %d misses%s", hits, misses,
+    log.info("done: %d photos, %d misses, %d skipped(throttled)%s", hits, misses, skips,
              "" if args.apply else "  (DRY-RUN — re-run with --apply to write)")
 
 
