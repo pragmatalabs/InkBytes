@@ -7,6 +7,24 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-07-12 — A Pydantic body model must be module-level, or FastAPI treats it as a query param
+
+**What happened**: `POST /push/subscribe` always returned `422 {"loc":["query","body"],
+"msg":"Field required"}` — FastAPI wanted `body` as a **query** parameter, not
+the request body. The handler was `async def push_subscribe(body: PushSubBody)`
+with a valid JSON body.
+
+**Root cause**: `PushSubBody` (a Pydantic `BaseModel`) was defined **inside**
+`build_app()`. FastAPI's body-vs-query detection doesn't recognise a
+locally-scoped model as a body model, so it demoted the param to a scalar query
+field. Moving the class to module scope fixed it immediately.
+
+**Lesson**: define FastAPI request/response Pydantic models at **module level**.
+Nesting them inside the route-registration function silently breaks body
+parsing (no import error, no startup warning — just a 422 at request time).
+
+---
+
 ## 2026-07-12 — Backticks in an LLM prompt come back as code spans in the output
 
 **What happened**: Outlook column citations rendered as literal monospace
