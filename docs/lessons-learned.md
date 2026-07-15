@@ -7,6 +7,30 @@ costs real debugging time. Newest first.
 
 ---
 
+## 2026-07-12 — A rate-limit (429) must not be cached as a negative result
+
+**What happened**: The first entity-photo backfill hammered the anonymous
+Wikidata API (0.3s between people × ~3 sub-calls each) and got **429 Too Many
+Requests** almost immediately. The 429 body isn't JSON, so `r.json()` threw,
+the resolver's broad `except` returned None, and the backfill cached that None
+as `blocked=TRUE` — poisoning 118 real people as "no photo". Only 2 resolved.
+
+**Fix**: distinguish **transient** (429/5xx → raise `WikidataBusy`) from a
+**genuine miss** (no hit / no human / no image → return None). The backfill
+retries `WikidataBusy` with backoff (honoring `Retry-After`) and, if exhausted,
+**skips without writing** — only a genuine miss is cached. Plus a descriptive
+Wikimedia User-Agent (with contact, per their policy) and a slower pace (1.2s).
+Re-run after clearing the false-blocked rows: 87 photos, 0 throttled.
+
+**Lesson**: when caching the result of a remote lookup, a transient failure and
+a definitive "not found" are different outcomes. Cache only the definitive one;
+retry/skip the transient. Caching a 429 as "absent" is a silent, sticky bug —
+the entity looks permanently photo-less until someone forces a re-resolve. Also:
+give third-party APIs a real, contactable User-Agent — anonymous generic UAs get
+throttled hardest.
+
+---
+
 ## 2026-07-12 — A Pydantic body model must be module-level, or FastAPI treats it as a query param
 
 **What happened**: `POST /push/subscribe` always returned `422 {"loc":["query","body"],
