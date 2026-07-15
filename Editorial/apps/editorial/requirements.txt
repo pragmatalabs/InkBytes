@@ -3,3 +3,7 @@ pydantic>=2.6
 PyYAML>=6.0
 openai>=1.30
 anthropic>=0.40
+# Self-hosted TTS (ADR-0011): Piper (CPU neural TTS) + boto3 for Spaces upload.
+# ffmpeg is a system package (see Dockerfile), not pip.
+piper-tts>=1.2
+boto3>=1.34

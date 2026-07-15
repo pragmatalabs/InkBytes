@@ -38,10 +38,39 @@ class EditorialCfg(BaseModel):
     persona_dir: str = "prompts"
 
 
+class TtsCfg(BaseModel):
+    """Self-hosted Piper text-to-speech (ADR-0011). $0/char — the same local-first
+    call as bge-m3 (Curator ADR-0003), no external voice vendor. A single voice per
+    language ("the InkBytes narrator"), synthesized ONCE per column and cached in
+    Spaces. Best-effort: a TTS/upload failure never blocks the text batch."""
+    enabled: bool = True
+    voices: dict[str, str] = {                 # language → Piper voice model id
+        "en": "en_US-ryan-high",
+        "es": "es_MX-ald-medium",
+    }
+    models_dir: str = "/models"                # baked into the image (Dockerfile)
+    bitrate: str = "64k"                        # mono speech; small files
+    key_prefix: str = "audio/outlook"          # Spaces key: {prefix}/{date}/{theme}-{lang}.mp3
+
+
+class SpacesCfg(BaseModel):
+    """DigitalOcean Spaces (S3) — where the MP3s live, public-read. Reuses the same
+    DO_SPACES_* env the Curator container already carries. Dormant (uploads skipped)
+    if key/secret are blank — TTS then no-ops rather than failing the batch."""
+    endpoint: str = "https://nyc3.digitaloceanspaces.com"
+    region: str = "nyc3"
+    bucket: str = "inkbytes-prod"
+    key: str = ""
+    secret: str = ""
+    public_base: str = ""   # optional CDN base; blank → {endpoint}/{bucket}
+
+
 class Config(BaseModel):
     database: DbCfg
     llm: LlmCfg = LlmCfg()
     editorial: EditorialCfg = EditorialCfg()
+    tts: TtsCfg = TtsCfg()
+    spaces: SpacesCfg = SpacesCfg()
 
     @classmethod
     def load(cls, path: str) -> "Config":
@@ -73,5 +102,36 @@ class Config(BaseModel):
                 llm["api_key"] = k
             elif prov == "anthropic" and (k := os.getenv("ANTHROPIC_API_KEY")):
                 llm["api_key"] = k
+
+        # ── TTS overlay (self-hosted Piper) ──
+        # Only write keys that actually have overrides — injecting an empty dict
+        # (e.g. voices={}) would OVERRIDE the pydantic model default, not merge.
+        tts = raw.setdefault("tts", {})
+        if (v := os.getenv("EDITORIAL_TTS_ENABLED")) is not None:
+            tts["enabled"] = v.strip().lower() not in ("0", "false", "no", "")
+        env_en = os.getenv("EDITORIAL_TTS_VOICE_EN")
+        env_es = os.getenv("EDITORIAL_TTS_VOICE_ES")
+        if env_en or env_es:
+            voices = dict(tts.get("voices") or {})   # merge onto YAML/default, don't clobber
+            if env_en:
+                voices["en"] = env_en
+            if env_es:
+                voices["es"] = env_es
+            tts["voices"] = voices
+        if v := os.getenv("EDITORIAL_TTS_MODELS_DIR"):
+            tts["models_dir"] = v
+
+        # ── Spaces overlay (reuses the shared DO_SPACES_* env) ──
+        spaces = raw.setdefault("spaces", {})
+        for env, key in (
+            ("DO_SPACES_ENDPOINT", "endpoint"),
+            ("DO_SPACES_REGION", "region"),
+            ("DO_SPACES_BUCKET", "bucket"),
+            ("DO_SPACES_KEY", "key"),
+            ("DO_SPACES_SECRET", "secret"),
+            ("DO_SPACES_PUBLIC_BASE", "public_base"),
+        ):
+            if v := os.getenv(env):
+                spaces[key] = v
 
         return cls(**raw)

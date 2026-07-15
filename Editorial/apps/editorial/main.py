@@ -3,6 +3,7 @@
   python main.py --config env.yaml --generate                 # all themes, today
   python main.py --config env.yaml --generate --theme politics --dry-run
   python main.py --config env.yaml --generate --date 2026-06-28 --lang es
+  python main.py --config env.yaml --synthesize-missing        # backfill audio only
 """
 from __future__ import annotations
 
@@ -20,6 +21,10 @@ def main() -> None:
     ap.add_argument("--config", default="env.yaml")
     ap.add_argument("--generate", action="store_true",
                     help="Generate editorials (default: every theme for the date)")
+    ap.add_argument("--synthesize-missing", action="store_true",
+                    help="Backfill TTS audio for editorials that have none yet (ADR-0011)")
+    ap.add_argument("--audio-limit", type=int, default=500,
+                    help="Max editorials to backfill with --synthesize-missing")
     ap.add_argument("--theme", default=None, help="Limit to one theme")
     ap.add_argument("--lang", default=None, help="Limit to one language (else config.languages)")
     ap.add_argument("--date", default=None, help="Edition date YYYY-MM-DD (default: today)")
@@ -41,8 +46,11 @@ def main() -> None:
         app = Application(cfg)
         await app.start()
         try:
+            if args.synthesize_missing:
+                await app.synthesize_missing(args.audio_limit)
+                return
             if not args.generate:
-                print("nothing to do — pass --generate")
+                print("nothing to do — pass --generate or --synthesize-missing")
                 return
             if args.theme:
                 for lang in cfg.editorial.languages:

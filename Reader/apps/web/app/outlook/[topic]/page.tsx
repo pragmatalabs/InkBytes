@@ -4,6 +4,7 @@ import { getOutlook, getOutlookAvailable, relativeTime } from "@/lib/api";
 import type { Outlook, OutlookTopic } from "@/lib/types";
 import { NewsMarkdown } from "@/components/news-markdown";
 import OutlookActions from "@/components/outlook-actions";
+import OutlookAudio from "@/components/outlook-audio";
 import OutlookSave from "@/components/outlook-save";
 import { themeAccent } from "@/lib/theme-colors";
 import { PersonaIcon } from "@/components/persona-icons";
@@ -136,6 +137,13 @@ export default async function OutlookPage({
               style={{ textWrap: "balance" } as React.CSSProperties}>
             {o.headline}
           </h1>
+
+          {/* ── Listen — spoken-word column (self-hosted TTS, ADR-0011) ──── */}
+          {o.audio_url && (
+            <div className="mb-7 max-w-[64ch]">
+              <OutlookAudio src={o.audio_url} lang={lang} accent={accent} />
+            </div>
+          )}
 
           {/* ── Column body — 65ch measure, superscript citations ───────── */}
           <article

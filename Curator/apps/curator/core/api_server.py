@@ -611,9 +611,15 @@ def build_app(app: Application) -> FastAPI:
         async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
             if not await conn.fetchval("SELECT to_regclass('public.editorials')"):
                 return {}
+            # audio_url is added by the Editorial service's migration 002 (ADR-0011).
+            # Guard so a Curator deploy that lands before that migration can't 500.
+            has_audio = await conn.fetchval(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema='public' "
+                "AND table_name='editorials' AND column_name='audio_url'")
+            audio_sel = ", audio_url" if has_audio else ", NULL AS audio_url"
             ed = await conn.fetchrow(
                 "SELECT theme, language, edition_date, persona, headline, body_md, "
-                "       event_ids, model "
+                "       event_ids, model" + audio_sel + " "
                 "  FROM editorials WHERE theme=$1 AND language=$2 "
                 + ("AND edition_date=$3 " if d3 else "")
                 + "ORDER BY edition_date DESC LIMIT 1",
@@ -632,6 +638,7 @@ def build_app(app: Application) -> FastAPI:
             "theme": ed["theme"], "language": ed["language"],
             "edition_date": str(ed["edition_date"]), "persona": ed["persona"],
             "headline": ed["headline"], "body_md": ed["body_md"], "model": ed["model"],
+            "audio_url": ed["audio_url"],
             "timeline": [{"id": r["id"], "headline": r["headline"],
                           "freshness_at": r["freshness_at"], "source_count": r["source_count"]}
                          for r in tl],

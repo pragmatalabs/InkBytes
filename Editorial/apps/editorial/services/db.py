@@ -83,3 +83,27 @@ class Database:
                 """,
                 ed_id, theme, language, edition_date, persona, headline, body_md,
                 event_ids, model, json.dumps(input_context), prompt)
+
+    async def set_editorial_audio(self, *, theme: str, language: str, edition_date,
+                                  audio_url: str, audio_voice: str) -> None:
+        """Persist the synthesized MP3 URL + provenance for one editorial (ADR-0009)."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE editorials SET audio_url=$4, audio_voice=$5, "
+                "       audio_generated_at=NOW() "
+                " WHERE theme=$1 AND language=$2 AND edition_date=$3",
+                theme, language, edition_date, audio_url, audio_voice)
+
+    async def fetch_editorials_missing_audio(
+        self, limit: int, languages: list[str] | None = None) -> list[dict[str, Any]]:
+        """Editorials with no audio yet (newest first) — the `--synthesize-missing`
+        backfill target. Optionally scope to certain languages."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                "SELECT theme, language, edition_date, headline, body_md "
+                "  FROM editorials "
+                " WHERE audio_url IS NULL "
+                + ("AND language = ANY($2::text[]) " if languages else "")
+                + "ORDER BY edition_date DESC, theme ASC LIMIT $1",
+                *((limit, languages) if languages else (limit,)))
+        return [dict(r) for r in rows]

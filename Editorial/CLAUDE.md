@@ -19,18 +19,32 @@ continuous; different LLM needs; opinion vs neutral synthesis). See
 ```
 Editorial/apps/editorial/
   main.py                 ← CLI: --generate [--theme X] [--lang es] [--date Y] [--dry-run]
-  core/config.py          ← YAML + env overlay (provider-pluggable LLM)
-  core/application.py     ← orchestrator: gather → gate → render persona → LLM → store
+                             | --synthesize-missing [--audio-limit N]  (backfill TTS)
+  core/config.py          ← YAML + env overlay (provider-pluggable LLM; TTS; Spaces)
+  core/application.py     ← orchestrator: gather → gate → render persona → LLM → store → speak
   services/db.py          ← asyncpg; reads pages/events, writes editorials, applies migration
   services/llm.py         ← ollama|deepseek → OpenAI-compatible; anthropic → native
+  services/tts.py         ← ADR-0011: Piper (CPU) → ffmpeg → MP3; markdown→speakable
+  services/storage.py     ← ADR-0011: boto3 → DO Spaces (public-read), returns public URL
   personas.py             ← theme → (key, reader display name, mission)
   prompts/editorial.md    ← persona prompt template (interim single-voice)
   prompts/personas-spec.md ← ADR-0010 method-persona ROSTERS (150; 10/column;
                              method NOT identity — journalist names are internal
                              routing refs, never shown to readers or imitated)
-  db/migrations/001_editorials.sql
-  env.example.yaml · requirements.txt
+  db/migrations/001_editorials.sql · 002_editorial_audio.sql (audio_url etc.)
+  env.example.yaml · requirements.txt · Dockerfile (bakes ffmpeg + Piper voices)
 ```
+
+## Audio — self-hosted TTS (ADR-0011)
+
+Each column is voiced **once** in EN + ES by **Piper** (CPU neural TTS, $0/char —
+the local-first call, like bge-m3), stored public-read in DO Spaces, URL on
+`editorials.audio_url`; the Reader `/outlook` page plays it. Best-effort: a TTS or
+upload failure never blocks the text batch. Voices baked into the image:
+`en_US-ryan-high` + `es_MX-ald-medium` (override via `EDITORIAL_TTS_VOICE_EN/_ES`).
+`--synthesize-missing` backfills rows written before TTS existed.
+⚠️ The `piper-tts` **macOS** wheel can't synthesize (broken espeak-data path) —
+build/run the Linux image (works on amd64 + arm64) to test locally.
 
 ## Run
 ```bash

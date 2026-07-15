@@ -186,6 +186,8 @@ export interface Outlook {
   headline: string;
   body_md: string;
   model: string;
+  /** Spoken-word MP3 (self-hosted Piper TTS, ADR-0011); null until synthesized. */
+  audio_url: string | null;
   timeline: OutlookTimelineItem[];
   available_dates: string[];
 }

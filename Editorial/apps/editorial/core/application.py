@@ -7,6 +7,7 @@ generation provenance (the Phase-2 SLM training pair).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import uuid
@@ -17,6 +18,8 @@ from core.config import Config
 from personas import PERSONAS, MethodPersona, global_policy, persona_for, roster_for
 from services.db import Database
 from services.llm import Llm
+from services.storage import SpacesStorage
+from services.tts import Tts, to_speakable
 
 logger = logging.getLogger(__name__)
 _APP_DIR = Path(__file__).resolve().parent.parent
@@ -32,6 +35,8 @@ class Application:
         self.cfg = cfg
         self.db = Database(cfg.database)
         self.llm = Llm(cfg.llm)
+        self.tts = Tts(cfg.tts)
+        self.storage = SpacesStorage(cfg.spaces)
         self._template = (_APP_DIR / cfg.editorial.persona_dir / "editorial.md").read_text("utf-8")
 
     async def start(self) -> None:
@@ -125,7 +130,37 @@ class Application:
             prompt=prompt)
         logger.info("EDITORIAL %s/%s [%s] %d events -> %r",
                     theme, language, self.llm.label, len(events), headline)
+        # Voice, generated once (ADR-0011). Best-effort — a TTS/upload failure
+        # must never undo a written column.
+        await self._synthesize_audio(theme, language, edition_date, headline, body)
         return headline
+
+    async def _synthesize_audio(self, theme: str, language: str, edition_date,
+                                headline: str, body_md: str) -> bool:
+        """Piper → MP3 → Spaces → editorials.audio_url (ADR-0011). Returns True on
+        success. Silently skips when TTS is disabled/unavailable or Spaces isn't
+        configured; swallows and logs any error (best-effort, never blocks a batch)."""
+        if not self.tts.available(language):
+            return False
+        if not self.storage.configured:
+            logger.info("audio skip %s/%s — Spaces not configured", theme, language)
+            return False
+        try:
+            text = to_speakable(headline, body_md)
+            voice = self.tts.voice_id(language) or "unknown"
+            # Piper + ffmpeg are blocking subprocesses — keep them off the loop.
+            mp3 = await asyncio.to_thread(self.tts.synthesize, text, language)
+            key = f"{self.cfg.tts.key_prefix}/{edition_date}/{theme}-{language}.mp3"
+            url = await asyncio.to_thread(self.storage.upload_bytes, mp3, key)
+            await self.db.set_editorial_audio(
+                theme=theme, language=language, edition_date=edition_date,
+                audio_url=url, audio_voice=f"piper/{voice}")
+            logger.info("AUDIO %s/%s [%s] %d KB -> %s",
+                        theme, language, voice, len(mp3) // 1024, url)
+            return True
+        except Exception as e:  # noqa: BLE001 — audio is best-effort
+            logger.warning("audio synth failed for %s/%s: %s", theme, language, e)
+            return False
 
     async def generate_all(self, edition_date: date_cls, dry_run: bool = False) -> int:
         n = 0
@@ -137,6 +172,25 @@ class Application:
         if n > 0 and not dry_run:
             await self._notify_outlook_ready()
         return n
+
+    async def synthesize_missing(self, limit: int = 500) -> int:
+        """Backfill audio for existing editorials that have none yet (ADR-0011) —
+        idempotent, so it's the 'generate once' guarantee for rows written before
+        TTS existed. Returns the count synthesized."""
+        if not (self.cfg.tts.enabled and self.storage.configured):
+            logger.info("synthesize-missing: TTS disabled or Spaces not configured — nothing to do")
+            return 0
+        langs = self.cfg.editorial.languages
+        rows = await self.db.fetch_editorials_missing_audio(limit, langs)
+        logger.info("synthesize-missing: %d editorial(s) without audio", len(rows))
+        done = 0
+        for r in rows:
+            if await self._synthesize_audio(
+                    r["theme"], r["language"], r["edition_date"],
+                    r["headline"], r["body_md"]):
+                done += 1
+        logger.info("synthesize-missing done: %d/%d synthesized", done, len(rows))
+        return done
 
     @staticmethod
     async def _notify_outlook_ready() -> None:
