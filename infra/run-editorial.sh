@@ -20,7 +20,17 @@ set -a; source "$SCRIPT_DIR/.env"; set +a
 NETWORK="${EDITORIAL_NETWORK:-inkbytes_inkbytes-internal}"
 DBURL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}"
 
+# ── Resource cap (ADR-0011) ──────────────────────────────────────────────────
+# Piper/onnxruntime grabs every core by default, and TTS runs on the SHARED prod
+# droplet next to the live stack. Hard-cap CPU + threads so a batch (or a big
+# --synthesize-missing backfill) can never starve the site. Defaults leave ≥2 of
+# 4 cores free; override via EDITORIAL_CPUS / EDITORIAL_OMP_THREADS in infra/.env.
+CPUS="${EDITORIAL_CPUS:-1.5}"
+OMP="${EDITORIAL_OMP_THREADS:-2}"
+
 exec docker run --rm --network "$NETWORK" \
+  --cpus="$CPUS" --memory="${EDITORIAL_MEMORY:-1200m}" \
+  -e OMP_NUM_THREADS="$OMP" \
   -e DATABASE_URL="$DBURL" \
   -e EDITORIAL_LLM_PROVIDER="${EDITORIAL_LLM_PROVIDER:-deepseek}" \
   -e EDITORIAL_LLM_BASE_URL="${EDITORIAL_LLM_BASE_URL:-https://api.deepseek.com/v1}" \
