@@ -19,6 +19,20 @@ from pydantic import BaseModel, Field
 from core.application import Application
 from services import push_service
 
+
+# Request bodies for the push endpoints. MUST be module-level: a Pydantic model
+# defined inside build_app() is not detected by FastAPI as a body model — it
+# falls back to treating the param as a query field (422 "body required").
+class PushSubBody(BaseModel):
+    subscription: dict[str, Any]           # { endpoint, keys: { p256dh, auth } }
+    topics: list[str] = ["outlook-daily"]
+    lang: str = "es"
+    userAgent: str | None = None
+
+
+class PushUnsubBody(BaseModel):
+    endpoint: str
+
 logger = logging.getLogger(__name__)
 
 # ── Query parameter caps (ADR-0006 §D1) ─────────────────────────────────────
@@ -657,15 +671,6 @@ def build_app(app: Application) -> FastAPI:
                              for r in rows]}
 
     # ── Web Push: "Daily Outlook ready" PWA notifications (ADR-R-0012) ────────
-    class PushSubBody(BaseModel):
-        subscription: dict[str, Any]           # { endpoint, keys: { p256dh, auth } }
-        topics: list[str] = ["outlook-daily"]
-        lang: str = "es"
-        userAgent: str | None = None
-
-    class PushUnsubBody(BaseModel):
-        endpoint: str
-
     @api.get("/push/vapid")
     async def push_vapid() -> dict[str, str]:
         """The VAPID public key (applicationServerKey) for the browser to subscribe."""
