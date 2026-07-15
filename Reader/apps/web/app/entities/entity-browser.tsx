@@ -17,6 +17,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { relativeTime } from "@/lib/api";
+import { countryFlag } from "@/lib/country-flags";
 import type { GraphData, GraphNode, EntityType } from "@/lib/types";
 import { TYPE_META, TYPE_ORDER } from "./type-meta";
 
@@ -36,6 +37,22 @@ function TypeIcon({ type, className }: { type: EntityType; className?: string })
     default:
       return (<svg {...common}><path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>);
   }
+}
+
+// ── Entity avatar: country flag for a country, else the type glyph ───────────
+// A country (a LOC whose label resolves to an ISO code) shows its flag emoji;
+// everything else keeps the accent type icon. (Person photos are the parked
+// Wikidata phase — see ADR-R-0010.) `flagOf` returns the emoji or null.
+function flagOf(n: { type: EntityType; label: string }): string | null {
+  return n.type === "PERSON" ? null : countryFlag(n.label);
+}
+
+/** The disc contents for an entity: flag emoji (countries) or type icon. */
+function EntityAvatar({ node, iconClass, flagClass }:
+  { node: GraphNode; iconClass: string; flagClass: string }) {
+  const flag = flagOf(node);
+  if (flag) return <span className={flagClass} aria-hidden>{flag}</span>;
+  return <TypeIcon type={node.type} className={iconClass} />;
 }
 
 // ── Static radial relationship preview (no physics) ─────────────────────────
@@ -291,7 +308,7 @@ export default function EntityBrowser({
         className="flex items-center gap-3 w-full py-3 border-b border-[var(--border)] last:border-0 text-left">
         <span className="grid place-items-center w-8 h-8 rounded-full shrink-0"
           style={{ background: `${meta.color}18`, color: meta.color }}>
-          <TypeIcon type={n.type} className="w-4 h-4" />
+          <EntityAvatar node={n} iconClass="w-4 h-4" flagClass="text-[15px] leading-none" />
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-semibold truncate">{n.label}</span>
@@ -379,7 +396,7 @@ export default function EntityBrowser({
                     className="snap-start shrink-0 w-[150px] rounded-xl border border-[var(--border)] bg-white p-3 text-left hover:shadow-sm transition-shadow">
                     <span className="grid place-items-center w-9 h-9 rounded-full mb-2"
                       style={{ background: `${meta.color}18`, color: meta.color }}>
-                      <TypeIcon type={n.type} className="w-4.5 h-4.5" />
+                      <EntityAvatar node={n} iconClass="w-4.5 h-4.5" flagClass="text-[18px] leading-none" />
                     </span>
                     <span className="block text-[13px] font-bold leading-snug line-clamp-2 min-h-[2.4em]">{n.label}</span>
                     <span className="mt-1.5 inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full"
