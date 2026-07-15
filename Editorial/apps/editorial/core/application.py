@@ -134,4 +134,29 @@ class Application:
                 if await self.generate_theme(theme, language, edition_date, dry_run):
                     n += 1
         logger.info("EDITORIAL batch done: %d columns for %s", n, edition_date)
+        if n > 0 and not dry_run:
+            await self._notify_outlook_ready()
         return n
+
+    @staticmethod
+    async def _notify_outlook_ready() -> None:
+        """Ping Curator's daily push broadcast (ADR-R-0012) after a real batch.
+        Best-effort + token-guarded; a failure never affects generation. Env:
+        CURATOR_INTERNAL_URL (default the internal API host) + PUSH_TRIGGER_SECRET."""
+        import os
+        import urllib.request
+
+        secret = os.getenv("PUSH_TRIGGER_SECRET", "")
+        if not secret:
+            logger.info("push trigger skipped — PUSH_TRIGGER_SECRET not set")
+            return
+        base = os.getenv("CURATOR_INTERNAL_URL", "http://inkbytes-curator-api:8060")
+        try:
+            req = urllib.request.Request(
+                f"{base}/push/broadcast-outlook", method="POST",
+                headers={"X-Push-Token": secret, "Content-Length": "0"})
+            import asyncio
+            await asyncio.to_thread(lambda: urllib.request.urlopen(req, timeout=10).read())
+            logger.info("push broadcast triggered")
+        except Exception as e:  # noqa: BLE001 — never let push break the batch
+            logger.warning("push broadcast trigger failed: %s", e)

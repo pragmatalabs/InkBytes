@@ -10,11 +10,14 @@ import json as _json
 import logging
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Response
+import os
+
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from core.application import Application
+from services import push_service
 
 logger = logging.getLogger(__name__)
 
@@ -652,6 +655,90 @@ def build_app(app: Application) -> FastAPI:
         return {"editions": [{"edition_date": str(r["edition_date"]), "theme": r["theme"],
                               "headline": r["headline"], "persona": r["persona"]}
                              for r in rows]}
+
+    # ── Web Push: "Daily Outlook ready" PWA notifications (ADR-R-0012) ────────
+    class PushSubBody(BaseModel):
+        subscription: dict[str, Any]           # { endpoint, keys: { p256dh, auth } }
+        topics: list[str] = ["outlook-daily"]
+        lang: str = "es"
+        userAgent: str | None = None
+
+    class PushUnsubBody(BaseModel):
+        endpoint: str
+
+    @api.get("/push/vapid")
+    async def push_vapid() -> dict[str, str]:
+        """The VAPID public key (applicationServerKey) for the browser to subscribe."""
+        return {"publicKey": push_service.vapid_public_key()}
+
+    @api.post("/push/subscribe")
+    async def push_subscribe(body: PushSubBody) -> dict[str, Any]:
+        sub = body.subscription or {}
+        keys = sub.get("keys") or {}
+        endpoint = sub.get("endpoint")
+        if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
+            raise HTTPException(422, "invalid subscription")
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                """
+                INSERT INTO push_subscriptions (endpoint, p256dh, auth, topics, lang, user_agent)
+                VALUES ($1,$2,$3,$4,$5,$6)
+                ON CONFLICT (endpoint) DO UPDATE
+                  SET p256dh=EXCLUDED.p256dh, auth=EXCLUDED.auth,
+                      topics=EXCLUDED.topics, lang=EXCLUDED.lang,
+                      user_agent=EXCLUDED.user_agent
+                """,
+                endpoint, keys["p256dh"], keys["auth"],
+                body.topics or ["outlook-daily"], body.lang, body.userAgent)
+        return {"ok": True}
+
+    @api.post("/push/unsubscribe")
+    async def push_unsubscribe(body: PushUnsubBody) -> dict[str, Any]:
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute("DELETE FROM push_subscriptions WHERE endpoint=$1", body.endpoint)
+        return {"ok": True}
+
+    async def _broadcast_outlook() -> None:
+        """Fan out the daily notification to every 'outlook-daily' subscriber,
+        pruning dead subscriptions (404/410). Runs off the request (background)."""
+        import asyncio
+        if not push_service.push_enabled():
+            logger.warning("push broadcast skipped — VAPID keys not configured")
+            return
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            subs = await conn.fetch(
+                "SELECT endpoint, p256dh, auth, lang FROM push_subscriptions "
+                "WHERE 'outlook-daily' = ANY(topics)")
+        payload_es = {"title": "Los Outlooks de hoy están listos",
+                      "body": "Una columna editorial por tema, recién publicada.",
+                      "url": "/outlook", "tag": "outlook-daily"}
+        payload_en = {"title": "Today's Outlooks are ready",
+                      "body": "A fresh editorial column for every topic.",
+                      "url": "/outlook", "tag": "outlook-daily"}
+        sent = dead = 0
+        for s in subs:
+            payload = payload_en if s["lang"] == "en" else payload_es
+            status = await asyncio.to_thread(push_service.send_one, dict(s), payload)
+            if status in (404, 410):
+                dead += 1
+                async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+                    await conn.execute("DELETE FROM push_subscriptions WHERE endpoint=$1", s["endpoint"])
+            elif status:
+                sent += 1
+        logger.info("push broadcast: %d sent, %d pruned, %d total", sent, dead, len(subs))
+
+    @api.post("/push/broadcast-outlook")
+    async def push_broadcast_outlook(
+        background: BackgroundTasks,
+        x_push_token: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Trigger the daily broadcast (called by the Editorial cron after it
+        generates the columns). Token-guarded so it isn't publicly abusable."""
+        secret = os.getenv("PUSH_TRIGGER_SECRET", "")
+        if not secret or x_push_token != secret:
+            raise HTTPException(403, "forbidden")
+        background.add_task(_broadcast_outlook)
+        return {"ok": True, "queued": True}
 
     @api.get("/outlets")
     async def list_outlets() -> list[dict[str, Any]]:

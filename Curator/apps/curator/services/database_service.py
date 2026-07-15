@@ -57,6 +57,8 @@ class DatabaseService:
             # 010 creates story_arcs and extends the events status constraint.
             # Both the ALTER and CREATE are idempotent, but skip on warm boots.
             "010_story_arcs.sql":       "story_arcs",
+            # 022 creates push_subscriptions (PWA "Daily Outlook ready", ADR-R-0012).
+            "022_push_subscriptions.sql": "push_subscriptions",
         }
         # boolean SQL guard for each ALTER-style migration: TRUE → already applied
         ALTER_GUARDS: dict[str, str] = {

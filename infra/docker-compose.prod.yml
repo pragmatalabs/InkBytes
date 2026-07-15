@@ -229,6 +229,13 @@ services:
       # ADR-0034 Tier 2 cover source. Blank → Unsplash skipped (Openverse/Wikimedia
       # still work). Register an app at unsplash.com/developers for the Access Key.
       UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
+      # Web Push / "Daily Outlook ready" PWA notifications (ADR-R-0012). Push is
+      # a no-op until VAPID keys are set. Only the API serves push (subscribe +
+      # broadcast); the worker doesn't need these.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:hello@inkbytes.org}
+      PUSH_TRIGGER_SECRET: ${PUSH_TRIGGER_SECRET:-}
     depends_on:
       inkbytes-postgres:  { condition: service_healthy }
       inkbytes-rabbitmq:  { condition: service_healthy }

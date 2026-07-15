@@ -26,4 +26,6 @@ exec docker run --rm --network "$NETWORK" \
   -e EDITORIAL_LLM_BASE_URL="${EDITORIAL_LLM_BASE_URL:-https://api.deepseek.com/v1}" \
   -e EDITORIAL_LLM_MODEL="${EDITORIAL_LLM_MODEL:-deepseek-chat}" \
   -e EDITORIAL_LLM_API_KEY="${EDITORIAL_LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}" \
+  -e PUSH_TRIGGER_SECRET="${PUSH_TRIGGER_SECRET:-}" \
+  -e CURATOR_INTERNAL_URL="${CURATOR_INTERNAL_URL:-http://inkbytes-curator-api:8060}" \
   inkbytes-editorial --generate "$@"

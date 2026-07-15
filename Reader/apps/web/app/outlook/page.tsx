@@ -5,6 +5,7 @@ import type { OutlookArchiveEntry } from "@/lib/types";
 import { themeAccent } from "@/lib/theme-colors";
 import { PersonaIcon } from "@/components/persona-icons";
 import SavedOutlooks from "@/components/saved-outlooks";
+import NotifyToggle from "@/components/notify-toggle";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Today's Outlooks" };
@@ -44,9 +45,13 @@ export default async function OutlookIndex({
           <Link href="?lang=en" className={lang === "en" ? "text-[var(--accent)] font-bold" : "hover:underline"}>EN</Link>
         </span>
       </div>
-      <p className="text-sm text-[var(--ink-muted)] mb-8">
-        A daily editorial per topic — one column per vertical, cut at 11:59 AM.
-      </p>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-8">
+        <p className="text-sm text-[var(--ink-muted)]">
+          A daily editorial per topic — one column per vertical, cut at 11:59 AM.
+        </p>
+        {/* Opt-in push: "notify me when today's outlooks are ready" (PWA) */}
+        <NotifyToggle lang={lang} />
+      </div>
 
       {/* Reader's saved editions (localStorage; profile later) — self-hides when empty */}
       <SavedOutlooks />
