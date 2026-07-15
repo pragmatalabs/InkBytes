@@ -2,7 +2,7 @@
 
 > *Status: v1 · **DEPLOYED + verified live 2026-07-12** · Owner: Julian · Date: 2026-07-12*
 
-> **Update 2026-07-15 — mobile home v2 (Rams pass, iterated live with Julian — PROPOSAL, not yet deployed):**
+> **Update 2026-07-15 — mobile home v2 (Rams pass, iterated live with Julian — DEPLOYED + verified live 2026-07-15):**
 > A second "less but better" pass over the mobile home, above the feed:
 >
 > - **One nav, one search.** The top text-nav (`layout.tsx`) is now `hidden sm:flex`
