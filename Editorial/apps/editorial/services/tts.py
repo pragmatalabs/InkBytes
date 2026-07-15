@@ -65,10 +65,11 @@ def to_speakable(headline: str, body_md: str) -> str:
 class Tts:
     def __init__(self, cfg: TtsCfg) -> None:
         self.cfg = cfg
-        self._ffmpeg = shutil.which("ffmpeg")
-        self._PiperVoice = None            # lazy import (linux-only synthesis)
+        self.remote = bool(cfg.remote_url)     # remote mode: synth on the 16 GB box
+        self._ffmpeg = shutil.which("ffmpeg")  # local mode only
+        self._PiperVoice = None                # lazy import (linux-only synthesis)
         self._voices: dict[str, object] = {}   # language → loaded PiperVoice (once)
-        self._lock = threading.Lock()      # guards the voice cache across worker threads
+        self._lock = threading.Lock()          # guards the voice cache across worker threads
 
     def voice_id(self, language: str) -> str | None:
         return self.cfg.voices.get(language)
@@ -81,9 +82,15 @@ class Tts:
         return path if os.path.exists(path) else None
 
     def available(self, language: str) -> bool:
-        """Everything present to synthesize this language? (ffmpeg + voice + piper)."""
+        """Can we synthesize this language? Remote mode only needs a configured voice
+        (the service owns Piper/ffmpeg); local mode needs ffmpeg + model + the import."""
         if not self.cfg.enabled:
             return False
+        if not self.voice_id(language):
+            logger.warning("TTS: no voice configured for %s", language)
+            return False
+        if self.remote:
+            return True   # synthesis happens on the microservice — no local deps needed
         if not self._ffmpeg:
             logger.warning("TTS unavailable: ffmpeg not found")
             return False
@@ -100,6 +107,20 @@ class Tts:
                 return False
         return True
 
+    def synthesize(self, text: str, language: str) -> bytes:
+        """text → MP3 bytes. Remote (POST to the microservice) or local Piper depending
+        on config. Raises on failure (the caller wraps it so it never aborts a batch)."""
+        return self._synthesize_remote(text, language) if self.remote \
+            else self._synthesize_local(text, language)
+
+    def _synthesize_remote(self, text: str, language: str) -> bytes:
+        import httpx
+        url = self.cfg.remote_url.rstrip("/") + "/synthesize"
+        r = httpx.post(url, json={"text": text, "lang": language},
+                       headers={"X-TTS-Token": self.cfg.remote_secret}, timeout=300)
+        r.raise_for_status()
+        return r.content
+
     def _voice(self, language: str):
         """Loaded PiperVoice for the language — loaded once, then cached/reused."""
         with self._lock:
@@ -111,9 +132,7 @@ class Tts:
                 logger.info("loaded Piper voice %s (%s)", self.voice_id(language), language)
             return v
 
-    def synthesize(self, text: str, language: str) -> bytes:
-        """text → MP3 bytes using the cached voice. Assumes available(language).
-        Raises on failure (the caller wraps it so a synth failure never aborts a batch)."""
+    def _synthesize_local(self, text: str, language: str) -> bytes:
         voice = self._voice(language)
         with tempfile.TemporaryDirectory() as tmp:
             wav = os.path.join(tmp, "out.wav")

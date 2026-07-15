@@ -48,10 +48,15 @@ class TtsCfg(BaseModel):
         "en": "en_US-ryan-medium",             # medium: ~2× faster synth than -high
         "es": "es_MX-ald-medium",              # matched male narrator, LATAM Spanish
     }
-    models_dir: str = "/models"                # baked into the image (Dockerfile)
-    bitrate: str = "64k"                        # mono speech; small files
+    models_dir: str = "/models"                # baked into the image (local mode only)
+    bitrate: str = "64k"                        # mono speech; small files (local mode)
     key_prefix: str = "audio/outlook"          # Spaces key: {prefix}/{date}/{theme}-{lang}.mp3
-    concurrency: int = 1                        # voice loaded once + onnxruntime uses the --cpus slice per synth
+    concurrency: int = 1                        # sequential synth (one call fills the CPU slice)
+    # Remote synthesis (ADR-0011): the droplet is RAM-starved for onnxruntime, so
+    # prod POSTs to a Piper microservice on the 16 GB box. Set → synth is remote and
+    # no local Piper/ffmpeg/voices are needed; blank → local Piper (dev / the box).
+    remote_url: str = ""                        # e.g. https://tts.inkbytes.news
+    remote_secret: str = ""                     # X-TTS-Token shared with the service
 
 
 class SpacesCfg(BaseModel):
@@ -123,6 +128,10 @@ class Config(BaseModel):
             tts["models_dir"] = v
         if v := os.getenv("EDITORIAL_TTS_CONCURRENCY"):
             tts["concurrency"] = int(v)
+        if v := os.getenv("EDITORIAL_TTS_URL"):
+            tts["remote_url"] = v
+        if v := os.getenv("EDITORIAL_TTS_SECRET"):
+            tts["remote_secret"] = v
 
         # ── Spaces overlay (reuses the shared DO_SPACES_* env) ──
         spaces = raw.setdefault("spaces", {})

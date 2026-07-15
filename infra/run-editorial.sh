@@ -20,17 +20,12 @@ set -a; source "$SCRIPT_DIR/.env"; set +a
 NETWORK="${EDITORIAL_NETWORK:-inkbytes_inkbytes-internal}"
 DBURL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432/${POSTGRES_DB:-inkbytes}"
 
-# ── Resource cap (ADR-0011) ──────────────────────────────────────────────────
-# Piper/onnxruntime grabs every core by default, and TTS runs on the SHARED prod
-# droplet next to the live stack. Hard-cap CPU + threads so a batch (or a big
-# --synthesize-missing backfill) can never starve the site. Defaults leave ≥2 of
-# 4 cores free; override via EDITORIAL_CPUS / EDITORIAL_OMP_THREADS in infra/.env.
-CPUS="${EDITORIAL_CPUS:-2.0}"
-OMP="${EDITORIAL_OMP_THREADS:-2}"
-
+# TTS synthesis is REMOTE (ADR-0011): the batch POSTs to the Piper microservice on
+# the 16 GB box, so this container is light (text + a network call + Spaces upload).
+# No CPU/memory cap needed — the onnxruntime RAM that swap-thrashed the droplet now
+# lives off-box. (If EDITORIAL_TTS_URL is unset the batch just skips audio; it will
+# NOT synthesize locally on the droplet — the image ships no Piper.)
 exec docker run --rm --network "$NETWORK" \
-  --cpus="$CPUS" --memory="${EDITORIAL_MEMORY:-1200m}" \
-  -e OMP_NUM_THREADS="$OMP" \
   -e DATABASE_URL="$DBURL" \
   -e EDITORIAL_LLM_PROVIDER="${EDITORIAL_LLM_PROVIDER:-deepseek}" \
   -e EDITORIAL_LLM_BASE_URL="${EDITORIAL_LLM_BASE_URL:-https://api.deepseek.com/v1}" \
@@ -39,6 +34,8 @@ exec docker run --rm --network "$NETWORK" \
   -e PUSH_TRIGGER_SECRET="${PUSH_TRIGGER_SECRET:-}" \
   -e CURATOR_INTERNAL_URL="${CURATOR_INTERNAL_URL:-http://inkbytes-curator-api:8060}" \
   -e EDITORIAL_TTS_ENABLED="${EDITORIAL_TTS_ENABLED:-true}" \
+  -e EDITORIAL_TTS_URL="${EDITORIAL_TTS_URL:-}" \
+  -e EDITORIAL_TTS_SECRET="${EDITORIAL_TTS_SECRET:-}" \
   -e EDITORIAL_TTS_VOICE_EN="${EDITORIAL_TTS_VOICE_EN:-}" \
   -e EDITORIAL_TTS_VOICE_ES="${EDITORIAL_TTS_VOICE_ES:-}" \
   -e DO_SPACES_ENDPOINT="${DO_SPACES_ENDPOINT:-}" \

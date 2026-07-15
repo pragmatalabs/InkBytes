@@ -40,15 +40,16 @@ Editorial/apps/editorial/
 Each column is voiced **once** in EN + ES by **Piper** (CPU neural TTS, $0/char —
 the local-first call, like bge-m3), stored public-read in DO Spaces, URL on
 `editorials.audio_url`; the Reader `/outlook` page plays it. Best-effort: a TTS or
-upload failure never blocks the text batch. Voices baked into the image:
-`en_US-ryan-medium` + `es_MX-ald-medium` (override via `EDITORIAL_TTS_VOICE_EN/_ES`).
-`tts.py` loads each voice **once** (Piper Python API) — NOT the CLI per clip, which
-reloaded the model every call and thrashed the shared droplet (load ~55, ADR-0011
-"Throughput"). Synthesis is decoupled into `_synthesize_batch` after the text loop,
-CPU-capped by `run-editorial.sh` (`--cpus`, default 2.0); `tts.concurrency` default 1
-(onnxruntime fills the cap per synth). Daily run ~10–15 min, never starves the box.
+upload failure never blocks the text batch. **Synthesis is REMOTE** (ADR-0011): the
+droplet has no RAM for onnxruntime (running Piper there swap-thrashed it into an
+outage), so the batch POSTs clean text to the **`tts-server` microservice on the 16 GB
+box** (`apps/tts-server`, FastAPI + Piper, voices baked in, behind Traefik + an
+`X-TTS-Token` secret) and uploads the returned MP3 to Spaces. Wire via
+`EDITORIAL_TTS_URL` + `EDITORIAL_TTS_SECRET`; leave `EDITORIAL_TTS_URL` unset for local
+Piper in dev (`tts.py` keeps a local path). Voices `en_US-ryan-medium` +
+`es_MX-ald-medium`; synthesis decoupled into `_synthesize_batch` after the text loop.
 `--synthesize-missing` backfills old rows. ⚠️ Piper's macOS wheel can't synthesize —
-test via the Linux image (works amd64 + arm64).
+test via the Linux images (amd64 + arm64).
 ⚠️ The `piper-tts` **macOS** wheel can't synthesize (broken espeak-data path) —
 build/run the Linux image (works on amd64 + arm64) to test locally.
 

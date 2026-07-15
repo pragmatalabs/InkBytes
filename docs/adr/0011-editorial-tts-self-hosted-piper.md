@@ -28,31 +28,39 @@ primitive, on a product with no paying users yet.
 ## Decision
 
 **Self-host TTS with [Piper](https://github.com/rhasspy/piper)** — a fast, CPU-only
-neural TTS — inside the **Editorial batch container**, on the DigitalOcean droplet
-where the daily job already runs. Zero per-character cost; no external voice vendor;
-no new long-running service; no cross-box network hop.
+neural TTS — as a small **HTTP microservice on the 16 GB box** (Hostinger, alongside
+Ollama), NOT on the droplet. Zero per-character cost; no external voice vendor. The
+first cut ran Piper *inside the droplet's editorial batch* and it **swap-thrashed the
+4 GB-free shared droplet into a site outage** (see the throughput note) — onnxruntime's
+~1 GB working set has no room there. Synthesis moved off-box; the droplet only makes a
+network call.
 
-Flow (all best-effort — a TTS/upload failure never blocks the text batch):
+- **`Editorial/apps/tts-server`** — FastAPI: `POST /synthesize {text, lang}` (+ an
+  `X-TTS-Token` shared secret) → `audio/mpeg`. Voices baked in + loaded once; synthesis
+  serialized. Exposed via the box's existing Traefik at a subdomain over HTTPS.
+- **The droplet's editorial batch** keeps doing everything else. `services/tts.Tts`
+  has a **remote mode** (`EDITORIAL_TTS_URL` set): `to_speakable` runs locally (pure
+  regex), then it POSTs the clean text to the service, receives the MP3, and uploads
+  **public-read** to DigitalOcean Spaces (`services/storage.SpacesStorage`,
+  key `audio/outlook/{date}/{theme}-{lang}.mp3`), persisting the URL on the row. The
+  droplet editorial image ships **no** Piper/ffmpeg/voices — it stays slim.
 
-1. After a column is written (`write_editorial`), `Application._synthesize_audio`
-   strips the markdown/`[n]` citations to speakable prose (`services/tts.to_speakable`),
-   runs **Piper → WAV → ffmpeg → mono 64 kbps MP3** (`services/tts.Tts`), uploads
-   **public-read** to DigitalOcean Spaces (`services/storage.SpacesStorage`,
-   key `audio/outlook/{date}/{theme}-{lang}.mp3`), and persists the public URL on
-   the editorial row.
-2. Migration `002_editorial_audio.sql` adds `audio_url`, `audio_voice`,
-   `audio_generated_at` to `editorials`. A NULL `audio_url` = "not synthesized yet".
-3. **Generated once:** synthesis runs only when a row has no audio. `main.py
-   --synthesize-missing` backfills existing rows (idempotent) — the migration path
-   for the columns already in prod.
-4. Curator `GET /outlook` returns `audio_url` (guarded by an `information_schema`
-   column check so a Curator deploy landing before migration 002 can't 500).
-5. The Reader outlook page renders a minimal `OutlookAudio` player (`preload="none"`,
-   accent play/pause + scrubbable progress) under the headline. The `src` is already
-   language-correct because the page fetches per-language.
+Supporting pieces (all best-effort — a TTS/upload failure never blocks the batch):
 
-**One voice per language** ("the InkBytes narrator"), baked into the image and
-configurable via `EDITORIAL_TTS_VOICE_EN/_ES`: default **`en_US-ryan-medium`** (warm
+- Migration `002_editorial_audio.sql` adds `audio_url`, `audio_voice`,
+  `audio_generated_at` to `editorials`. A NULL `audio_url` = "not synthesized yet".
+- **Generated once:** synthesis runs only when a row has no audio. `main.py
+  --synthesize-missing` backfills existing rows (idempotent) — the migration path
+  for the columns already in prod.
+- Curator `GET /outlook` returns `audio_url` (guarded by an `information_schema`
+  column check so a Curator deploy landing before migration 002 can't 500).
+- The Reader outlook page renders a minimal `OutlookAudio` player (`preload="none"`,
+  accent play/pause + scrubbable progress) under the headline. The `src` is already
+  language-correct because the page fetches per-language.
+
+**One voice per language** ("the InkBytes narrator"), baked into the **service** image
+and configurable via `EDITORIAL_TTS_VOICE_EN/_ES` / `TTS_VOICE_EN/_ES`: default
+**`en_US-ryan-medium`** (warm
 US male) + **`es_MX-ald-medium`** (LATAM Spanish, chosen over Castilian for the
 LATAM-weighted audience) — a matched male narrator across both languages (Piper uses
 a distinct model per language, not a single cross-lingual clone). **Medium** quality,
@@ -64,29 +72,32 @@ not `-high`: see the throughput note below.
 |---|---|
 | ElevenLabs (multilingual_v2 / Flash) | ~$450–900/mo for the full scope — "too expensive" for a pre-revenue product. Best fidelity + true one-voice-both-languages, but the cost is unjustifiable at this stage. |
 | Cheap cloud TTS (Polly/Google standard) | ~$36/mo — viable, but still a per-character bill that scales with column count, and adds a vendor. Self-hosting is $0 and has no ceiling. |
-| XTTS v2 (self-hosted, single cloned voice both langs) | Closest to "one brand voice," but GPU-hungry / minutes-per-clip on the CPU droplet, ~4 GB RAM — 60 clips/night would run for hours and contend with the batch. Piper is faster-than-real-time on CPU. |
-| Piper as an HTTP service on the Ollama/Hostinger box | Matches the box literally, but adds a long-running service + firewall wiring + a network failure mode for a job that's only a few CPU-minutes. In-batch on the droplet is simpler and more robust. |
+| XTTS v2 (self-hosted, single cloned voice both langs) | Closest to "one brand voice," but GPU-hungry / minutes-per-clip on CPU, ~4 GB RAM. Piper is faster-than-real-time on CPU. |
+| **Piper in the droplet's editorial batch** (first attempt) | **Tried and reverted.** onnxruntime's ~1 GB working set swap-thrashed the 4 GB-free shared droplet into a site outage (load 137, swap maxed). No CPU cap fixes a RAM shortage. This is *why* synthesis moved to the 16 GB box — the "no cross-box hop" simplicity wasn't worth an unusable box. |
+| Piper HTTP service on the 16 GB box (**chosen**) | Adds a small long-running service + a Traefik route + a network hop — accepted, because it's the only placement with RAM headroom (10 GB free vs the droplet's swap wall). The droplet stays slim and safe. |
 
 ## Consequences
 
 - **$0 marginal cost** for audio, forever — same posture as bge-m3 (ADR-0003).
-- The editorial image gains ffmpeg + `piper-tts` + `boto3` and bakes ~175 MB of
-  voice models. Build time and image size grow modestly; runtime is a few transient
-  CPU-minutes once a day, after gemma4/DeepSeek finishes the text.
-- Audio is **best-effort**: disabled cleanly if `EDITORIAL_TTS_ENABLED=false`, if the
-  binaries/voice models are absent, or if `DO_SPACES_*` creds are blank — none of
-  which block the text batch.
+- The **TTS service image** (16 GB box) bakes ffmpeg + `piper-tts` + ~120 MB of
+  medium voices. The **droplet editorial image** stays slim — just `httpx` (call the
+  service) + `boto3` (upload) — because the droplet has no RAM for onnxruntime.
+- Audio is **best-effort**: disabled cleanly if `EDITORIAL_TTS_ENABLED=false`, if
+  `EDITORIAL_TTS_URL` is unset (no local fallback on the droplet — the image ships no
+  Piper), or if `DO_SPACES_*` creds are blank — none of which block the text batch.
 - **macOS caveat (dev):** the `piper-tts` macOS wheel ships a broken espeak-ng-data
-  path, so synthesis can't run natively on the Mac. It works on linux/amd64 (prod)
-  and linux/arm64 — validated by building the real image and running the full chain
-  (synthesize → Spaces → DB → Curator → Reader player) against the dev stack.
-- **Deploy runbook (not yet run):** (1) apply `002_editorial_audio.sql` to prod
-  (`editorials` gains the audio columns — additive, safe); (2) add `DO_SPACES_*` +
-  `EDITORIAL_TTS_*` to `infra/.env`; (3) rebuild the editorial image (bakes the
-  voices) + Curator + Reader; (4) backfill existing editorials with
-  `run-editorial.sh --synthesize-missing`. The daily cron then covers new columns.
-- Voice choice is config, not code — auditioning/swapping voices is an env change
-  (to a voice also baked into the image).
+  path, so synthesis can't run natively on the Mac. It works on linux/amd64 + arm64 —
+  validated by building both images and running the full remote chain (droplet batch →
+  service → Spaces → DB → Curator → Reader player) against the dev stack.
+- **Deploy status (2026-07-15):** DONE — migration `002` applied to prod; Curator +
+  Reader deployed (serve/play `audio_url`); droplet editorial slimmed; droplet-side TTS
+  temporarily disabled (`EDITORIAL_TTS_ENABLED=false`) after the outage. REMAINING —
+  deploy `tts-server` on the 16 GB box behind Traefik (`tts.<domain>` + `TTS_SECRET`),
+  set `EDITORIAL_TTS_URL`/`_SECRET` + re-enable TTS in `infra/.env`, then
+  `run-editorial.sh --synthesize-missing` to backfill. ~11 of today's columns already
+  have audio from the (reverted) droplet runs.
+- Voice choice is config, not code — swapping voices is an env change (to a voice also
+  baked into the service image).
 
 ### Throughput / capacity (lesson learned at deploy, 2026-07-15)
 
@@ -112,11 +123,13 @@ at risk. Fixes, all shipped:
    threads for no gain under the cap). Synthesis is decoupled from text generation into a
    `_synthesize_batch` run after the text loop (`generate_theme` no longer voices inline).
 
-Net: the daily cron (~36 columns) drops from ~40 min to ~10–15 min within a ≤2-core
-slice, memory is flat (one resident model), and the one-time backfill runs safely in the
-background newest-first (today's editions get audio first). Further speedups if ever
-needed: `-low` voices, a higher `EDITORIAL_CPUS` off-hours window, or moving synthesis to
-the 16 GB box (rejected option above).
+The CPU story improved a lot — but the **memory** story didn't. Even load-once +
+medium + cap, a backfill pushed the already-tight 7.8 GB droplet (whole stack + other
+projects, swap in use) to **swap 3.6 GB / load 137 → site timeouts**. onnxruntime's
+~1 GB working set simply has no room on that box. So the resolution was to **move
+synthesis off the droplet entirely** to the 16 GB box's Piper microservice (see the
+Decision). The `--cpus` cap, load-once, and medium voice all still apply *there* (and
+keep the service polite next to Ollama), but the decisive fix was placement, not tuning.
 
 ### Compliance note (workspace policy)
 

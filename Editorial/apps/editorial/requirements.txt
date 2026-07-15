@@ -3,7 +3,9 @@ pydantic>=2.6
 PyYAML>=6.0
 openai>=1.30
 anthropic>=0.40
-# Self-hosted TTS (ADR-0011): Piper (CPU neural TTS) + boto3 for Spaces upload.
-# ffmpeg is a system package (see Dockerfile), not pip.
-piper-tts>=1.2
+# TTS (ADR-0011): synthesis is REMOTE in prod (POST to the Piper microservice on the
+# 16 GB box) — the droplet only needs httpx to call it + boto3 to upload the MP3.
+# For LOCAL synthesis (dev) install piper-tts yourself; it's intentionally not baked
+# into this image (onnxruntime's ~1 GB working set swap-thrashed the shared droplet).
+httpx>=0.27
 boto3>=1.34
