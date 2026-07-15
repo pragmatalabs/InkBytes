@@ -28,9 +28,10 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("tts-server")
 
-VOICES = {   # language → Piper voice id (models baked into the image)
-    "en": os.getenv("TTS_VOICE_EN", "en_US-ryan-medium"),
-    "es": os.getenv("TTS_VOICE_ES", "es_MX-ald-medium"),
+VOICES = {   # language → Piper voice id (models baked into the image; both
+             # -high and -medium are baked, so you can A/B via TTS_VOICE_EN/_ES)
+    "en": os.getenv("TTS_VOICE_EN", "en_US-ryan-high"),
+    "es": os.getenv("TTS_VOICE_ES", "es_MX-claude-high"),
 }
 MODELS_DIR = os.getenv("TTS_MODELS_DIR", "/models")
 BITRATE = os.getenv("TTS_BITRATE", "64k")

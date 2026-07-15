@@ -60,7 +60,9 @@ Supporting pieces (all best-effort — a TTS/upload failure never blocks the bat
 
 **One voice per language** ("the InkBytes narrator"), baked into the **service** image
 and configurable via `EDITORIAL_TTS_VOICE_EN/_ES` / `TTS_VOICE_EN/_ES`: default
-**`en_US-ryan-medium`** (warm
+**`en_US-ryan-high`** + **`es_MX-claude-high`** — bumped medium→high once synthesis
+moved off the droplet (the box has headroom); both -high and -medium are baked into
+the service image for A/B. (Historically **`en_US-ryan-medium`**, warm
 US male) + **`es_MX-ald-medium`** (LATAM Spanish, chosen over Castilian for the
 LATAM-weighted audience) — a matched male narrator across both languages (Piper uses
 a distinct model per language, not a single cross-lingual clone). **Medium** quality,

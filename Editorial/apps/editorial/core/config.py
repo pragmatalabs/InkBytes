@@ -44,9 +44,10 @@ class TtsCfg(BaseModel):
     language ("the InkBytes narrator"), synthesized ONCE per column and cached in
     Spaces. Best-effort: a TTS/upload failure never blocks the text batch."""
     enabled: bool = True
-    voices: dict[str, str] = {                 # language → Piper voice model id
-        "en": "en_US-ryan-medium",             # medium: ~2× faster synth than -high
-        "es": "es_MX-ald-medium",              # matched male narrator, LATAM Spanish
+    voices: dict[str, str] = {                 # language → Piper voice id (provenance;
+                                               # the tts-server owns the actual voice)
+        "en": "en_US-ryan-high",               # -high: better quality (synth is off-box now)
+        "es": "es_MX-claude-high",             # LATAM Spanish, high quality
     }
     models_dir: str = "/models"                # baked into the image (local mode only)
     bitrate: str = "64k"                        # mono speech; small files (local mode)

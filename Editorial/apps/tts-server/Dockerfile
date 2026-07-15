@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 ARG PIPER_BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main
 RUN mkdir -p /models && cd /models && \
     for rel in \
+      en/en_US/ryan/high/en_US-ryan-high.onnx \
+      en/en_US/ryan/high/en_US-ryan-high.onnx.json \
+      es/es_MX/claude/high/es_MX-claude-high.onnx \
+      es/es_MX/claude/high/es_MX-claude-high.onnx.json \
       en/en_US/ryan/medium/en_US-ryan-medium.onnx \
       en/en_US/ryan/medium/en_US-ryan-medium.onnx.json \
       es/es_MX/ald/medium/es_MX-ald-medium.onnx \
