@@ -25,7 +25,7 @@ DBURL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inkbytes-postgres:5432
 # droplet next to the live stack. Hard-cap CPU + threads so a batch (or a big
 # --synthesize-missing backfill) can never starve the site. Defaults leave ≥2 of
 # 4 cores free; override via EDITORIAL_CPUS / EDITORIAL_OMP_THREADS in infra/.env.
-CPUS="${EDITORIAL_CPUS:-1.5}"
+CPUS="${EDITORIAL_CPUS:-2.0}"
 OMP="${EDITORIAL_OMP_THREADS:-2}"
 
 exec docker run --rm --network "$NETWORK" \

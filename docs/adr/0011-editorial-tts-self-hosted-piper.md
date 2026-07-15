@@ -52,10 +52,11 @@ Flow (all best-effort — a TTS/upload failure never blocks the text batch):
    language-correct because the page fetches per-language.
 
 **One voice per language** ("the InkBytes narrator"), baked into the image and
-configurable via `EDITORIAL_TTS_VOICE_EN/_ES`: default **`en_US-ryan-high`** (warm
+configurable via `EDITORIAL_TTS_VOICE_EN/_ES`: default **`en_US-ryan-medium`** (warm
 US male) + **`es_MX-ald-medium`** (LATAM Spanish, chosen over Castilian for the
-LATAM-weighted audience). Piper uses a distinct model per language — a matched
-timbre, not a single cross-lingual clone.
+LATAM-weighted audience) — a matched male narrator across both languages (Piper uses
+a distinct model per language, not a single cross-lingual clone). **Medium** quality,
+not `-high`: see the throughput note below.
 
 ## Alternatives considered
 
@@ -86,6 +87,33 @@ timbre, not a single cross-lingual clone.
   `run-editorial.sh --synthesize-missing`. The daily cron then covers new columns.
 - Voice choice is config, not code — auditioning/swapping voices is an env change
   (to a voice also baked into the image).
+
+### Throughput / capacity (lesson learned at deploy, 2026-07-15)
+
+The first deploy ran `-high` EN voices synthesized **serially, one CPU-uncapped
+container per run**. Real columns are long (~600 words → 2–4 min audio), so each
+clip took **~60–140 s** of CPU, and two overlapping runs drove the 4-core droplet to
+**load ~69** (Piper/onnxruntime grabs every core). The public site stayed up but was
+at risk. Fixes, all shipped:
+
+1. **Hard resource cap in `run-editorial.sh`** — `--cpus` (default **2.0**) + `--memory`
+   + `OMP_NUM_THREADS`, so a batch/backfill can never starve the live stack regardless
+   of onnxruntime threading. This is the real guardrail (kernel-enforced).
+2. **Medium voices** (`en_US-ryan-medium`) — ~2× faster synth than `-high`, quality
+   still fine for narration.
+3. **Concurrent synthesis** (`tts.concurrency`, default 2) — synthesis is decoupled
+   from text generation into a `_synthesize_batch` that runs `concurrency` clips at
+   once, filling the CPU slice without oversubscribing. `generate_theme` no longer
+   synthesizes inline; `generate_all` voices the day's columns in one batch after the
+   text loop.
+
+Net: the daily cron (~36 columns) drops from ~40 min to ~10–15 min at ≤2 cores, and
+the one-time backfill runs safely in the background newest-first (today's editions get
+audio first). Further speedups if ever needed: `-low` voices, higher `EDITORIAL_CPUS`
+during an off-hours window, or moving synthesis to the 16 GB box (rejected option above).
+A deeper optimization — the Python API to load each voice model **once** instead of
+re-loading per clip via the CLI subprocess — is a worthwhile follow-up but unnecessary
+now that the box is protected and throughput is acceptable.
 
 ### Compliance note (workspace policy)
 

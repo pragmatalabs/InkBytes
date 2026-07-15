@@ -45,12 +45,13 @@ class TtsCfg(BaseModel):
     Spaces. Best-effort: a TTS/upload failure never blocks the text batch."""
     enabled: bool = True
     voices: dict[str, str] = {                 # language → Piper voice model id
-        "en": "en_US-ryan-high",
-        "es": "es_MX-ald-medium",
+        "en": "en_US-ryan-medium",             # medium: ~2× faster synth than -high
+        "es": "es_MX-ald-medium",              # matched male narrator, LATAM Spanish
     }
     models_dir: str = "/models"                # baked into the image (Dockerfile)
     bitrate: str = "64k"                        # mono speech; small files
     key_prefix: str = "audio/outlook"          # Spaces key: {prefix}/{date}/{theme}-{lang}.mp3
+    concurrency: int = 2                        # parallel synths (CPU-capped by run-editorial.sh)
 
 
 class SpacesCfg(BaseModel):
@@ -120,6 +121,8 @@ class Config(BaseModel):
             tts["voices"] = voices
         if v := os.getenv("EDITORIAL_TTS_MODELS_DIR"):
             tts["models_dir"] = v
+        if v := os.getenv("EDITORIAL_TTS_CONCURRENCY"):
+            tts["concurrency"] = int(v)
 
         # ── Spaces overlay (reuses the shared DO_SPACES_* env) ──
         spaces = raw.setdefault("spaces", {})

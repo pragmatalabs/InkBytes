@@ -53,8 +53,13 @@ def main() -> None:
                 print("nothing to do — pass --generate or --synthesize-missing")
                 return
             if args.theme:
+                written = []
                 for lang in cfg.editorial.languages:
-                    await app.generate_theme(args.theme, lang, edition, args.dry_run)
+                    r = await app.generate_theme(args.theme, lang, edition, args.dry_run)
+                    if r:
+                        written.append(r)
+                if written and not args.dry_run:
+                    await app._synthesize_batch(written)
             else:
                 await app.generate_all(edition, args.dry_run)
         finally:

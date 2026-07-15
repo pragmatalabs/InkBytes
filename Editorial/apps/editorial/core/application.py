@@ -92,7 +92,7 @@ class Application:
         return headline, (body or text.strip())
 
     async def generate_theme(self, theme: str, language: str,
-                             edition_date: date_cls, dry_run: bool = False) -> str | None:
+                             edition_date: date_cls, dry_run: bool = False) -> dict | None:
         key, name, _voice = persona_for(theme)   # reader-facing identity (masthead)
         events = await self.db.fetch_theme_events(
             theme, self.cfg.editorial.window_hours, self.cfg.editorial.max_events)
@@ -116,12 +116,15 @@ class Application:
                         "excerpt": e["excerpt"]} for e in events],
         }
 
+        payload = {"theme": theme, "language": language, "edition_date": edition_date,
+                   "headline": headline, "body_md": body}
+
         if dry_run:
             print(f"\n===== {name} ({theme}/{language}) · method={mp.role!r} · "
                   f"{len(events)} events · {self.llm.label} =====")
             print(headline + "\n")
             print(body[:600] + ("…" if len(body) > 600 else ""))
-            return headline
+            return payload
 
         await self.db.write_editorial(
             ed_id=str(uuid.uuid4()), theme=theme, language=language,
@@ -130,10 +133,9 @@ class Application:
             prompt=prompt)
         logger.info("EDITORIAL %s/%s [%s] %d events -> %r",
                     theme, language, self.llm.label, len(events), headline)
-        # Voice, generated once (ADR-0011). Best-effort — a TTS/upload failure
-        # must never undo a written column.
-        await self._synthesize_audio(theme, language, edition_date, headline, body)
-        return headline
+        # Audio is synthesized in a concurrent batch AFTER the text loop (not inline)
+        # so it parallelizes — see generate_all / _synthesize_batch (ADR-0011).
+        return payload
 
     async def _synthesize_audio(self, theme: str, language: str, edition_date,
                                 headline: str, body_md: str) -> bool:
@@ -162,16 +164,40 @@ class Application:
             logger.warning("audio synth failed for %s/%s: %s", theme, language, e)
             return False
 
+    async def _synthesize_batch(self, items: list[dict]) -> int:
+        """Synthesize+upload audio for a list of editorials CONCURRENTLY, bounded by
+        tts.concurrency (ADR-0011). On the shared droplet the batch is CPU-capped by
+        run-editorial.sh (--cpus); concurrency>1 fills that slice without oversubscribing
+        the box. Best-effort per item — one failure never sinks the batch."""
+        if not (self.cfg.tts.enabled and self.storage.configured):
+            logger.info("audio batch skipped — TTS disabled or Spaces not configured")
+            return 0
+        sem = asyncio.Semaphore(max(1, self.cfg.tts.concurrency))
+
+        async def _one(it: dict) -> bool:
+            async with sem:
+                return await self._synthesize_audio(
+                    it["theme"], it["language"], it["edition_date"],
+                    it["headline"], it["body_md"])
+
+        results = await asyncio.gather(*[_one(it) for it in items])
+        done = sum(1 for r in results if r)
+        logger.info("audio batch: %d/%d synthesized (concurrency %d)",
+                    done, len(items), self.cfg.tts.concurrency)
+        return done
+
     async def generate_all(self, edition_date: date_cls, dry_run: bool = False) -> int:
-        n = 0
+        written: list[dict] = []
         for language in self.cfg.editorial.languages:
             for theme in PERSONAS:
-                if await self.generate_theme(theme, language, edition_date, dry_run):
-                    n += 1
-        logger.info("EDITORIAL batch done: %d columns for %s", n, edition_date)
-        if n > 0 and not dry_run:
+                r = await self.generate_theme(theme, language, edition_date, dry_run)
+                if r:
+                    written.append(r)
+        logger.info("EDITORIAL batch done: %d columns for %s", len(written), edition_date)
+        if written and not dry_run:
+            await self._synthesize_batch(written)   # voice today's columns (concurrent)
             await self._notify_outlook_ready()
-        return n
+        return len(written)
 
     async def synthesize_missing(self, limit: int = 500) -> int:
         """Backfill audio for existing editorials that have none yet (ADR-0011) —
@@ -180,17 +206,10 @@ class Application:
         if not (self.cfg.tts.enabled and self.storage.configured):
             logger.info("synthesize-missing: TTS disabled or Spaces not configured — nothing to do")
             return 0
-        langs = self.cfg.editorial.languages
-        rows = await self.db.fetch_editorials_missing_audio(limit, langs)
+        rows = await self.db.fetch_editorials_missing_audio(
+            limit, self.cfg.editorial.languages)
         logger.info("synthesize-missing: %d editorial(s) without audio", len(rows))
-        done = 0
-        for r in rows:
-            if await self._synthesize_audio(
-                    r["theme"], r["language"], r["edition_date"],
-                    r["headline"], r["body_md"]):
-                done += 1
-        logger.info("synthesize-missing done: %d/%d synthesized", done, len(rows))
-        return done
+        return await self._synthesize_batch(rows)
 
     @staticmethod
     async def _notify_outlook_ready() -> None:
