@@ -73,17 +73,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
 
-            <Link
-              href="/?search=1"
-              className="hidden sm:flex flex-1 max-w-xs items-center gap-2 bg-white/10 hover:bg-white/15 transition-colors rounded-full px-3.5 py-1.5 text-sm text-white/60"
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
-              </svg>
-              Search events
-            </Link>
+            {/* Search moved into the content top row (one search, not two —
+                the header pill duplicated it). Header stays brand + nav. */}
 
-            <nav className="flex items-center gap-4 text-sm text-white/70 shrink-0">
+            {/* Top nav is DESKTOP-only: on mobile the bottom tab bar is the nav,
+                so a second copy here is pure redundancy (Rams — remove it). */}
+            <nav className="hidden sm:flex items-center gap-4 text-sm text-white/70 shrink-0">
               <Link href="/" className="hover:text-white transition-colors font-medium">News</Link>
               <Link href="/outlook" className="hover:text-white transition-colors">Outlook</Link>
               <Link href="/entities" className="hover:text-white transition-colors">Entities</Link>

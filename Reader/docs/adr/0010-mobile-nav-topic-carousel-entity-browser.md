@@ -2,6 +2,40 @@
 
 > *Status: v1 · **DEPLOYED + verified live 2026-07-12** · Owner: Julian · Date: 2026-07-12*
 
+> **Update 2026-07-15 — mobile home v2 (Rams pass, iterated live with Julian — PROPOSAL, not yet deployed):**
+> A second "less but better" pass over the mobile home, above the feed:
+>
+> - **One nav, one search.** The top text-nav (`layout.tsx`) is now `hidden sm:flex`
+>   — on mobile the bottom tab bar *is* the nav, so the second copy was pure
+>   redundancy. The header search *pill* was removed too; there is now a single
+>   search, moved to the **top of the content** (`find beats browse`).
+> - **Outlook = signal, not banner.** The old Outlook promo banner is gone;
+>   Today's Outlook is now a small **pulsing icon** (`outlook-pulse`,
+>   reduced-motion-safe) sitting on the title row where the eye already is.
+> - **Header no-wrap.** The title column is `flex-1 min-w-0` and the `All/EN/ES`
+>   language toggle moved *out* of the title row and *into* the search row (a
+>   filter, beside the other filters). Together these keep the date +
+>   "Today's events" on single lines at 375 px — before, the squeezed column
+>   wrapped the date to two lines.
+> - **LATEST → coverflow.** The flat scroll-snap strip became `BreakingCoverflow`
+>   — the *same* CSS-3D pattern as the topic carousel / video coverflow (no libs):
+>   a **circular** ring where the **newest** story is centered, the **next-newest**
+>   sits right, and the **oldest wraps around to the left**, so it is always
+>   balanced with a neighbor on each side; swipe / chevrons / arrow-keys loop
+>   (no dead ends). The centered card is a smaller **13 px semibold** headline in
+>   a **uniform rounded border tinted to the category accent** (`themeAccent`), with
+>   a deep two-layer shadow so it lifts off the page; side cards flatten and dim.
+> - **"Today's events" heading kept** (Julian: it is needed). Subtitle trimmed to
+>   `{n} stories · updated {time}` (the daily tagline was dropped for returning
+>   readers).
+>
+> Process note: the in-app browser pane's **screenshot context can desync from
+> its JS/scroll context** (screenshot rendered at 375 CSS px @2× DPR while
+> `innerWidth` scripts saw a 559 px layout, and `scrollTo(0,0)` moved only the
+> script context). Trust DOM measurements (`getBoundingClientRect`, computed
+> style) for layout assertions; use the screenshot for the final look, taken
+> from a fresh load rather than a scripted scroll.
+
 > **Update 2026-07-12 — folder carousel v2 (Nexora layout, iterated live with Julian):**
 > The topic carousel's card art went through several rounds and settled on
 > Julian's `folder-definitive.svg` rendered as a **live tile** (`components/

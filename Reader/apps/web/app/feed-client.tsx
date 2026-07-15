@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
 import type { EventSummary, TrendingTopic } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
+import { themeAccent } from "@/lib/theme-colors";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import TopicCarousel from "@/components/topic-carousel";
@@ -262,30 +263,112 @@ function StrengthDot({ count, developing }: { count: number; developing: boolean
 
 // ── BREAKING card (horizontal strip) ─────────────────────────────────────────
 
-function BreakingCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
+// ── LATEST coverflow ──────────────────────────────────────────────────────────
+// The "Latest" strip as a 3D coverflow (same CSS technique as the topic
+// carousel / video rail): the centre story is elevated with a category-accent
+// left edge, neighbours angle away and peek; swipe / chevrons / arrow keys move
+// through. One prominent breaking story at a time instead of a flat scroll.
+
+const BCF_SPACING = 128;   // px between card centres
+const BCF_SWIPE   = 44;    // px drag that counts as a step
+
+function BreakingCoverflow({ events, showLang }: { events: EventSummary[]; showLang: boolean }) {
+  const [active, setActive] = useState(0);
+  const drag = useRef<{ x: number } | null>(null);
+  if (events.length === 0) return null;
+  // Circular carousel: newest (index 0) stays centered, next-newest sits to the
+  // right, and the oldest wraps around to the left — so it's always balanced.
+  const N = events.length;
+  const step = (dir: number) => setActive((a) => (a + dir + N) % N);
+
   return (
-    <Link
-      href={`/event/${event.id}`}
-      className="group block bg-white border border-[var(--border)] border-l-4 border-l-red-500 rounded-xl p-4 hover:shadow-md transition-all w-[270px] sm:w-[300px] shrink-0"
-    >
-      <div className="flex flex-wrap items-center gap-1.5 mb-2">
-        {event.category && <CategoryChip category={event.category} />}
-        {showLang && event.language !== "en" && <LangChip lang={event.language} />}
-        {showLang && <AlsoIn also={event.also_languages} />}
-      </div>
-      <h3
-        className="text-[13px] font-bold leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-3 mb-3"
-        style={{ textWrap: "balance" } as React.CSSProperties}
+    <div className="relative select-none">
+      <div
+        className="relative h-[150px] outline-none"
+        style={{ perspective: "1100px", touchAction: "pan-y" }}
+        tabIndex={0}
+        role="group"
+        aria-label={`${events.length} latest stories — arrow keys to browse`}
+        onPointerDown={(e) => { drag.current = { x: e.clientX }; }}
+        onPointerUp={(e) => {
+          const d = drag.current; drag.current = null;
+          if (!d) return;
+          const dx = e.clientX - d.x;
+          if (Math.abs(dx) >= BCF_SWIPE) step(dx < 0 ? 1 : -1);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+          if (e.key === "ArrowLeft")  { e.preventDefault(); step(-1); }
+        }}
       >
-        {event.headline}
-      </h3>
-      <div className="flex items-center justify-between gap-2">
-        <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={16} />
-        <span className="text-xs text-[var(--ink-muted)] tabular-nums shrink-0">
-          <TimeAgo iso={lastUpdate(event)} />
-        </span>
+        {events.map((ev, i) => {
+          // Shortest circular distance from the centered card, so the array
+          // wraps: card just before index 0 (the oldest) appears on the left.
+          let d = i - active;
+          if (d > N / 2) d -= N;
+          else if (d < -N / 2) d += N;
+          const abs = Math.abs(d);
+          if (abs > 2) return null;
+          const isC = d === 0;
+          const accent = themeAccent(ev.category);
+          const developing = isDeveloping(lastUpdate(ev));
+          const transform =
+            `translate(-50%, -50%) translateX(${d * BCF_SPACING}px) ` +
+            `rotateY(${isC ? 0 : d < 0 ? 20 : -20}deg) ` +
+            `translateZ(${isC ? 0 : -70}px) scale(${isC ? 1 : 0.86})`;
+          return (
+            <Link
+              key={ev.id}
+              href={`/event/${ev.id}`}
+              aria-hidden={!isC}
+              onClick={(e) => { if (!isC) { e.preventDefault(); setActive(i); } }}
+              className="cf-card absolute left-1/2 top-1/2 w-[70%] max-w-[256px] rounded-2xl bg-white border p-3.5"
+              style={{
+                transform,
+                zIndex: 20 - abs,
+                opacity: abs > 1 ? 0 : 1,
+                pointerEvents: abs > 1 ? "none" : undefined,
+                borderColor: accent,   // uniform border in the category colour
+                boxShadow: isC
+                  ? "0 28px 52px -16px rgba(17,17,46,0.48), 0 12px 24px -12px rgba(17,17,46,0.32)"
+                  : "0 8px 18px -12px rgba(17,17,46,0.20)",
+              }}
+              draggable={false}
+            >
+              <span className="flex flex-wrap items-center gap-1.5 mb-2">
+                {ev.category && <CategoryChip category={ev.category} />}
+                {developing && <DevelopingBadge />}
+                {showLang && ev.language !== "en" && <LangChip lang={ev.language} />}
+              </span>
+              <span className="block text-[13px] font-semibold leading-snug line-clamp-3 mb-2.5"
+                style={{ textWrap: "balance" } as React.CSSProperties}>
+                {ev.headline}
+              </span>
+              <span className="flex items-center justify-between gap-2">
+                <AvatarStack outlets={ev.outlet_names ?? []} count={ev.source_count} size={15} />
+                <span className="text-xs text-[var(--ink-muted)] tabular-nums shrink-0">
+                  <TimeAgo iso={lastUpdate(ev)} />
+                </span>
+              </span>
+            </Link>
+          );
+        })}
+
+        <button type="button" aria-label="Previous story"
+          onClick={() => step(-1)}
+          className="cf-chev left-1">
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button type="button" aria-label="Next story"
+          onClick={() => step(1)}
+          className="cf-chev right-1">
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
-    </Link>
+      <p className="text-center text-[11px] text-[var(--ink-muted)] tabular-nums mt-1">
+        {active + 1} / {events.length}
+      </p>
+    </div>
   );
 }
 
@@ -622,49 +705,71 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       <DailySplash events={events} />
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-widest text-[var(--ink-muted)] mb-1">
             {today}
           </p>
           <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">
             Today&rsquo;s events
           </h1>
-          <p className="text-xs text-[var(--ink-muted)] mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span>
-              {events.length > 0
-                ? `${events.length} stories · one page per event · multiple sources`
-                : "One page per story · multiple sources · no noise"}
-            </span>
-            {/* Live refresh indicator — spins during refresh, shows last-updated time after */}
-            <span
-              className="inline-flex items-center gap-0.5 opacity-50"
-              title="Feed refreshes automatically every 20 minutes"
-            >
-              <svg
-                className={`w-2.5 h-2.5 shrink-0 ${isPending ? "animate-spin" : ""}`}
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-              >
-                <path d="M21 2v6h-6"/>
-                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                <path d="M3 22v-6h6"/>
-                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+          {/* Trimmed subtitle — returning readers don't need the tagline daily.
+              Just the count + a live "updated" state. */}
+          <p className="text-xs text-[var(--ink-muted)] mt-0.5 flex items-center gap-1.5">
+            <span>{events.length > 0 ? `${events.length} stories` : "No stories yet"}</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1 opacity-70"
+              title="Feed refreshes automatically every 20 minutes">
+              <svg className={`w-2.5 h-2.5 shrink-0 ${isPending ? "animate-spin" : ""}`}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
               </svg>
               <span suppressHydrationWarning>
-                {isPending
-                  ? "refreshing…"
+                {isPending ? "updating…"
                   : refreshedAt
-                  ? `${new Date(refreshedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`
-                  : "20m"}
+                  ? `updated ${new Date(refreshedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`
+                  : "updated just now"}
               </span>
             </span>
           </p>
         </div>
 
-        {/* Language toggle */}
-        {!error && events.length > 0 && (
+        {/* Right of the title: only the Outlook pulse — small enough that the
+            date + "Today's events" never wrap. The language toggle moved to the
+            search row (a filter, next to the other filters). */}
+        <Link
+          href="/outlook"
+          aria-label="Today's Outlooks"
+          title="Today's Outlooks"
+          className="outlook-pulse relative grid place-items-center w-9 h-9 rounded-full text-[var(--accent)] hover:bg-[var(--accent)]/8 transition-colors shrink-0 self-start"
+        >
+          <OutlookIcon className="w-5 h-5" />
+        </Link>
+      </div>
+
+      {/* ── Search (top) — the first affordance; find beats browse ─────────── */}
+      {!error && events.length > 0 && (
+        <div className="mb-5 flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
+            <svg
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-muted)] pointer-events-none"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder={lang === "es" ? "Buscar eventos…" : "Search events…"}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setStreamExpanded(false); }}
+              className="w-full pl-10 pr-3 py-2.5 text-sm bg-white border border-[var(--border)] rounded-full outline-none focus:border-gray-400 transition-colors"
+            />
+          </div>
+          {/* Language filter — lives with the other feed filters now */}
           <div
-            className="inline-flex items-center p-0.5 bg-gray-100 rounded-full gap-0.5 shrink-0 self-start"
+            className="inline-flex items-center p-0.5 bg-gray-100 rounded-full gap-0.5 shrink-0"
             role="group"
             aria-label="Language filter"
           >
@@ -673,7 +778,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                 key={l}
                 onClick={() => setLang(l)}
                 aria-pressed={lang === l}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                className={`px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                   lang === l
                     ? "bg-white text-[var(--accent)] shadow-sm"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -683,8 +788,26 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               </button>
             ))}
           </div>
-        )}
-      </div>
+          <Link
+            href="/entities"
+            aria-label="Entities"
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-[var(--border)] text-[var(--accent)] hover:bg-[var(--accent)]/5 hover:border-[var(--accent)]/40 transition-colors shrink-0"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="7" r="2.4"/><circle cx="12" cy="18" r="2.4"/>
+              <path d="M7 7 17 7M6.5 8 11 16M17.5 9 13 16"/>
+            </svg>
+          </Link>
+          {hasFilter && (
+            <button
+              onClick={clearAll}
+              className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline transition-colors shrink-0"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Topic folder carousel (mobile) — replaces the chip row < sm ─────── */}
       {!error && events.length > 0 && (
@@ -783,71 +906,8 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         </div>
       )}
 
-      {/* ── Outlook promo — discoverability entry point (ADR-0008) ───────────── */}
-      {!error && (
-        <Link
-          href="/outlook"
-          className="group flex items-center gap-3 mb-5 rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--accent)]/5 to-transparent px-4 py-3 hover:border-[var(--accent)]/40 hover:shadow-sm transition-all"
-        >
-          <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full bg-[var(--accent)]/10 text-[var(--accent)]">
-            <OutlookIcon className="w-5 h-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold leading-tight">Today&apos;s Outlooks</span>
-            <span className="block text-[12px] text-[var(--ink-muted)] leading-snug">
-              {lang === "es"
-                ? "Una columna editorial diaria por tema"
-                : "A daily editorial column for every topic"}
-            </span>
-          </span>
-          <svg
-            className="w-4 h-4 shrink-0 text-[var(--ink-muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 transition-all"
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </Link>
-      )}
-
-      {/* ── Search + clear ───────────────────────────────────────────────────── */}
-      {!error && events.length > 0 && (
-        <div className="mb-6 flex items-center gap-2.5">
-          <div className="relative flex-1 max-w-xs">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ink-muted)] pointer-events-none"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
-            </svg>
-            <input
-              ref={searchRef}
-              type="text"
-              placeholder={lang === "es" ? "Buscar eventos…" : "Search events…"}
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setStreamExpanded(false); }}
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-[var(--border)] rounded-full outline-none focus:border-gray-400 transition-colors"
-            />
-          </div>
-          <Link
-            href="/entities"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-[var(--border)] text-[var(--accent)] hover:bg-[var(--accent)]/5 hover:border-[var(--accent)]/40 transition-colors shrink-0"
-          >
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="7" r="2.4"/><circle cx="12" cy="18" r="2.4"/>
-              <path d="M7 7 17 7M6.5 8 11 16M17.5 9 13 16"/>
-            </svg>
-            Entities
-          </Link>
-          {hasFilter && (
-            <button
-              onClick={clearAll}
-              className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline transition-colors shrink-0"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
+      {/* Outlook promo banner removed — the pulsing Outlook icon on the header
+          line is the entry point now (Rams: one signal, no repeated card). */}
 
       {/* ── States ───────────────────────────────────────────────────────────── */}
       {error ? (
@@ -889,13 +949,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   — {breakingItems.length} most recent stories
                 </span>
               </div>
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 snap-x snap-mandatory">
-                {breakingItems.map((ev) => (
-                  <div key={ev.id} className="snap-start shrink-0">
-                    <BreakingCard event={ev} showLang={showLangChip} />
-                  </div>
-                ))}
-              </div>
+              <BreakingCoverflow events={breakingItems} showLang={showLangChip} />
             </div>
           )}
 
