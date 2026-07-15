@@ -51,7 +51,7 @@ class TtsCfg(BaseModel):
     models_dir: str = "/models"                # baked into the image (Dockerfile)
     bitrate: str = "64k"                        # mono speech; small files
     key_prefix: str = "audio/outlook"          # Spaces key: {prefix}/{date}/{theme}-{lang}.mp3
-    concurrency: int = 2                        # parallel synths (CPU-capped by run-editorial.sh)
+    concurrency: int = 1                        # voice loaded once + onnxruntime uses the --cpus slice per synth
 
 
 class SpacesCfg(BaseModel):

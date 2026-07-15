@@ -96,24 +96,27 @@ clip took **~60–140 s** of CPU, and two overlapping runs drove the 4-core drop
 **load ~69** (Piper/onnxruntime grabs every core). The public site stayed up but was
 at risk. Fixes, all shipped:
 
-1. **Hard resource cap in `run-editorial.sh`** — `--cpus` (default **2.0**) + `--memory`
-   + `OMP_NUM_THREADS`, so a batch/backfill can never starve the live stack regardless
-   of onnxruntime threading. This is the real guardrail (kernel-enforced).
-2. **Medium voices** (`en_US-ryan-medium`) — ~2× faster synth than `-high`, quality
+1. **Load the voice model ONCE** (`services/tts.py` now uses the Piper **Python API**,
+   not a CLI subprocess per clip). The CLI reloaded the ~60 MB model + re-init'd
+   onnxruntime on *every* clip; with concurrency that churned CPU **and memory** hard
+   enough to push the box to load ~55 with memory pinned at the cgroup cap (D-state
+   thrash). Loading once and reusing the cached voice removes that entirely — the root
+   cause. (macOS can't run the API — its espeakbridge ignores the data path — but
+   Linux, all prod cares about, is fine.)
+2. **Medium voice** (`en_US-ryan-medium`) — ~2× faster synth than `-high`, quality
    still fine for narration.
-3. **Concurrent synthesis** (`tts.concurrency`, default 2) — synthesis is decoupled
-   from text generation into a `_synthesize_batch` that runs `concurrency` clips at
-   once, filling the CPU slice without oversubscribing. `generate_theme` no longer
-   synthesizes inline; `generate_all` voices the day's columns in one batch after the
-   text loop.
+3. **Hard resource cap in `run-editorial.sh`** — `--cpus` (default **2.0**) + `--memory`
+   + `OMP_NUM_THREADS`: a kernel-enforced guardrail so a batch can never starve the live
+   stack regardless of onnxruntime threading. One synth's onnxruntime fills the 2-core
+   slice, so `tts.concurrency` defaults to **1** (higher risks sharing one session across
+   threads for no gain under the cap). Synthesis is decoupled from text generation into a
+   `_synthesize_batch` run after the text loop (`generate_theme` no longer voices inline).
 
-Net: the daily cron (~36 columns) drops from ~40 min to ~10–15 min at ≤2 cores, and
-the one-time backfill runs safely in the background newest-first (today's editions get
-audio first). Further speedups if ever needed: `-low` voices, higher `EDITORIAL_CPUS`
-during an off-hours window, or moving synthesis to the 16 GB box (rejected option above).
-A deeper optimization — the Python API to load each voice model **once** instead of
-re-loading per clip via the CLI subprocess — is a worthwhile follow-up but unnecessary
-now that the box is protected and throughput is acceptable.
+Net: the daily cron (~36 columns) drops from ~40 min to ~10–15 min within a ≤2-core
+slice, memory is flat (one resident model), and the one-time backfill runs safely in the
+background newest-first (today's editions get audio first). Further speedups if ever
+needed: `-low` voices, a higher `EDITORIAL_CPUS` off-hours window, or moving synthesis to
+the 16 GB box (rejected option above).
 
 ### Compliance note (workspace policy)
 

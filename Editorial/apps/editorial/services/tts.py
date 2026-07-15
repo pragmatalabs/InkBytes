@@ -4,12 +4,18 @@ Piper (a fast, CPU-only neural TTS) synthesizes a column to WAV; ffmpeg transcod
 to a small mono MP3. Zero per-character cost — the same local-first decision as
 bge-m3 embeddings (Curator ADR-0003), no external voice vendor.
 
-One voice per language, configured in `TtsCfg.voices` and baked into the image
-(`models_dir`). The Piper CLI is invoked as a subprocess (stable across the
-package's Python-API churn); it reads plain text on stdin and writes a WAV.
+Each voice model is loaded **once** (Piper Python API) and reused across every clip
+of that language. The earlier CLI-subprocess-per-clip approach reloaded the ~60 MB
+model on every call, which churned CPU + memory hard enough to spike the shared
+droplet's load — see ADR-0011 "Throughput". Loading once fixes that at the source.
 
-`available()` reports whether the binaries + the language's voice model are present
-so the caller can skip cleanly (best-effort — TTS never blocks text generation).
+onnxruntime uses all cores by default; the container is CPU-capped by
+run-editorial.sh (--cpus), so a batch can't starve the live stack. `available()`
+reports whether ffmpeg + the voice model + the piper import are all present so the
+caller can skip cleanly (best-effort — TTS never blocks text generation).
+
+⚠️ The piper-tts macOS wheel can't synthesize (its espeakbridge ignores the runtime
+data path). It works on Linux (amd64 + arm64), which is all prod runs.
 """
 from __future__ import annotations
 
@@ -19,6 +25,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
+import wave
 
 from core.config import TtsCfg
 
@@ -57,8 +65,10 @@ def to_speakable(headline: str, body_md: str) -> str:
 class Tts:
     def __init__(self, cfg: TtsCfg) -> None:
         self.cfg = cfg
-        self._piper = shutil.which("piper")
         self._ffmpeg = shutil.which("ffmpeg")
+        self._PiperVoice = None            # lazy import (linux-only synthesis)
+        self._voices: dict[str, object] = {}   # language → loaded PiperVoice (once)
+        self._lock = threading.Lock()      # guards the voice cache across worker threads
 
     def voice_id(self, language: str) -> str | None:
         return self.cfg.voices.get(language)
@@ -71,34 +81,45 @@ class Tts:
         return path if os.path.exists(path) else None
 
     def available(self, language: str) -> bool:
-        """Everything present to synthesize this language? (binaries + voice)."""
+        """Everything present to synthesize this language? (ffmpeg + voice + piper)."""
         if not self.cfg.enabled:
             return False
-        if not self._piper or not self._ffmpeg:
-            logger.warning("TTS unavailable: piper=%s ffmpeg=%s",
-                           bool(self._piper), bool(self._ffmpeg))
+        if not self._ffmpeg:
+            logger.warning("TTS unavailable: ffmpeg not found")
             return False
         if not self._model_path(language):
             logger.warning("TTS voice model missing for %s (%s) in %s",
                            language, self.voice_id(language), self.cfg.models_dir)
             return False
+        if self._PiperVoice is None:
+            try:
+                from piper import PiperVoice
+                self._PiperVoice = PiperVoice
+            except Exception as e:  # noqa: BLE001 — degrade cleanly (e.g. macOS dev)
+                logger.warning("TTS unavailable: piper import failed: %s", e)
+                return False
         return True
 
+    def _voice(self, language: str):
+        """Loaded PiperVoice for the language — loaded once, then cached/reused."""
+        with self._lock:
+            v = self._voices.get(language)
+            if v is None:
+                model = self._model_path(language)
+                v = self._PiperVoice.load(model)   # finds the sibling .onnx.json
+                self._voices[language] = v
+                logger.info("loaded Piper voice %s (%s)", self.voice_id(language), language)
+            return v
+
     def synthesize(self, text: str, language: str) -> bytes:
-        """text → MP3 bytes. Assumes available(language) is True. Raises on failure
-        (the caller wraps it so a synth failure never aborts the batch)."""
-        model = self._model_path(language)
-        if not model:
-            raise RuntimeError(f"no voice model for {language}")
+        """text → MP3 bytes using the cached voice. Assumes available(language).
+        Raises on failure (the caller wraps it so a synth failure never aborts a batch)."""
+        voice = self._voice(language)
         with tempfile.TemporaryDirectory() as tmp:
             wav = os.path.join(tmp, "out.wav")
             mp3 = os.path.join(tmp, "out.mp3")
-            cfg_json = model + ".json"
-            piper_cmd = [self._piper, "--model", model, "--output_file", wav]
-            if os.path.exists(cfg_json):
-                piper_cmd += ["--config", cfg_json]
-            subprocess.run(piper_cmd, input=text.encode("utf-8"),
-                           check=True, capture_output=True, timeout=600)
+            with wave.open(wav, "wb") as wf:
+                voice.synthesize_wav(text, wf)
             subprocess.run(
                 [self._ffmpeg, "-y", "-loglevel", "error", "-i", wav,
                  "-ac", "1", "-b:a", self.cfg.bitrate, mp3],

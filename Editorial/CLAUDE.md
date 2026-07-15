@@ -42,10 +42,13 @@ the local-first call, like bge-m3), stored public-read in DO Spaces, URL on
 `editorials.audio_url`; the Reader `/outlook` page plays it. Best-effort: a TTS or
 upload failure never blocks the text batch. Voices baked into the image:
 `en_US-ryan-medium` + `es_MX-ald-medium` (override via `EDITORIAL_TTS_VOICE_EN/_ES`).
-Synthesis is **concurrent** (`tts.concurrency`, default 2) and **CPU-capped** by
-`run-editorial.sh` (`--cpus`, default 2.0) — long columns are ~60–140s each at `-high`,
-so medium voices + the cap keep the daily run ~10–15 min and never starve the shared
-droplet (ADR-0011 "Throughput" note). `--synthesize-missing` backfills old rows.
+`tts.py` loads each voice **once** (Piper Python API) — NOT the CLI per clip, which
+reloaded the model every call and thrashed the shared droplet (load ~55, ADR-0011
+"Throughput"). Synthesis is decoupled into `_synthesize_batch` after the text loop,
+CPU-capped by `run-editorial.sh` (`--cpus`, default 2.0); `tts.concurrency` default 1
+(onnxruntime fills the cap per synth). Daily run ~10–15 min, never starves the box.
+`--synthesize-missing` backfills old rows. ⚠️ Piper's macOS wheel can't synthesize —
+test via the Linux image (works amd64 + arm64).
 ⚠️ The `piper-tts` **macOS** wheel can't synthesize (broken espeak-data path) —
 build/run the Linux image (works on amd64 + arm64) to test locally.
 
