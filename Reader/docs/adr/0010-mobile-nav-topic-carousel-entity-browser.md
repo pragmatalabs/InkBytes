@@ -100,9 +100,13 @@ Diagnosis of the actual mobile problems:
   penalty is gone) — this was a real, ongoing prod cost, not cosmetic.
 - The carousel auto-applies filters on settle; browsing topics = swiping.
   All filtering stays client-side, so it's free.
-- Entity Phase 2 (Wikidata descriptions + official links, ~6–10h, reuses the
-  cover agent's `wbsearchentities` + context re-ranking) and Phase 3 (inline
-  entity highlights in article text, ~3–5h) are parked with estimates.
+- **Entity avatars 2026-07-12:** country entities now show a **flag emoji**
+  (`lib/country-flags.ts`, ES+EN name→ISO, offline, cities/people excluded) —
+  DEPLOYED. **Person photos** are the natural companion to Entity Phase 2:
+  Wikidata P18 → Commons (reuse the ADR-0034 cover agent's wbsearchentities +
+  context re-rank + CC attribution + fallback), a Curator enrichment workstream
+  (~6–10h with descriptions) — parked, needs a go.
+- Entity Phase 3 (inline entity highlights in article text, ~3–5h) parked.
 - Known data follow-up: *United States* and *Estados Unidos* are separate
   entities — cross-language **entity** merging is the graph cousin of the
   ADR-0037 event dedup.
