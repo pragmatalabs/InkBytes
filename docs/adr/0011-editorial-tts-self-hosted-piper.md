@@ -91,11 +91,14 @@ not `-high`: see the throughput note below.
   service → Spaces → DB → Curator → Reader player) against the dev stack.
 - **Deploy status (2026-07-15):** DONE — migration `002` applied to prod; Curator +
   Reader deployed (serve/play `audio_url`); droplet editorial slimmed; droplet-side TTS
-  temporarily disabled (`EDITORIAL_TTS_ENABLED=false`) after the outage. REMAINING —
-  deploy `tts-server` on the 16 GB box behind Traefik (`tts.<domain>` + `TTS_SECRET`),
-  set `EDITORIAL_TTS_URL`/`_SECRET` + re-enable TTS in `infra/.env`, then
-  `run-editorial.sh --synthesize-missing` to backfill. ~11 of today's columns already
-  have audio from the (reverted) droplet runs.
+  disabled (`EDITORIAL_TTS_ENABLED=false`) after the outage; **`tts-server` deployed on
+  the 16 GB box** (`/root/inkbytes-tts`, behind Traefik for `tts.inkbytes.news`,
+  `X-TTS-Token` secret, restart-always, 2 GB cap) — verified internally (healthz + a
+  synth + a 401-without-token; WordPress + box unaffected). ~11 of today's columns
+  already have audio from the (reverted) droplet runs. BLOCKED ON — a DNS A record
+  `tts.inkbytes.news → 82.112.250.139` (user action; Let's Encrypt HTTP-01 needs it to
+  resolve). AFTER DNS — set `EDITORIAL_TTS_URL`/`_SECRET` + re-enable TTS in the
+  droplet's `infra/.env`, then `run-editorial.sh --synthesize-missing` to backfill.
 - Voice choice is config, not code — swapping voices is an env change (to a voice also
   baked into the service image).
 
