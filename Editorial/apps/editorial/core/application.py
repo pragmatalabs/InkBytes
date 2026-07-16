@@ -149,16 +149,16 @@ class Application:
             return False
         try:
             text = to_speakable(headline, body_md)
-            voice = self.tts.voice_id(language) or "unknown"
-            # Piper + ffmpeg are blocking subprocesses — keep them off the loop.
-            mp3 = await asyncio.to_thread(self.tts.synthesize, text, language)
+            # synth is a blocking call (network or subprocess) — keep it off the loop.
+            # Returns the actual voice used (the service reports it — Kokoro randomizes).
+            mp3, voice_label = await asyncio.to_thread(self.tts.synthesize, text, language)
             key = f"{self.cfg.tts.key_prefix}/{edition_date}/{theme}-{language}.mp3"
             url = await asyncio.to_thread(self.storage.upload_bytes, mp3, key)
             await self.db.set_editorial_audio(
                 theme=theme, language=language, edition_date=edition_date,
-                audio_url=url, audio_voice=f"piper/{voice}")
+                audio_url=url, audio_voice=voice_label)
             logger.info("AUDIO %s/%s [%s] %d KB -> %s",
-                        theme, language, voice, len(mp3) // 1024, url)
+                        theme, language, voice_label, len(mp3) // 1024, url)
             return True
         except Exception as e:  # noqa: BLE001 — audio is best-effort
             logger.warning("audio synth failed for %s/%s: %s", theme, language, e)

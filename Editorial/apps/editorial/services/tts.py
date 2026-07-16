@@ -107,19 +107,23 @@ class Tts:
                 return False
         return True
 
-    def synthesize(self, text: str, language: str) -> bytes:
-        """text → MP3 bytes. Remote (POST to the microservice) or local Piper depending
-        on config. Raises on failure (the caller wraps it so it never aborts a batch)."""
-        return self._synthesize_remote(text, language) if self.remote \
-            else self._synthesize_local(text, language)
+    def synthesize(self, text: str, language: str) -> tuple[bytes, str]:
+        """text → (MP3 bytes, voice_label). Remote (POST to the microservice) or local
+        Piper. voice_label is the engine/voice actually used (the service reports it via
+        X-TTS-Voice — important since Kokoro picks a random voice per column). Raises on
+        failure (the caller wraps it so it never aborts a batch)."""
+        if self.remote:
+            return self._synthesize_remote(text, language)
+        return self._synthesize_local(text, language), f"piper/{self.voice_id(language)}"
 
-    def _synthesize_remote(self, text: str, language: str) -> bytes:
+    def _synthesize_remote(self, text: str, language: str) -> tuple[bytes, str]:
         import httpx
         url = self.cfg.remote_url.rstrip("/") + "/synthesize"
         r = httpx.post(url, json={"text": text, "lang": language},
                        headers={"X-TTS-Token": self.cfg.remote_secret}, timeout=300)
         r.raise_for_status()
-        return r.content
+        voice = r.headers.get("X-TTS-Voice") or f"remote/{self.voice_id(language) or language}"
+        return r.content, voice
 
     def _voice(self, language: str):
         """Loaded PiperVoice for the language — loaded once, then cached/reused."""

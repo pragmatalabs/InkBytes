@@ -2,6 +2,17 @@
 
 > *Status: v1 · Owner: Julian · Date: 2026-07-15 · Built + verified locally, NOT yet deployed*
 
+> **Update 2026-07-15 — engine made pluggable; Kokoro added.** Piper (even -high) read
+> as robotic, so the service (`Editorial/apps/tts-server`) now supports `TTS_ENGINE`:
+> `piper` (fast, fixed voice/lang) or **`kokoro`** (higher-quality PyTorch TTS). Kokoro
+> picks a **random voice per column** from a per-language pool (mix of male + female:
+> EN `af_heart,af_bella,am_michael,am_fenrir`; ES `ef_dora,em_alex`) — Julian wanted the
+> narrator to vary. The service reports the chosen voice via an `X-TTS-Voice` response
+> header, which the droplet stores in `audio_voice`. Both engines' models are baked into
+> the one image; flip with the `TTS_ENGINE` env (Piper stays as instant fallback).
+> Currently running **kokoro** on the 16 GB box. Everything below still holds — only the
+> box's synth engine changed; droplet/Spaces/Curator/Reader are untouched.
+
 ## Context
 
 Each daily "Today's [Topic] Outlook" editorial (ADR-0008) should be listenable —

@@ -46,9 +46,12 @@ outage), so the batch POSTs clean text to the **`tts-server` microservice on the
 box** (`apps/tts-server`, FastAPI + Piper, voices baked in, behind Traefik + an
 `X-TTS-Token` secret) and uploads the returned MP3 to Spaces. Wire via
 `EDITORIAL_TTS_URL` + `EDITORIAL_TTS_SECRET`; leave `EDITORIAL_TTS_URL` unset for local
-Piper in dev (`tts.py` keeps a local path). Voices `en_US-ryan-high` +
-`es_MX-claude-high` (bumped medium→high once synth moved off-box; both baked for A/B
-via `TTS_VOICE_EN/_ES`); synthesis decoupled into `_synthesize_batch` after the text loop.
+Piper in dev (`tts.py` keeps a local path). Engine is **pluggable** via `TTS_ENGINE` on the service: `piper` (fast, one fixed
+voice/lang: `en_US-ryan-high`/`es_MX-claude-high`) or **`kokoro`** (higher quality,
+PyTorch; picks a RANDOM voice per column from a per-lang pool — EN `af_heart,af_bella,
+am_michael,am_fenrir`, ES `ef_dora,em_alex` — mix of M/F). Both baked into the service
+image; the service reports the voice used via `X-TTS-Voice` (stored in `audio_voice`).
+Currently running **kokoro**. Synthesis decoupled into `_synthesize_batch` after the text loop.
 `--synthesize-missing` backfills old rows. ⚠️ Piper's macOS wheel can't synthesize —
 test via the Linux images (amd64 + arm64).
 ⚠️ The `piper-tts` **macOS** wheel can't synthesize (broken espeak-data path) —
