@@ -10,6 +10,14 @@
 > narrator to vary. The service reports the chosen voice via an `X-TTS-Voice` response
 > header, which the droplet stores in `audio_voice`. Both engines' models are baked into
 > the one image; flip with the `TTS_ENGINE` env (Piper stays as instant fallback).
+>
+> **Kokoro is CPU-slow (measured):** ~5.4 min/column on the box, single-core-bound
+> (RTF ~1.8) — `TORCH_NUM_THREADS` does NOT help (RNN vocoder). Serial daily runs would
+> be ~3 h. Fix = **process parallelism**: the service runs `UVICORN_WORKERS=3` (3
+> processes, 1 torch thread each → 3 concurrent columns on 3 cores, `--cpus=3`,
+> `--memory=6g`) and the droplet sends `EDITORIAL_TTS_CONCURRENCY=3`. Daily ~36 cols →
+> ~1 h at 11:59 UTC (off-hours; leaves 1 core for WordPress/Ollama). **No archive
+> backfill** — only the current edition is (re)voiced; the daily cron covers new days.
 > Currently running **kokoro** on the 16 GB box. Everything below still holds — only the
 > box's synth engine changed; droplet/Spaces/Curator/Reader are untouched.
 

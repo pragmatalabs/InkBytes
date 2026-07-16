@@ -39,4 +39,6 @@ PY
 
 COPY server.py .
 EXPOSE 8065
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8065"]
+# UVICORN_WORKERS separate processes = true CPU parallelism. Kokoro is single-core
+# per synth (threads don't help), so N workers on N cores = N concurrent columns.
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port 8065 --workers ${UVICORN_WORKERS:-1}"]

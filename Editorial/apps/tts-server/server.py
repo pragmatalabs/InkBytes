@@ -36,6 +36,18 @@ log = logging.getLogger("tts-server")
 
 ENGINE = os.getenv("TTS_ENGINE", "piper").lower()
 BITRATE = os.getenv("TTS_BITRATE", "64k")
+
+# Kokoro is PyTorch on CPU and defaults to a single thread in-container — let it use
+# the cores we grant (TORCH_NUM_THREADS, matched to --cpus in run.sh). OMP/MKL are
+# also set in the env for the intra-op pools.
+if ENGINE == "kokoro":
+    _threads = int(os.getenv("TORCH_NUM_THREADS", "0"))
+    if _threads > 0:
+        try:
+            import torch
+            torch.set_num_threads(_threads)
+        except Exception:  # noqa: BLE001
+            pass
 SECRET = os.getenv("TTS_SECRET", "")
 MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "20000"))
 
