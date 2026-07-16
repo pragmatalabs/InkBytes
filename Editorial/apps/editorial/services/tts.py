@@ -119,8 +119,10 @@ class Tts:
     def _synthesize_remote(self, text: str, language: str) -> tuple[bytes, str]:
         import httpx
         url = self.cfg.remote_url.rstrip("/") + "/synthesize"
+        # Generous timeout: a full column on Kokoro (CPU) is ~5-6 min, and can stretch
+        # under parallel-worker contention — must exceed it or the synth is wasted.
         r = httpx.post(url, json={"text": text, "lang": language},
-                       headers={"X-TTS-Token": self.cfg.remote_secret}, timeout=300)
+                       headers={"X-TTS-Token": self.cfg.remote_secret}, timeout=900)
         r.raise_for_status()
         voice = r.headers.get("X-TTS-Voice") or f"remote/{self.voice_id(language) or language}"
         return r.content, voice
