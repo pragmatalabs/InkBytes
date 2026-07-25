@@ -985,7 +985,7 @@ class Application:
         logger.info("synthesize-pending complete: %d done, %d errors", done, errors)
 
     async def run_merge_nearby(
-        self, dry_run: bool = True, merge_distance: float = 0.25,
+        self, dry_run: bool = True, merge_distance: float = 0.12,
         since_hours: int = 72, min_source_count: int = 1,
     ) -> int:
         """Near-duplicate event merge pass (ADR-0040).

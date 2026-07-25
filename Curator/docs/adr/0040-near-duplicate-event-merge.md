@@ -1,6 +1,18 @@
 # ADR-0040 — Near-duplicate event merge pass
 
-> *Status: v1 · Owner: Julian · Date: 2026-07-25 · Built + dev-verified, dry-run validated on prod; NOT yet enabled*
+> *Status: v1 · Owner: Julian · Date: 2026-07-25 · **DEPLOYED + applied on prod (90 events → 53 stories); scheduled 4×/day***
+
+> **Threshold (validated on prod, 2026-07-25):** the default is **0.12**, not 0.25.
+> A dry-run at 0.25 produced real false positives — it merged *distinct* events that
+> merely share embedding proximity (two different earthquakes, the Google vs
+> AliExpress EU fines, unrelated floods/storms, R-vs-D primaries). The true dups sit
+> at **0.03–0.08**; 0.12 catches them and correctly separates e.g. the World-Cup
+> *final result* from the World-Cup *economic impact*. First apply: **90 events →
+> 53 survivors, 0 re-synth failures**, redirects verified.
+>
+> **Scheduled:** `infra/run-merge-nearby.sh` (a one-shot `docker compose run`,
+> `--merge-apply --merge-distance 0.12 --since-hours 48`) via cron every 6 h — the
+> running Curator services are untouched. Pause by commenting the crontab line.
 
 ## Context
 
@@ -68,6 +80,7 @@ it *would* merge; `--merge-apply` is required to mutate. Knobs: `--merge-distanc
   → `merged_into` redirect); the detection query dry-run on the live corpus to
   validate the threshold before any mutation. The manual one-off on the wildfire
   cluster proved the merge+re-synth end to end.
-- **Follow-up:** wire `--merge-nearby --merge-apply` into the post-synthesis cycle
-  (or a cron) once the threshold is confirmed on a few dry-runs. Left manual/opt-in
-  for v1.
+- **Scheduled (done):** `infra/run-merge-nearby.sh` runs `--merge-apply` at 0.12
+  every 6 h via cron, so fragmentation self-maintains. A one-shot container — the
+  live Curator services are never touched. Manual `--merge-nearby` (dry-run) stays
+  available for spot-checks.

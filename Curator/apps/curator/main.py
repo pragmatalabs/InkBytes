@@ -190,8 +190,9 @@ def main() -> int:
     # merge-nearby knobs (safe defaults: dry-run, tight distance)
     parser.add_argument("--merge-apply", action="store_true",
                         help="With --merge-nearby: actually merge (default is dry-run)")
-    parser.add_argument("--merge-distance", type=float, default=0.25,
-                        help="Max centroid cosine distance to merge (default 0.25)")
+    parser.add_argument("--merge-distance", type=float, default=0.12,
+                        help="Max centroid cosine distance to merge (default 0.12 — "
+                             "validated precision-safe on prod; 0.25 over-merges distinct events)")
     parser.add_argument("--merge-min-sources", type=int, default=1,
                         help="Only consider events with ≥ this many sources (default 1)")
     args = parser.parse_args()
