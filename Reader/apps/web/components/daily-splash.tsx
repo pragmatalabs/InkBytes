@@ -97,7 +97,7 @@ export function DailySplash({ events }: Props) {
       />
       {/* Content sits above the ink; the wrapper is transparent to pointers so
           drags reach the canvas, while the interactive controls opt back in. */}
-      <div className="pointer-events-none relative z-10 flex h-full flex-col px-7 pb-8 pt-2 min-h-0">
+      <div className="pointer-events-auto relative z-10 flex h-[100dvh] flex-col px-7 pb-8 pt-2 min-h-0 overflow-y-auto overscroll-contain">
         {/* Header: brand lockup + close */}
         <div className="flex items-center justify-between pt-2">
           <span className="inline-flex items-center gap-2">

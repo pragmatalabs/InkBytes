@@ -62,7 +62,13 @@ export function InkShaderBg({ palette = 5, className }: Props) {
       return; // WebGL unavailable / context failure → solid background fallback
     }
 
-    // Drag/touch to stir the ink (normalised coords, y-up).
+    // Drag/touch to stir the ink (normalised coords, y-up). Listeners live on the
+    // splash ROOT (the canvas's parent), NOT the canvas — the canvas itself is
+    // pointer-events:none. This is deliberate: nesting the controls under a
+    // pointer-events:none wrapper (to let drags reach a canvas) swallowed the
+    // "Read now" tap on Android Chrome. Now the content is fully interactive
+    // (buttons work everywhere) and stir events still reach the root by bubbling.
+    const host: HTMLElement = canvas.parentElement ?? canvas;
     let lx = 0.5, ly = 0.5, have = false;
     const pos = (e: PointerEvent): [number, number] => {
       const r = canvas.getBoundingClientRect();
@@ -86,14 +92,14 @@ export function InkShaderBg({ palette = 5, className }: Props) {
     };
     const onLeave = () => { have = false; };
 
-    canvas.addEventListener("pointermove", onMove);
-    canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointerleave", onLeave);
+    host.addEventListener("pointermove", onMove);
+    host.addEventListener("pointerdown", onDown);
+    host.addEventListener("pointerleave", onLeave);
 
     return () => {
-      canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerdown", onDown);
-      canvas.removeEventListener("pointerleave", onLeave);
+      host.removeEventListener("pointermove", onMove);
+      host.removeEventListener("pointerdown", onDown);
+      host.removeEventListener("pointerleave", onLeave);
       wall?.destroy();
     };
   }, [palette]);
@@ -103,7 +109,9 @@ export function InkShaderBg({ palette = 5, className }: Props) {
       ref={canvasRef}
       aria-hidden="true"
       className={className}
-      style={{ display: "block", width: "100%", height: "100%", touchAction: "none" }}
+      // pointer-events:none so the canvas never intercepts taps meant for the
+      // controls above it; stir is handled on the root (see the effect).
+      style={{ display: "block", width: "100%", height: "100%", pointerEvents: "none" }}
     />
   );
 }
