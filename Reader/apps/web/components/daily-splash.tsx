@@ -116,6 +116,20 @@ export function DailySplash({ events }: Props) {
           </button>
         </div>
 
+        {/* Primary CTA — pinned near the top so it's always visible + reachable */}
+        <div className="flex justify-center pt-5">
+          <button
+            type="button"
+            onClick={dismiss}
+            className="pointer-events-auto flex h-12 w-auto items-center justify-center gap-2 rounded-full bg-white px-8 text-[15px] font-semibold text-[var(--accent)] transition hover:brightness-[1.06] active:translate-y-[0.5px] active:scale-[0.99]"
+          >
+            Read now
+            <svg width="17" height="14" viewBox="0 0 17 14" aria-hidden="true">
+              <path d="M1 7h13M10 1l5 6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+          </button>
+        </div>
+
         {/* Center block */}
         <div className="flex flex-1 flex-col justify-center">
           <div className="text-[40px] font-medium leading-[1.04] tracking-[-0.01em]">
@@ -164,29 +178,12 @@ export function DailySplash({ events }: Props) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex flex-col items-center pt-[18px]">
-          <button
-            type="button"
-            onClick={dismiss}
-            className="pointer-events-auto flex h-12 w-auto items-center justify-center gap-2 rounded-full bg-white px-8 text-[15px] font-semibold text-[var(--accent)] transition hover:brightness-[1.06] active:translate-y-[0.5px] active:scale-[0.99]"
-          >
-            Read now
-            <svg width="17" height="14" viewBox="0 0 17 14" aria-hidden="true">
-              <path
-                d="M1 7h13M10 1l5 6-5 6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          </button>
+        {/* Footer — secondary opt-out */}
+        <div className="flex justify-center pt-[18px]">
           <button
             type="button"
             onClick={never}
-            className="pointer-events-auto mt-1.5 w-full py-3 text-[13px] font-medium text-white/55 transition hover:text-white/75"
+            className="pointer-events-auto py-3 text-[13px] font-medium text-white/55 transition hover:text-white/75"
           >
             Don&rsquo;t show again
           </button>
