@@ -165,11 +165,11 @@ export function DailySplash({ events }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="pt-[18px]">
+        <div className="flex flex-col items-center pt-[18px]">
           <button
             type="button"
             onClick={dismiss}
-            className="pointer-events-auto flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-[17px] font-semibold text-[var(--accent)] transition hover:brightness-[1.06] active:translate-y-[0.5px] active:scale-[0.99]"
+            className="pointer-events-auto flex h-12 w-auto items-center justify-center gap-2 rounded-full bg-white px-8 text-[15px] font-semibold text-[var(--accent)] transition hover:brightness-[1.06] active:translate-y-[0.5px] active:scale-[0.99]"
           >
             Read now
             <svg width="17" height="14" viewBox="0 0 17 14" aria-hidden="true">
