@@ -175,6 +175,13 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'events' "
                 "AND column_name = 'cover_image')"
             ),
+            # 024 adds events.merged_into (ADR-0040 near-dup merge). TRUE once present.
+            "024_event_merged_into.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'events' "
+                "AND column_name = 'merged_into')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
@@ -444,6 +451,93 @@ class DatabaseService:
             rows = (await conn.fetch(sql, str(since_hours))
                     if since_hours else await conn.fetch(sql))
         return [dict(r) for r in rows]
+
+    # ── Near-duplicate event merge (ADR-0040) ───────────────────────────────
+
+    async def find_near_dup_pairs(
+        self, distance: float, since_hours: int, min_source_count: int = 1
+    ) -> list[dict[str, Any]]:
+        """Published event PAIRS whose centroids are within `distance` (cosine),
+        SAME language, both active in the recent window — the near-dup merge
+        candidates (ADR-0040). Centroid-to-centroid on averaged embeddings is far
+        more stable than the per-article ingest signal, so a tight distance here is
+        precision-safe and never touches the ingest entity-gate (ADR-0031).
+        Returns [{a, a_src, a_art, b, b_src, b_art, dist}] ordered by distance.
+        """
+        if not self.pool:
+            return []
+        sql = """
+            SELECT e1.id AS a, e1.source_count AS a_src, e1.article_count AS a_art,
+                   e2.id AS b, e2.source_count AS b_src, e2.article_count AS b_art,
+                   round((e1.centroid <=> e2.centroid)::numeric, 3) AS dist
+              FROM events e1
+              JOIN events e2
+                ON e1.id < e2.id
+               AND e1.language = e2.language
+             WHERE e1.status = 'published' AND e2.status = 'published'
+               AND e1.centroid IS NOT NULL AND e2.centroid IS NOT NULL
+               AND e1.last_material_update_at > NOW() - ($1 || ' hours')::interval
+               AND e2.last_material_update_at > NOW() - ($1 || ' hours')::interval
+               AND e1.source_count >= $3 AND e2.source_count >= $3
+               AND (e1.centroid <=> e2.centroid) < $2
+             ORDER BY dist
+        """
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(sql, str(since_hours), distance, min_source_count)
+        return [dict(r) for r in rows]
+
+    async def fetch_event_headlines(self, ids: list[str]) -> dict[str, str]:
+        """{event_id → its page headline} for the given events (dry-run/logging)."""
+        if not self.pool or not ids:
+            return {}
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                "SELECT event_id, headline FROM pages WHERE event_id = ANY($1::text[])",
+                ids)
+        return {r["event_id"]: r["headline"] for r in rows}
+
+    async def merge_events(
+        self, survivor_id: str, fragment_ids: list[str]
+    ) -> dict[str, Any] | None:
+        """Merge fragment events into the survivor (ADR-0040), atomically: reassign
+        their articles, recompute the survivor's centroid + rollups, and drop the
+        fragments (status='dropped', merged_into=survivor, page unpublished so its
+        /event URL 302-redirects). Returns the survivor's new (source_count,
+        article_count)."""
+        if not self.pool or not fragment_ids:
+            return None
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE articles SET event_id = $1 WHERE event_id = ANY($2::text[])",
+                    survivor_id, fragment_ids)
+                await conn.execute(
+                    "UPDATE events e SET "
+                    "  source_count = (SELECT count(DISTINCT outlet_id) FROM articles WHERE event_id = e.id), "
+                    "  article_count = (SELECT count(*) FROM articles WHERE event_id = e.id), "
+                    "  centroid = (SELECT avg(embedding) FROM articles WHERE event_id = e.id AND embedding IS NOT NULL), "
+                    "  last_material_update_at = NOW() "
+                    " WHERE e.id = $1", survivor_id)
+                await conn.execute(
+                    "UPDATE events SET status = 'dropped', merged_into = $1, merged_at = NOW() "
+                    " WHERE id = ANY($2::text[])", survivor_id, fragment_ids)
+                await conn.execute(
+                    "UPDATE pages SET published_at = NULL WHERE event_id = ANY($1::text[])",
+                    fragment_ids)
+                row = await conn.fetchrow(
+                    "SELECT source_count, article_count FROM events WHERE id = $1",
+                    survivor_id)
+        return dict(row) if row else None
+
+    async def fetch_merged_into(self, event_id: str) -> str | None:
+        """Survivor id if this event was merged away (ADR-0040), else None — the
+        /events/{id} redirect lookup for a dropped fragment's URL."""
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            return await conn.fetchval(
+                "SELECT merged_into FROM events WHERE id = $1 AND merged_into IS NOT NULL",
+                event_id)
 
     async def fetch_articles_for_embedding(self, only_missing: bool) -> list[dict[str, Any]]:
         """Rows to (re-)embed. only_missing=True → just NULL embeddings;

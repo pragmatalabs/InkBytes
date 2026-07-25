@@ -188,6 +188,8 @@ export interface Outlook {
   model: string;
   /** Spoken-word MP3 (self-hosted Piper TTS, ADR-0011); null until synthesized. */
   audio_url: string | null;
+  /** Stylized AI hero cover (gpt-image-1-mini, ADR-0012); null until generated. */
+  cover_url: string | null;
   timeline: OutlookTimelineItem[];
   available_dates: string[];
 }
@@ -207,6 +209,8 @@ export interface OutlookArchiveEntry {
 
 export interface EventPage extends EventSummary {
   event_id: string;
+  /** Set when this event was merged into another (ADR-0040) — the page redirects. */
+  merged_into?: string;
   synthesis_md: string;
   evidence_rail: EvidenceItem[] | string;
   entities: EntityItem[] | string;

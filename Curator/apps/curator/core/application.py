@@ -984,6 +984,83 @@ class Application:
                 logger.error("synthesize-pending event=%s error: %s", event_id, exc)
         logger.info("synthesize-pending complete: %d done, %d errors", done, errors)
 
+    async def run_merge_nearby(
+        self, dry_run: bool = True, merge_distance: float = 0.25,
+        since_hours: int = 72, min_source_count: int = 1,
+    ) -> int:
+        """Near-duplicate event merge pass (ADR-0040).
+
+        The ingest entity-specificity gate (ADR-0031) over-splits stories whose
+        articles are within the merge distance but whose shared entities are too
+        common to satisfy the gate — nothing merges them afterward. This pass finds
+        published events whose CENTROIDS are near-identical (same language, recent
+        window), groups them transitively, merges each group into its largest event,
+        and re-synthesizes the survivor. `dry_run` prints the groups without mutating.
+        Returns the number of events merged away.
+        """
+        pairs = await self.db.find_near_dup_pairs(merge_distance, since_hours, min_source_count)
+        if not pairs:
+            logger.info("merge-nearby: no near-dup pairs (<%.2f, %dh)", merge_distance, since_hours)
+            return 0
+
+        # union-find over the pairs → connected components (merge groups)
+        parent: dict[str, str] = {}
+        meta: dict[str, tuple[int, int]] = {}   # id → (source_count, article_count)
+
+        def find(x: str) -> str:
+            parent.setdefault(x, x)
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a: str, b: str) -> None:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+
+        for p in pairs:
+            union(p["a"], p["b"])
+            meta[p["a"]] = (p["a_src"], p["a_art"])
+            meta[p["b"]] = (p["b_src"], p["b_art"])
+
+        comps: dict[str, list[str]] = {}
+        for node in meta:
+            comps.setdefault(find(node), []).append(node)
+        groups = [g for g in comps.values() if len(g) >= 2]
+        logger.info("merge-nearby: %d group(s) from %d pair(s) (<%.2f, %dh)%s",
+                    len(groups), len(pairs), merge_distance, since_hours,
+                    "  [DRY-RUN]" if dry_run else "")
+
+        heads = await self.db.fetch_event_headlines(list(meta))
+        merged = 0
+        for g in groups:
+            # survivor = the most-developed event (most sources, then articles)
+            survivor = max(g, key=lambda i: (meta[i][0], meta[i][1], i))
+            fragments = [i for i in g if i != survivor]
+            logger.info("%smerge %d → %s  \"%s\" (src=%d)",
+                        "[dry-run] " if dry_run else "", len(fragments), survivor,
+                        (heads.get(survivor) or "")[:60], meta[survivor][0])
+            for f in fragments:
+                logger.info("    %s + %s  \"%s\" (src=%d)",
+                            "[dry-run]" if dry_run else "        ", f,
+                            (heads.get(f) or "")[:56], meta[f][0])
+            if dry_run:
+                continue
+            res = await self.db.merge_events(survivor, fragments)
+            try:
+                await self._synthesize_once(survivor, 0)   # refresh page from all members
+            except Exception as e:  # noqa: BLE001 — merge already committed; page self-heals
+                logger.warning("merge-nearby: re-synth failed for %s: %s", survivor, e)
+            logger.info("merge-nearby: merged %d → %s (now src=%s art=%s)",
+                        len(fragments), survivor,
+                        res and res.get("source_count"), res and res.get("article_count"))
+            merged += len(fragments)
+
+        logger.info("merge-nearby %s: %d event(s) merged across %d group(s)",
+                    "dry-run" if dry_run else "complete", merged, len(groups))
+        return merged
+
     async def run_reenrich_stubs(self) -> None:
         """Re-enrich articles that were processed in stub mode.
 

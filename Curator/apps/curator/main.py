@@ -55,7 +55,8 @@ async def _run(args: argparse.Namespace) -> None:
     # --dry-run skips Postgres entirely (LLM-only path for prompt iteration).
     # --reenrich-missing always needs DB (fetches + writes enrichment rows).
     needs_db = not args.dry_run
-    if args.reenrich_missing or args.synthesize_pending or args.conclude_stories:
+    if (args.reenrich_missing or args.synthesize_pending or args.conclude_stories
+            or args.merge_nearby):
         needs_db = True
     await app.startup(with_db=needs_db)
 
@@ -97,6 +98,13 @@ async def _run(args: argparse.Namespace) -> None:
             await app.run_synthesize_pending(since_hours=args.since_hours)
         elif args.conclude_stories:
             await app.run_conclude_stories()
+        elif args.merge_nearby:
+            await app.run_merge_nearby(
+                dry_run=not args.merge_apply,
+                merge_distance=args.merge_distance,
+                since_hours=args.since_hours or 72,
+                min_source_count=args.merge_min_sources,
+            )
         elif args.api_only:
             assert api_task is not None
             # Start the config-refresh loop so admin changes in Backoffice
@@ -169,6 +177,23 @@ def main() -> int:
             "Safe to re-run (idempotent). (ADR-0013)"
         ),
     )
+    grp.add_argument(
+        "--merge-nearby",
+        action="store_true",
+        help=(
+            "Consolidate near-duplicate published events (centroids within "
+            "--merge-distance, same language, recent window) that the ingest "
+            "entity-gate over-split. DRY-RUN by default (prints groups); pass "
+            "--merge-apply to actually merge + re-synthesize. (ADR-0040)"
+        ),
+    )
+    # merge-nearby knobs (safe defaults: dry-run, tight distance)
+    parser.add_argument("--merge-apply", action="store_true",
+                        help="With --merge-nearby: actually merge (default is dry-run)")
+    parser.add_argument("--merge-distance", type=float, default=0.25,
+                        help="Max centroid cosine distance to merge (default 0.25)")
+    parser.add_argument("--merge-min-sources", type=int, default=1,
+                        help="Only consider events with ≥ this many sources (default 1)")
     args = parser.parse_args()
 
     loop = asyncio.new_event_loop()

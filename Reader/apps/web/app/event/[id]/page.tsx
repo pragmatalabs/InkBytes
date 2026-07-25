@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
@@ -67,6 +67,11 @@ export default async function EventPage(
     page = await getEvent(id);
   } catch {
     notFound();
+  }
+
+  // Merged away (ADR-0040) → 302 the old URL to the survivor event.
+  if (page.merged_into) {
+    redirect(`/event/${page.merged_into}`);
   }
 
   const evidence = parseJson<EvidenceItem[]>(page.evidence_rail);
