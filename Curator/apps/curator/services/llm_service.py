@@ -169,6 +169,10 @@ def _is_stub_mode(cfg: LlmCfg) -> bool:
 class LlmService:
     def __init__(self, cfg: LlmCfg) -> None:
         self.cfg = cfg
+        # Lazily-built direct-DeepSeek client for the OpenRouter→DeepSeek provider
+        # fallback (built on first quota failure; rebuilt if the key/base_url change).
+        self._fallback_client = None
+        self._fallback_client_sig: tuple | None = None
         self._stub_mode = _is_stub_mode(cfg)
         self._signature = _signature(cfg)
         self.meter = CostMeter(
@@ -286,6 +290,106 @@ class LlmService:
         p = here / "prompts" / f"{name}.md"
         return p.read_text(encoding="utf-8")
 
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _is_quota_error(exc: Exception) -> bool:
+        """True when an exception looks like provider quota / credit exhaustion.
+
+        Covers Anthropic ("usage limits", "you have reached"), OpenAI
+        ("exceeded ... quota", "insufficient_quota") and OpenRouter
+        ("insufficient credits", HTTP 402). NOT transient rate limits (429) —
+        those are left to the tenacity retry.
+        """
+        raw = str(exc).lower()
+        return (
+            "usage limits" in raw
+            or "you have reached" in raw
+            or ("exceeded" in raw and "quota" in raw)
+            or "insufficient_quota" in raw
+            or "insufficient credits" in raw
+            or "insufficient_credits" in raw
+            or ("402" in raw and ("credit" in raw or "quota" in raw or "payment" in raw))
+        )
+
+    def _deepseek_fallback_client(self):
+        """Lazily build + cache a DIRECT-DeepSeek instructor client, used as a
+        provider-level fallback when OpenRouter is out of credits/quota.
+
+        Returns None when the fallback is disabled or no DeepSeek key is set.
+        Rebuilt when the key/base_url change (tracked via a small signature) so a
+        Backoffice key rotation is picked up on the next call.
+        """
+        if not getattr(self.cfg, "openrouter_deepseek_fallback", False):
+            return None
+        key = self.cfg.deepseek_api_key
+        if key in _UNSET:
+            return None
+        base = getattr(self.cfg, "deepseek_fallback_base_url", None) or "https://api.deepseek.com/v1"
+        sig = (key, base)
+        if self._fallback_client is not None and self._fallback_client_sig == sig:
+            return self._fallback_client
+        import instructor
+        from openai import AsyncOpenAI, BadRequestError as OpenAIBadRequestError
+        from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt
+        client = instructor.from_openai(
+            AsyncOpenAI(api_key=key, base_url=base), mode=instructor.Mode.JSON
+        )
+        client.max_retries = Retrying(
+            stop=stop_after_attempt(2),
+            retry=retry_if_not_exception_type(OpenAIBadRequestError),
+            reraise=True,
+        )
+        self._fallback_client = client
+        self._fallback_client_sig = sig
+        logger.info("Built direct-DeepSeek fallback client (base_url=%s)", base)
+        return client
+
+    def _deepseek_fallback_model(self, model: str) -> str:
+        """Translate an OpenRouter slug to its direct-DeepSeek id.
+
+        `deepseek/deepseek-v4-flash` → `deepseek-v4-flash`. A non-DeepSeek
+        OpenRouter model has no direct equivalent → use the configured default.
+        """
+        if model and model.startswith("deepseek/"):
+            return model.split("/", 1)[1]
+        return getattr(self.cfg, "deepseek_fallback_model", None) or "deepseek-v4-flash"
+
+    async def _run_structured(self, client, kwargs: dict, label: str,
+                              model: str, event_id: str | None):
+        """Execute one structured call on `client`, metering token usage."""
+        messages_api = client.messages
+        if hasattr(messages_api, "create_with_completion"):
+            result, completion = await messages_api.create_with_completion(**kwargs)
+            self._record_usage(completion, label, model, event_id)
+            return result
+        return await messages_api.create(**kwargs)
+
+    def _record_usage(self, completion, label: str, model: str,
+                      event_id: str | None) -> None:
+        """Read the provider's token usage off a completion and meter it."""
+        try:
+            usage = completion.usage
+            # Anthropic: input_tokens/output_tokens · OpenAI: prompt/completion_tokens
+            in_tok = getattr(usage, "input_tokens", None) or getattr(usage, "prompt_tokens", 0)
+            out_tok = getattr(usage, "output_tokens", None) or getattr(usage, "completion_tokens", 0)
+            # Cache-hit input tokens, billed cheaper (ADR-0028). DeepSeek:
+            # prompt_cache_hit_tokens · OpenAI-compat: prompt_tokens_details.cached_tokens
+            # · Anthropic: cache_read_input_tokens.
+            details = getattr(usage, "prompt_tokens_details", None)
+            cache_hit = (
+                getattr(usage, "prompt_cache_hit_tokens", None)
+                if getattr(usage, "prompt_cache_hit_tokens", None) is not None
+                else getattr(details, "cached_tokens", None)
+                if details is not None
+                else getattr(usage, "cache_read_input_tokens", None)
+            ) or 0
+            self.meter.record(
+                label, in_tok, out_tok,
+                cache_hit_tokens=int(cache_hit), model=model, event_id=event_id,
+            )
+        except Exception:
+            logger.debug("token usage unavailable on completion", exc_info=True)
+
     async def structured(
         self,
         *,
@@ -342,57 +446,39 @@ class LlmService:
             if len(chain) > 1:
                 kwargs["extra_body"] = {"models": chain}
 
-        # Prefer create_with_completion so we can read real token usage for cost
-        # accounting. Fall back to plain create() if this instructor build lacks
-        # it — accounting must never break a real call.
-        messages_api = self._client.messages  # type: ignore[union-attr]
+        # Prefer create_with_completion (real token usage for cost accounting);
+        # _run_structured falls back to plain create() if unavailable.
         try:
-            if hasattr(messages_api, "create_with_completion"):
-                result, completion = await messages_api.create_with_completion(**kwargs)
-                try:
-                    usage = completion.usage
-                    # Anthropic: input_tokens/output_tokens
-                    # OpenAI:    prompt_tokens/completion_tokens
-                    in_tok  = getattr(usage, "input_tokens",  None) \
-                           or getattr(usage, "prompt_tokens",  0)
-                    out_tok = getattr(usage, "output_tokens", None) \
-                           or getattr(usage, "completion_tokens", 0)
-                    # Cache-hit input tokens, billed ~50x cheaper (ADR-0028).
-                    # DeepSeek: usage.prompt_cache_hit_tokens (native).
-                    # OpenAI-compat: usage.prompt_tokens_details.cached_tokens.
-                    # Anthropic: usage.cache_read_input_tokens.
-                    details = getattr(usage, "prompt_tokens_details", None)
-                    cache_hit = (
-                        getattr(usage, "prompt_cache_hit_tokens", None)
-                        if getattr(usage, "prompt_cache_hit_tokens", None) is not None
-                        else getattr(details, "cached_tokens", None)
-                        if details is not None
-                        else getattr(usage, "cache_read_input_tokens", None)
-                    ) or 0
-                    self.meter.record(
-                        label, in_tok, out_tok,
-                        cache_hit_tokens=int(cache_hit),
-                        model=model, event_id=event_id,
-                    )
-                except Exception:
-                    logger.debug("token usage unavailable on completion", exc_info=True)
-                return result
-
-            return await messages_api.create(**kwargs)
-
+            return await self._run_structured(self._client, kwargs, label, model, event_id)
         except Exception as exc:
-            # Surface API quota exhaustion as LlmQuotaError immediately — no
-            # point retrying a hard monthly spend cap (the retry config already
-            # skips BadRequestError, but instructor may wrap it).
-            # Covers both Anthropic ("usage limits", "you have reached") and
-            # OpenAI ("exceeded your current quota", "insufficient_quota").
-            raw = str(exc).lower()
-            if (
-                "usage limits" in raw
-                or "you have reached" in raw
-                or ("exceeded" in raw and "quota" in raw)
-                or "insufficient_quota" in raw
-            ):
+            is_quota = self._is_quota_error(exc)
+            # Provider-level fallback: OpenRouter out of credits/quota → retry the
+            # SAME call on the DIRECT DeepSeek endpoint. This sits ABOVE OpenRouter's
+            # own per-model `models` array (which can't help when the whole account
+            # is out of credits). Gated by cfg.openrouter_deepseek_fallback + a key.
+            if is_quota and provider == "openrouter":
+                fb = self._deepseek_fallback_client()
+                if fb is not None:
+                    fb_model = self._deepseek_fallback_model(model)
+                    fb_kwargs = {k: v for k, v in kwargs.items() if k != "extra_body"}
+                    fb_kwargs["model"] = fb_model
+                    logger.warning(
+                        "OpenRouter quota/credit error — falling back to DIRECT "
+                        "DeepSeek (model=%s). cause=%s", fb_model, str(exc)[:160],
+                    )
+                    try:
+                        return await self._run_structured(fb, fb_kwargs, label, fb_model, event_id)
+                    except Exception as exc2:
+                        if self._is_quota_error(exc2):
+                            raise LlmQuotaError(
+                                f"OpenRouter AND direct-DeepSeek fallback both "
+                                f"quota-exhausted: {exc2}"
+                            ) from exc2
+                        raise
+            # Surface a hard quota wall as LlmQuotaError immediately — no point
+            # retrying a spend cap (the tenacity config already skips 400s, but
+            # instructor may wrap them). Caller requeues + pauses.
+            if is_quota:
                 raise LlmQuotaError(str(exc)) from exc
             raise
 

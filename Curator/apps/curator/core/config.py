@@ -46,7 +46,14 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "anthropic_api_key":      ("llm", "api_key"),
     "openai_api_key":         ("llm", "openai_api_key"),
     "deepseek_api_key":       ("llm", "deepseek_api_key"),
+    "openrouter_api_key":     ("llm", "openrouter_api_key"),
     "embeddings_api_key":     ("embeddings", "api_key"),
+    # OpenRouter routing, hot-reloadable from Backoffice. Fallback chains are
+    # comma-separated TEXT columns → apply_db_settings splits them into lists.
+    "llm_enrich_fallbacks":   ("llm", "enrich_fallbacks"),
+    "llm_synth_fallbacks":    ("llm", "synthesize_fallbacks"),
+    # Provider-level fallback toggle: OpenRouter quota/credit error → direct DeepSeek.
+    "openrouter_deepseek_fallback": ("llm", "openrouter_deepseek_fallback"),
     "similarity_threshold":   ("clustering", "similarity_threshold"),
     "entity_overlap_min":     ("clustering", "entity_overlap_min"),
     "min_sources_to_publish": ("clustering", "min_sources_to_publish"),
@@ -75,6 +82,7 @@ _API_KEY_COLUMNS: frozenset[str] = frozenset({
     "anthropic_api_key",
     "openai_api_key",
     "deepseek_api_key",
+    "openrouter_api_key",
     "embeddings_api_key",
 })
 
@@ -158,6 +166,15 @@ class LlmCfg(BaseModel):
     # reader-facing path can degrade to different backups.
     enrich_fallbacks: list[str] = []
     synthesize_fallbacks: list[str] = []
+    # Provider-level fallback: when routing via OpenRouter and it returns a quota
+    # / insufficient-credit error, transparently retry the call on the DIRECT
+    # DeepSeek endpoint (deepseek_api_key + deepseek_fallback_base_url). Last
+    # resort ABOVE OpenRouter's per-model `models` array (which can't cover the
+    # whole OpenRouter account being out of credits). Inert unless
+    # provider=openrouter and a DeepSeek key is set. Hot-reloadable via Backoffice.
+    openrouter_deepseek_fallback: bool = True
+    deepseek_fallback_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_fallback_model: str = "deepseek-v4-flash"
     # Per-Mtok list prices for cost accounting (ADR-0028). Defaults =
     # deepseek-v4-flash, the production model as of 2026-06 (verified against
     # the DeepSeek invoice). DeepSeek bills CACHED input tokens ~50x cheaper
@@ -180,6 +197,9 @@ class LlmCfg(BaseModel):
         "google/gemini-2.5-flash-lite":      {"in": 0.10, "out": 0.40},
         "openai/gpt-oss-120b":               {"in": 0.03, "out": 0.17},
         "deepseek/deepseek-v4-flash":        {"in": 0.09, "out": 0.18},
+        # Direct DeepSeek endpoint (used by the OpenRouter→DeepSeek fallback);
+        # bare slug + native cache-hit discount.
+        "deepseek-v4-flash":                 {"in": 0.14, "out": 0.28, "cache_hit": 0.0028},
         "meta-llama/llama-3.3-70b-instruct": {"in": 0.10, "out": 0.32},
         "anthropic/claude-haiku-4.5":        {"in": 1.00, "out": 5.00},
     }
@@ -442,11 +462,23 @@ class CuratorConfig(BaseModel):
                 continue
             target = getattr(self, section)
             current = getattr(target, field)
-            # Coerce to the existing field's type so e.g. Decimal/str from the
-            # DB driver compares/stores cleanly as float/int. When the current
-            # value is None (e.g. embeddings.base_url under provider=openai) there
-            # is no type to coerce to — take the raw DB value as-is.
-            new_value = row[column] if current is None else type(current)(row[column])
+            if isinstance(current, list):
+                # Comma-separated TEXT column (fallback chains) → list of slugs.
+                # An empty/whitespace value means "not set in Backoffice" → keep
+                # the env/YAML value (mirrors the API-key empty-skip above).
+                raw = str(row[column]).strip()
+                if not raw:
+                    continue
+                new_value = [x.strip() for x in raw.split(",") if x.strip()]
+            elif current is None:
+                # No type to coerce to (e.g. embeddings.base_url under openai) —
+                # take the raw DB value as-is.
+                new_value = row[column]
+            else:
+                # Coerce to the existing field's type so Decimal/str from the DB
+                # driver compares/stores cleanly as float/int/bool. (asyncpg
+                # already returns bool for boolean columns, so bool() is a no-op.)
+                new_value = type(current)(row[column])
             if new_value != current:
                 setattr(target, field, new_value)
                 changed = True
@@ -477,6 +509,9 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         # DeepSeek peak-valley pricing (mid-July 2026): peak-hour calls cost 2×.
         # Flip to true in infra/.env when the policy goes live → accurate cost meter.
         "DEEPSEEK_PEAK_PRICING": ("llm", "deepseek_peak_pricing"),
+        # Provider-level fallback OpenRouter→direct-DeepSeek on quota/credit error.
+        # Default-on in code; Backoffice curator_settings overrides at runtime.
+        "OPENROUTER_DEEPSEEK_FALLBACK": ("llm", "openrouter_deepseek_fallback"),
         # Pre-enrich triage gate (ADR-0030). Enable + point at the Hostinger
         # Ollama in prod via infra/.env; bool/str coerced by re-validation.
         "TRIAGE_ENABLED":    ("triage", "enabled"),
