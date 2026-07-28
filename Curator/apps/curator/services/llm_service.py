@@ -11,7 +11,12 @@ openai              — AsyncOpenAI via instructor.from_openai. Switch via
                       setting `llm_provider`. Key: OPENAI_API_KEY (env only).
 deepseek            — AsyncOpenAI pointed at https://api.deepseek.com/v1 (OpenAI-
                       compatible endpoint). Key: DEEPSEEK_API_KEY (env only).
-                      Models: deepseek-chat (DeepSeek-V3), deepseek-reasoner (R1).
+                      Models: deepseek-v4-flash, deepseek-v4-pro.
+openrouter          — AsyncOpenAI pointed at https://openrouter.ai/api/v1 (OpenAI-
+                      compatible aggregator). Key: OPENROUTER_API_KEY (env only).
+                      Namespaced models, e.g. deepseek/deepseek-v4-flash. Used to
+                      route to DeepSeek (or any model) through one account for
+                      quota resilience. JSON mode, like deepseek.
 
 Error taxonomy
 --------------
@@ -94,6 +99,13 @@ def _build_client(cfg: LlmCfg):
         api_key   = cfg.deepseek_api_key
         # DeepSeek default; overridden by cfg.base_url if the admin set one.
         base_url  = cfg.base_url or "https://api.deepseek.com/v1"
+    elif provider == "openrouter":
+        # OpenRouter (https://openrouter.ai) is an OpenAI-compatible aggregator.
+        # Same wire protocol as OpenAI; models are namespaced ("deepseek/deepseek-v4-flash").
+        # Key: OPENROUTER_API_KEY (env only). Lets us route to DeepSeek (or any
+        # OpenRouter model) through a single account for quota resilience.
+        api_key   = cfg.openrouter_api_key
+        base_url  = cfg.base_url or "https://openrouter.ai/api/v1"
     else:
         # openai, groq, together, mistral, or any other OpenAI-compatible provider.
         api_key   = cfg.openai_api_key
@@ -111,7 +123,9 @@ def _build_client(cfg: LlmCfg):
     # Mode.JSON for all DeepSeek models so both deepseek-chat (V3) and
     # deepseek-reasoner (R1) are supported. OpenAI and other providers keep
     # the default TOOLS mode.
-    if provider == "deepseek":
+    if provider in ("deepseek", "openrouter"):
+        # DeepSeek models reject tool_choice (thinking mode); we route DeepSeek
+        # via OpenRouter too, so JSON mode is the safe default for both.
         mode = instructor.Mode.JSON
     else:
         mode = instructor.Mode.TOOLS   # OpenAI default; supports tool_choice
@@ -140,6 +154,8 @@ def _is_stub_mode(cfg: LlmCfg) -> bool:
         return cfg.api_key in _UNSET
     if cfg.provider == "deepseek":
         return cfg.deepseek_api_key in _UNSET
+    if cfg.provider == "openrouter":
+        return cfg.openrouter_api_key in _UNSET
     # openai, groq, together, mistral, and any other OpenAI-compatible provider.
     return cfg.openai_api_key in _UNSET
 

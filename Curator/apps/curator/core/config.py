@@ -142,9 +142,10 @@ class LlmCfg(BaseModel):
     # Backoffice `curator_settings.max_tokens_synth` overlay — bump that too.
     max_tokens_synth: int = 8000
     temperature: float = 0.2
-    api_key: str = PLACEHOLDER           # Anthropic key  — env: ANTHROPIC_API_KEY
-    openai_api_key: str = PLACEHOLDER    # OpenAI key     — env: OPENAI_API_KEY;    provider=openai
-    deepseek_api_key: str = PLACEHOLDER  # DeepSeek key   — env: DEEPSEEK_API_KEY;  provider=deepseek
+    api_key: str = PLACEHOLDER            # Anthropic key   — env: ANTHROPIC_API_KEY
+    openai_api_key: str = PLACEHOLDER     # OpenAI key      — env: OPENAI_API_KEY;     provider=openai
+    deepseek_api_key: str = PLACEHOLDER   # DeepSeek key    — env: DEEPSEEK_API_KEY;   provider=deepseek
+    openrouter_api_key: str = PLACEHOLDER # OpenRouter key  — env: OPENROUTER_API_KEY; provider=openrouter
     # Custom base URL for OpenAI-compatible providers (Groq, Together, DeepSeek, etc.).
     # When set via Backoffice, overrides the provider's built-in default endpoint.
     base_url: str | None = None
@@ -494,4 +495,7 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
     if deepseek_key:
         data["llm"]["deepseek_api_key"] = deepseek_key
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+    if openrouter_key:
+        data["llm"]["openrouter_api_key"] = openrouter_key
     return CuratorConfig.model_validate(data)
