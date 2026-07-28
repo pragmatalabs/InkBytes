@@ -321,6 +321,20 @@ class LlmService:
         )
         label = _CALL_LABELS.get(response_model.__name__, response_model.__name__)
 
+        # OpenRouter fallback routing: pass an ordered `models` array (via
+        # extra_body → request body) so a quota-walled / errored primary degrades
+        # to the next model instead of failing the call. Per-task: enrich uses
+        # enrich_fallbacks; everything else (synth + /ask) uses synthesize_fallbacks.
+        # Only OpenRouter honors this param; other providers ignore extra_body.
+        if provider == "openrouter":
+            fallbacks = (
+                self.cfg.enrich_fallbacks if label == "enrich"
+                else self.cfg.synthesize_fallbacks
+            )
+            chain = [model, *[m for m in (fallbacks or []) if m and m != model]]
+            if len(chain) > 1:
+                kwargs["extra_body"] = {"models": chain}
+
         # Prefer create_with_completion so we can read real token usage for cost
         # accounting. Fall back to plain create() if this instructor build lacks
         # it — accounting must never break a real call.

@@ -202,6 +202,11 @@ services:
       # OpenRouter (OpenAI-compatible aggregator) — alternative LLM provider.
       # Flip llm_provider=openrouter in curator_settings to route via this key.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # OpenRouter per-task fallback chains (comma-separated slugs). Primary is
+      # curator_settings.enrich_model / synthesize_model; these are the ordered
+      # backups OpenRouter tries when the primary errors/rate-limits.
+      OPENROUTER_ENRICH_FALLBACKS: ${OPENROUTER_ENRICH_FALLBACKS:-}
+      OPENROUTER_SYNTH_FALLBACKS: ${OPENROUTER_SYNTH_FALLBACKS:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
@@ -275,6 +280,11 @@ services:
       # OpenRouter (OpenAI-compatible aggregator) — alternative LLM provider.
       # Flip llm_provider=openrouter in curator_settings to route via this key.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # OpenRouter per-task fallback chains (comma-separated slugs). Primary is
+      # curator_settings.enrich_model / synthesize_model; these are the ordered
+      # backups OpenRouter tries when the primary errors/rate-limits.
+      OPENROUTER_ENRICH_FALLBACKS: ${OPENROUTER_ENRICH_FALLBACKS:-}
+      OPENROUTER_SYNTH_FALLBACKS: ${OPENROUTER_SYNTH_FALLBACKS:-}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}

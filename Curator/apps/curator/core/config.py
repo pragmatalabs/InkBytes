@@ -149,6 +149,15 @@ class LlmCfg(BaseModel):
     # Custom base URL for OpenAI-compatible providers (Groq, Together, DeepSeek, etc.).
     # When set via Backoffice, overrides the provider's built-in default endpoint.
     base_url: str | None = None
+    # OpenRouter fallback chains (ONLY honored when provider=openrouter). When the
+    # primary model (enrich_model / synthesize_model) errors or rate-limits,
+    # OpenRouter tries these in order — passed as the request `models` array — so a
+    # quota wall degrades to the next model instead of stalling the pipeline. Empty
+    # = no fallback. Set via env (comma-separated OPENROUTER_ENRICH_FALLBACKS /
+    # OPENROUTER_SYNTH_FALLBACKS). Per-task so the cheap bulk path and the
+    # reader-facing path can degrade to different backups.
+    enrich_fallbacks: list[str] = []
+    synthesize_fallbacks: list[str] = []
     # Per-Mtok list prices for cost accounting (ADR-0028). Defaults =
     # deepseek-v4-flash, the production model as of 2026-06 (verified against
     # the DeepSeek invoice). DeepSeek bills CACHED input tokens ~50x cheaper
@@ -498,4 +507,13 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
     openrouter_key = os.environ.get("OPENROUTER_API_KEY")
     if openrouter_key:
         data["llm"]["openrouter_api_key"] = openrouter_key
+    # OpenRouter per-task fallback chains — comma-separated model slugs parsed
+    # into the list fields. Only meaningful when provider=openrouter.
+    for env_var, field in (
+        ("OPENROUTER_ENRICH_FALLBACKS", "enrich_fallbacks"),
+        ("OPENROUTER_SYNTH_FALLBACKS", "synthesize_fallbacks"),
+    ):
+        raw = os.environ.get(env_var)
+        if raw:
+            data["llm"][field] = [m.strip() for m in raw.split(",") if m.strip()]
     return CuratorConfig.model_validate(data)
