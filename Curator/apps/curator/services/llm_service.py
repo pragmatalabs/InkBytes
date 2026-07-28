@@ -57,8 +57,14 @@ def _signature(cfg: LlmCfg) -> tuple:
     Used by `LlmService.reconfigure` to detect whether a rebuild is needed:
     if the signature is the same the provider/models haven't changed (only
     api_key / price fields might have drifted, which are applied in-place).
+
+    base_url MUST be in the signature: it is baked into the AsyncOpenAI client
+    at build time, so a base_url-only change (e.g. flipping the endpoint when
+    switching provider via Backoffice) has to force a client rebuild. Omitting
+    it meant a live provider flip could keep pointing at the OLD endpoint until
+    a container restart — the OpenRouter switch hit exactly this (2026-07-28).
     """
-    return (cfg.provider, cfg.enrich_model, cfg.synthesize_model)
+    return (cfg.provider, cfg.enrich_model, cfg.synthesize_model, cfg.base_url)
 
 
 def _build_client(cfg: LlmCfg):
@@ -399,6 +405,7 @@ def _stub_response(model: type[T], user_content: str) -> T:
 
     if model is EnrichmentResult:
         return EnrichmentResult(  # type: ignore[return-value]
+            theme="world",
             topic="General News",
             summary_50w=(user_content[:200].replace("\n", " ").strip() + "...")[:300],
             sentiment="neutral",
