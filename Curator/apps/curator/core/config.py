@@ -167,6 +167,22 @@ class LlmCfg(BaseModel):
     price_in_per_mtok: float = 0.14            # cache-miss input  ($0.14/M)
     price_cache_hit_per_mtok: float = 0.0028   # cache-hit input   ($0.0028/M)
     price_out_per_mtok: float = 0.28           # output            ($0.28/M)
+    # Per-model list prices ($/Mtok) for cost accounting when routing via an
+    # aggregator (OpenRouter) where enrich_model and synthesize_model differ, so
+    # a single price pair above can't be accurate. The cost meter looks up the
+    # per-call model here; a model absent from the map falls back to the pair
+    # above. OpenRouter list prices as of 2026-07-28 (verify on the model page —
+    # these drift). {"in","out"}; optional "cache_hit" defaults to "in" (no
+    # discount — OpenRouter passthrough usually reports cache_hit=0 anyway).
+    model_prices: dict[str, dict[str, float]] = {
+        "qwen/qwen3.7-flash":                {"in": 0.03, "out": 0.13},
+        "google/gemini-2.5-flash":           {"in": 0.30, "out": 2.50},
+        "google/gemini-2.5-flash-lite":      {"in": 0.10, "out": 0.40},
+        "openai/gpt-oss-120b":               {"in": 0.03, "out": 0.17},
+        "deepseek/deepseek-v4-flash":        {"in": 0.09, "out": 0.18},
+        "meta-llama/llama-3.3-70b-instruct": {"in": 0.10, "out": 0.32},
+        "anthropic/claude-haiku-4.5":        {"in": 1.00, "out": 5.00},
+    }
     # DeepSeek peak-valley pricing (from mid-July 2026): peak-hour calls cost 2×
     # (UTC 01–04 + 06–10). Off until the policy is live; flip via DEEPSEEK_PEAK_PRICING.
     deepseek_peak_pricing: bool = False

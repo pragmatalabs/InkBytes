@@ -70,6 +70,7 @@ class CostMeter:
         price_out_per_mtok: float,
         price_cache_hit_per_mtok: float | None = None,
         peak_pricing: bool = False,
+        model_prices: dict[str, dict[str, float]] | None = None,
     ) -> None:
         # When True, calls made during the DeepSeek peak window cost 2× (mid-July
         # 2026 policy). Off → flat pricing (pre-policy behaviour, unchanged).
@@ -82,6 +83,10 @@ class CostMeter:
             price_cache_hit_per_mtok if price_cache_hit_per_mtok is not None
             else price_in_per_mtok
         )
+        # Optional per-model price map (slug → {"in","out",("cache_hit")}). Used
+        # when routing via an aggregator so enrich/synth on different models are
+        # each priced correctly; a model absent here falls back to the pair above.
+        self._model_prices = model_prices or {}
         self._lock = threading.Lock()
         self._buckets: dict[str, _Bucket] = {}
         self._sink: Optional[UsageSink] = None
@@ -91,17 +96,33 @@ class CostMeter:
         self._sink = sink
 
     def _call_cost(
-        self, input_tokens: int, output_tokens: int, cache_hit_tokens: int = 0
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        cache_hit_tokens: int = 0,
+        model: str | None = None,
     ) -> float:
+        # Resolve rates: per-model map first (aggregator routing), else the
+        # single default pair. cache_hit rate defaults to the model's input rate
+        # (no discount) when the map entry doesn't specify one.
+        mp = self._model_prices.get(model or "")
+        if mp is not None:
+            in_price = mp["in"]
+            out_price = mp["out"]
+            cache_price = mp.get("cache_hit", mp["in"])
+        else:
+            in_price = self._in_price
+            out_price = self._out_price
+            cache_price = self._cache_hit_price
         # DeepSeek (and OpenAI) bill cached input tokens at a steep discount.
         # input_tokens is the TOTAL; the cached subset is priced separately and
         # the remainder at the full (cache-miss) rate.
         hit = max(0, min(cache_hit_tokens, input_tokens))
         miss = input_tokens - hit
         base = (
-            (miss / 1_000_000) * self._in_price
-            + (hit / 1_000_000) * self._cache_hit_price
-            + (output_tokens / 1_000_000) * self._out_price
+            (miss / 1_000_000) * in_price
+            + (hit / 1_000_000) * cache_price
+            + (output_tokens / 1_000_000) * out_price
         )
         # Peak-hour surcharge (mid-July 2026 DeepSeek policy). Evaluated at the
         # moment the call is recorded — the cost is then frozen into the bucket.
@@ -129,7 +150,7 @@ class CostMeter:
         # Cost is frozen here (peak multiplier applied at this moment) and
         # accumulated, so the running total stays correct as the rate changes
         # through the day. Computed outside the lock (uses datetime.now).
-        call_cost = self._call_cost(input_tokens, output_tokens, cache_hit_tokens)
+        call_cost = self._call_cost(input_tokens, output_tokens, cache_hit_tokens, model=model)
         with self._lock:
             b = self._buckets.setdefault(label, _Bucket())
             b.calls += 1

@@ -176,6 +176,7 @@ class LlmService:
             cfg.price_out_per_mtok,
             getattr(cfg, "price_cache_hit_per_mtok", None),
             peak_pricing=getattr(cfg, "deepseek_peak_pricing", False),
+            model_prices=getattr(cfg, "model_prices", None),
         )
         if self._stub_mode:
             logger.warning(
