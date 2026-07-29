@@ -26,6 +26,10 @@ type Category = "all" | "politics" | "business" | "technology" | "sports"
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STREAM_INITIAL = 60;  // stream rows shown before "show more"
+// "A briefing, not a feed" (Slice C1a): the top N ranked events are today's
+// briefing — a finite set the read-progress bar tracks. The rest of the feed
+// stays browsable below (the full finite/Browse split is Slice C-B).
+const BRIEFING_SIZE = 12;
 
 const CATEGORIES: { key: Category; label: string }[] = [
   { key: "all",         label: "All"      },
@@ -444,6 +448,39 @@ const CAT_KEY  = "inkbytes-cat";
 
 const LANG_LABELS: Record<Lang, string> = { all: "All", en: "EN", es: "ES" };
 
+// ── Developing-now rail (Slice C1a) ───────────────────────────────────────────
+// A quick-scan horizontal strip of the fastest-moving stories, at the top of the
+// briefing. Compact cards; taps open the event.
+function DevelopingRail({ items }: { items: EventSummary[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-7">
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="developing-dot shrink-0" aria-hidden="true" />
+        <span className="text-[11px] font-bold uppercase tracking-widest text-red-600">Developing now</span>
+        <span className="text-[11px] text-[var(--ink-muted)]">— {items.length}</span>
+      </div>
+      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-2.5 flex-nowrap pb-1">
+          {items.map((ev) => (
+            <Link
+              key={ev.id}
+              href={`/event/${ev.id}`}
+              style={{ borderLeftColor: themeAccent(ev.category) }}
+              className="shrink-0 w-56 bg-white border border-[var(--border)] border-l-[3px] rounded-lg p-3 hover:shadow-md hover:border-gray-300 transition-all"
+            >
+              <p className="text-[13px] font-semibold leading-snug tracking-tight line-clamp-3">{ev.headline}</p>
+              <p className="mt-2 text-[11px] text-[var(--ink-muted)]">
+                {ev.source_count} {ev.source_count === 1 ? "source" : "sources"} · <TimeAgo iso={ev.freshness_at} />
+              </p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLead = null }: Props) {
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
@@ -591,6 +628,19 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const firstRegionalIdx = streamVisible.findIndex((e) => !e.has_global_outlet);
   const streamHidden  = stream.length - streamVisible.length;
 
+  // ── Briefing (Slice C1a) ──────────────────────────────────────────────────
+  // Top N ranked = today's briefing (finite). readMap is client-only (starts {}
+  // on server + first paint), so progress renders 0 then fills after mount — the
+  // same hydration-safe order the card dimming uses (no #418).
+  const briefingSet    = useEditorial ? sorted.slice(0, BRIEFING_SIZE) : [];
+  const briefingTotal  = briefingSet.length;
+  const briefingRead   = briefingSet.filter((ev) => readState(ev).read).length;
+  const briefingPct    = briefingTotal ? Math.round((briefingRead / briefingTotal) * 100) : 0;
+  const briefingCaught = briefingTotal > 0 && briefingRead === briefingTotal;
+
+  // Developing-now rail: the fastest-moving stories (unfiltered view only).
+  const developingNow  = useEditorial ? sorted.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 8) : [];
+
   // Category tabs: only show categories present in the full events list
   const availableCats = useMemo(() => {
     const seen = new Set(events.map((e) => e.category ?? "world"));
@@ -614,7 +664,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
             {today}
           </p>
           <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">
-            Today&rsquo;s events
+            Today&rsquo;s briefing
           </h1>
           {/* Trimmed subtitle — returning readers don't need the tagline daily.
               Just the count + a live "updated" state. */}
@@ -635,6 +685,22 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           <OutlookIcon className="w-5 h-5" />
         </Link>
       </div>
+
+      {/* ── Briefing progress (Slice C1a) — how much of today's finite briefing
+          you've read; fills to "✓ Caught up". Unfiltered view only. ─────────── */}
+      {useEditorial && !error && briefingTotal > 0 && (
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500"
+              style={{ width: `${briefingPct}%` }}
+            />
+          </div>
+          <span className="text-[11px] font-medium text-[var(--ink-muted)] tabular-nums whitespace-nowrap">
+            {briefingCaught ? "✓ Caught up" : `${briefingRead} of ${briefingTotal} read`}
+          </span>
+        </div>
+      )}
 
       {/* ── Search (top) — the first affordance; find beats browse ─────────── */}
       {!error && events.length > 0 && (
@@ -814,6 +880,9 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
         /* ── EDITORIAL LAYOUT ───────────────────────────────────────────────── */
         <div className="space-y-7">
+
+          {/* ── Developing now — fast-moving stories, quick-scan rail (C1a) ──── */}
+          <DevelopingRail items={developingNow} />
 
           {/* ── Lead ────────────────────────────────────────────────────────── */}
           {lead && (
