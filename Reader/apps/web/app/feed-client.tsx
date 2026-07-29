@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { relativeTime, isDeveloping, outletInitials, freshnessClass } from "@/lib/api";
+import { relativeTime, isDeveloping, outletInitials } from "@/lib/api";
 import type { EventSummary, TrendingTopic } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
@@ -70,27 +70,6 @@ function importance(ev: EventSummary): number {
   const bonus = ev.has_global_outlet ? GLOBAL_BONUS_MS : 0;
   return new Date(lastUpdate(ev)).getTime() + bonus;
 }
-
-// ── Category chip styles ──────────────────────────────────────────────────────
-
-const CAT_STYLES: Record<string, string> = {
-  politics:    "bg-red-50    text-red-600",
-  business:    "bg-blue-50   text-blue-600",
-  technology:  "bg-violet-50 text-violet-600",
-  sports:      "bg-green-50  text-green-600",
-  health:      "bg-pink-50   text-pink-600",
-  environment: "bg-emerald-50 text-emerald-600",
-  culture:     "bg-amber-50  text-amber-600",
-  world:       "bg-gray-100  text-gray-500",
-  // ADR-0032 item 1 — 7 added themes (distinct hues from the original 8).
-  science:       "bg-cyan-50    text-cyan-600",
-  entertainment: "bg-fuchsia-50 text-fuchsia-600",
-  crime:         "bg-slate-100  text-slate-700",
-  education:     "bg-indigo-50  text-indigo-600",
-  lifestyle:     "bg-teal-50    text-teal-600",
-  religion:      "bg-yellow-50  text-yellow-700",
-  disaster:      "bg-orange-50  text-orange-600",
-};
 
 // Left-accent border color per theme for the trending pills (ADR-0027 6b).
 const TREND_ACCENT: Record<string, string> = {
@@ -174,28 +153,6 @@ function DevelopingBadge() {
   );
 }
 
-function CategoryChip({ category }: { category: string }) {
-  const cls   = CAT_STYLES[category] ?? "bg-gray-100 text-gray-500";
-  const label = category === "environment" ? "Climate" : category;
-  return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${cls}`}>
-      <CategoryIcon category={category} className="w-3 h-3 shrink-0" />
-      {label}
-    </span>
-  );
-}
-
-function InlineCatBadge({ category }: { category: string }) {
-  if (!category || category === "world") return null;
-  const cls   = CAT_STYLES[category] ?? "bg-gray-100 text-gray-400";
-  const label = category === "environment" ? "climate" : category;
-  return (
-    <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${cls}`}>
-      {label}
-    </span>
-  );
-}
-
 function LangChip({ lang }: { lang: string }) {
   return (
     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wide">
@@ -266,14 +223,14 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
   return (
     <Link
       href={`/event/${event.id}`}
-      className={`group block bg-white border border-[var(--border)] border-l-4 ${freshnessClass(event.freshness_at)} rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all`}
+      style={{ borderLeftColor: themeAccent(event.category) }}
+      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all"
     >
       {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
       <EventCover id={event.id} category={event.category} cover={event.cover_image}
         className="w-full h-48 sm:h-56 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-6 sm:p-8">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {event.category && <CategoryChip category={event.category} />}
+        <div className="flex flex-wrap items-center gap-2 mb-4 empty:hidden">
           {developing && <DevelopingBadge />}
           {showLang && event.language !== "en" && <LangChip lang={event.language} />}
         {showLang && <AlsoIn also={event.also_languages} />}
@@ -289,15 +246,8 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
         )}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={22} />
-          <div className="flex items-center gap-2.5 text-xs text-[var(--ink-muted)]">
-            <span className="flex items-center gap-1">
-              <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-              </svg>
-              {event.article_count} {event.article_count === 1 ? "article" : "articles"}
-            </span>
-            <span aria-hidden>·</span>
-            <span><TimeAgo iso={lastUpdate(event)} /></span>
+          <div className="text-xs text-[var(--ink-muted)]">
+            <TimeAgo iso={lastUpdate(event)} />
           </div>
         </div>
       </div>
@@ -312,14 +262,14 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
   return (
     <Link
       href={`/event/${event.id}`}
-      className="group block bg-white border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
+      style={{ borderLeftColor: themeAccent(event.category) }}
+      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
     >
       {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
       <EventCover id={event.id} category={event.category} cover={event.cover_image}
         className="w-full h-36 shrink-0 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-5 flex flex-col flex-1">
-        <div className="flex flex-wrap items-center gap-1.5 mb-3">
-          {event.category && <CategoryChip category={event.category} />}
+        <div className="flex flex-wrap items-center gap-1.5 mb-3 empty:hidden">
           {developing && <DevelopingBadge />}
           {showLang && event.language !== "en" && <LangChip lang={event.language} />}
         {showLang && <AlsoIn also={event.also_languages} />}
@@ -336,7 +286,7 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
         <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
           <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
           <span className="text-xs text-[var(--ink-muted)]">
-            {event.article_count} art · <TimeAgo iso={lastUpdate(event)} />
+            <TimeAgo iso={lastUpdate(event)} />
           </span>
         </div>
       </div>
@@ -358,8 +308,7 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
         <span className="text-sm font-medium leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-2">
           {event.headline}
         </span>
-        <span className="flex gap-1.5 mt-0.5 items-center flex-wrap">
-          {event.category && <InlineCatBadge category={event.category} />}
+        <span className="flex gap-1.5 mt-0.5 items-center flex-wrap empty:hidden">
           {showLang && event.language !== "en" && (
             <span className="text-[10px] font-mono text-[var(--ink-muted)] uppercase">
               {event.language}
@@ -389,10 +338,10 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
   return (
     <Link
       href={`/event/${event.id}`}
-      className={`group block bg-white border border-[var(--border)] border-l-4 ${freshnessClass(event.freshness_at)} rounded-xl p-5 hover:shadow-md hover:border-r-gray-300 hover:border-t-gray-300 hover:border-b-gray-300 transition-all`}
+      style={{ borderLeftColor: themeAccent(event.category) }}
+      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-r-gray-300 hover:border-t-gray-300 hover:border-b-gray-300 transition-all"
     >
-      <div className="flex flex-wrap items-center gap-2 mb-3 min-h-[20px]">
-        {event.category && <CategoryChip category={event.category} />}
+      <div className="flex flex-wrap items-center gap-2 mb-3 empty:hidden">
         {developing && <DevelopingBadge />}
         {showLang && event.language !== "en" && <LangChip lang={event.language} />}
         {showLang && <AlsoIn also={event.also_languages} />}
@@ -405,15 +354,8 @@ function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean 
       )}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} />
-        <div className="flex items-center gap-2.5 text-xs text-[var(--ink-muted)]">
-          <span className="flex items-center gap-1">
-            <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-            </svg>
-            {event.article_count} {event.article_count === 1 ? "article" : "articles"}
-          </span>
-          <span>·</span>
-          <span><TimeAgo iso={lastUpdate(event)} /></span>
+        <div className="text-xs text-[var(--ink-muted)]">
+          <TimeAgo iso={lastUpdate(event)} />
         </div>
       </div>
     </Link>
@@ -449,14 +391,12 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // Curator) and reconciles the diff without a full page reload.  Client state
   // (filters, search, lang preference) is preserved across the refresh.
   const router                      = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
     const MS = 20 * 60 * 1000; // 20 minutes
     const id = setInterval(() => {
       startTransition(() => router.refresh());
-      setRefreshedAt(new Date().toISOString());
     }, MS);
     return () => clearInterval(id);
   }, [router]);
@@ -591,23 +531,8 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           </h1>
           {/* Trimmed subtitle — returning readers don't need the tagline daily.
               Just the count + a live "updated" state. */}
-          <p className="text-xs text-[var(--ink-muted)] mt-0.5 flex items-center gap-1.5">
-            <span>{events.length > 0 ? `${events.length} stories` : "No stories yet"}</span>
-            <span aria-hidden>·</span>
-            <span className="inline-flex items-center gap-1 opacity-70"
-              title="Feed refreshes automatically every 20 minutes">
-              <svg className={`w-2.5 h-2.5 shrink-0 ${isPending ? "animate-spin" : ""}`}
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-              </svg>
-              <span suppressHydrationWarning>
-                {isPending ? "updating…"
-                  : refreshedAt
-                  ? `updated ${new Date(refreshedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`
-                  : "updated just now"}
-              </span>
-            </span>
+          <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+            {events.length > 0 ? `${events.length} stories` : "No stories yet"}
           </p>
         </div>
 

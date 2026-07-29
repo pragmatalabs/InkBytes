@@ -187,48 +187,35 @@ export default async function EventPage(
         </div>
       )}
 
-      {/* Stat cards: Sources (+ outlet avatar stack) and Coverage. Factuality deferred. */}
-      <div className="grid grid-cols-2 gap-px bg-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden mb-10">
-        <div className="bg-white p-4 sm:p-5">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--ink-muted)]">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-            </svg>
-            Sources
-          </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">{page.source_count}</span>
-            <span className="text-xs font-medium text-[var(--ink-muted)]">outlets</span>
-          </div>
-          {outletNames.length > 0 && (
-            <div className="mt-3 flex items-center">
-              {outletNames.map((name, i) => (
-                <span
-                  key={i}
-                  title={name}
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-white text-[9px] font-bold uppercase ring-2 ring-white"
-                  style={{ marginLeft: i === 0 ? 0 : -6, zIndex: outletNames.length - i }}
-                >
-                  {outletInitials(name)}
-                </span>
-              ))}
-            </div>
-          )}
+      {/* Sources card (+ outlet avatar stack). The Coverage/article_count card is
+          removed (Stage 2b) — sources is the trust number; article count is
+          pipeline noise the meta row + evidence header already cover. The 2-up
+          grid itself is retired in Stage 5. */}
+      <div className="bg-white border border-[var(--border)] rounded-lg p-4 sm:p-5 mb-10">
+        <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--ink-muted)]">
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+          </svg>
+          Sources
         </div>
-        <div className="bg-white p-4 sm:p-5">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--ink-muted)]">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-            </svg>
-            Coverage
-          </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">{page.article_count}</span>
-            <span className="text-xs font-medium text-[var(--ink-muted)]">
-              {page.article_count === 1 ? "article" : "articles"}
-            </span>
-          </div>
+        <div className="mt-2.5 flex items-baseline gap-1.5">
+          <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">{page.source_count}</span>
+          <span className="text-xs font-medium text-[var(--ink-muted)]">outlets</span>
         </div>
+        {outletNames.length > 0 && (
+          <div className="mt-3 flex items-center">
+            {outletNames.map((name, i) => (
+              <span
+                key={i}
+                title={name}
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-white text-[9px] font-bold uppercase ring-2 ring-white"
+                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: outletNames.length - i }}
+              >
+                {outletInitials(name)}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Synthesis — full markdown (headings, bold, lists, citations) */}
