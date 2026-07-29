@@ -373,30 +373,3 @@ html, body {
   .outlook-pulse::before { animation: none; }
 }
 
-/* ── Content-card coverflow (LATEST strip) — same family as .vcf-card ─────── */
-.cf-card {
-  transition: transform 0.44s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s, box-shadow 0.3s;
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  -webkit-tap-highlight-color: transparent;
-}
-@media (prefers-reduced-motion: reduce) { .cf-card { transition: none; } }
-.cf-chev {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid var(--border);
-  color: var(--ink-muted);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: color 0.15s, border-color 0.15s, opacity 0.15s;
-}
-.cf-chev:hover { color: var(--ink); border-color: #9ca3af; }
-.cf-chev:disabled { opacity: 0.3; pointer-events: none; }

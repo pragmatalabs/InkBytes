@@ -9,7 +9,6 @@ import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
-import TopicCarousel from "@/components/topic-carousel";
 import RetryButton from "@/components/retry-button";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -24,7 +23,6 @@ type Category = "all" | "politics" | "business" | "technology" | "sports"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const BREAKING_COUNT = 20;  // events pinned in the "Latest" strip
 const STREAM_INITIAL = 60;  // stream rows shown before "show more"
 
 const CATEGORIES: { key: Category; label: string }[] = [
@@ -258,117 +256,6 @@ function StrengthDot({ count, developing }: { count: number; developing: boolean
                  "#9ca3af";
   return (
     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />
-  );
-}
-
-// ── BREAKING card (horizontal strip) ─────────────────────────────────────────
-
-// ── LATEST coverflow ──────────────────────────────────────────────────────────
-// The "Latest" strip as a 3D coverflow (same CSS technique as the topic
-// carousel / video rail): the centre story is elevated with a category-accent
-// left edge, neighbours angle away and peek; swipe / chevrons / arrow keys move
-// through. One prominent breaking story at a time instead of a flat scroll.
-
-const BCF_SPACING = 128;   // px between card centres
-const BCF_SWIPE   = 44;    // px drag that counts as a step
-
-function BreakingCoverflow({ events, showLang }: { events: EventSummary[]; showLang: boolean }) {
-  const [active, setActive] = useState(0);
-  const drag = useRef<{ x: number } | null>(null);
-  if (events.length === 0) return null;
-  // Circular carousel: newest (index 0) stays centered, next-newest sits to the
-  // right, and the oldest wraps around to the left — so it's always balanced.
-  const N = events.length;
-  const step = (dir: number) => setActive((a) => (a + dir + N) % N);
-
-  return (
-    <div className="relative select-none">
-      <div
-        className="relative h-[150px] outline-none"
-        style={{ perspective: "1100px", touchAction: "pan-y" }}
-        tabIndex={0}
-        role="group"
-        aria-label={`${events.length} latest stories — arrow keys to browse`}
-        onPointerDown={(e) => { drag.current = { x: e.clientX }; }}
-        onPointerUp={(e) => {
-          const d = drag.current; drag.current = null;
-          if (!d) return;
-          const dx = e.clientX - d.x;
-          if (Math.abs(dx) >= BCF_SWIPE) step(dx < 0 ? 1 : -1);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
-          if (e.key === "ArrowLeft")  { e.preventDefault(); step(-1); }
-        }}
-      >
-        {events.map((ev, i) => {
-          // Shortest circular distance from the centered card, so the array
-          // wraps: card just before index 0 (the oldest) appears on the left.
-          let d = i - active;
-          if (d > N / 2) d -= N;
-          else if (d < -N / 2) d += N;
-          const abs = Math.abs(d);
-          if (abs > 2) return null;
-          const isC = d === 0;
-          const accent = themeAccent(ev.category);
-          const developing = isDeveloping(lastUpdate(ev));
-          const transform =
-            `translate(-50%, -50%) translateX(${d * BCF_SPACING}px) ` +
-            `rotateY(${isC ? 0 : d < 0 ? 20 : -20}deg) ` +
-            `translateZ(${isC ? 0 : -70}px) scale(${isC ? 1 : 0.86})`;
-          return (
-            <Link
-              key={ev.id}
-              href={`/event/${ev.id}`}
-              aria-hidden={!isC}
-              onClick={(e) => { if (!isC) { e.preventDefault(); setActive(i); } }}
-              className="cf-card absolute left-1/2 top-1/2 w-[70%] max-w-[256px] rounded-2xl bg-white border p-3.5"
-              style={{
-                transform,
-                zIndex: 20 - abs,
-                opacity: abs > 1 ? 0 : 1,
-                pointerEvents: abs > 1 ? "none" : undefined,
-                borderColor: accent,   // uniform border in the category colour
-                boxShadow: isC
-                  ? "0 28px 52px -16px rgba(17,17,46,0.48), 0 12px 24px -12px rgba(17,17,46,0.32)"
-                  : "0 8px 18px -12px rgba(17,17,46,0.20)",
-              }}
-              draggable={false}
-            >
-              <span className="flex flex-wrap items-center gap-1.5 mb-2">
-                {ev.category && <CategoryChip category={ev.category} />}
-                {developing && <DevelopingBadge />}
-                {showLang && ev.language !== "en" && <LangChip lang={ev.language} />}
-              </span>
-              <span className="block text-[13px] font-semibold leading-snug line-clamp-3 mb-2.5"
-                style={{ textWrap: "balance" } as React.CSSProperties}>
-                {ev.headline}
-              </span>
-              <span className="flex items-center justify-between gap-2">
-                <AvatarStack outlets={ev.outlet_names ?? []} count={ev.source_count} size={15} />
-                <span className="text-xs text-[var(--ink-muted)] tabular-nums shrink-0">
-                  <TimeAgo iso={lastUpdate(ev)} />
-                </span>
-              </span>
-            </Link>
-          );
-        })}
-
-        <button type="button" aria-label="Previous story"
-          onClick={() => step(-1)}
-          className="cf-chev left-1">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <button type="button" aria-label="Next story"
-          onClick={() => step(1)}
-          className="cf-chev right-1">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-      <p className="text-center text-[11px] text-[var(--ink-muted)] tabular-nums mt-1">
-        {active + 1} / {events.length}
-      </p>
-    </div>
   );
 }
 
@@ -658,16 +545,15 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   }, []);
 
   // ── Editorial tiers ──────────────────────────────────────────────────────
-  // No-filter view: breaking strip (top 5) + editorial layout (rest).
-  // Filter active: flat list, no breaking strip.
+  // No-filter view: ONE ranked list — lead + 2 secondary + stream, straight off
+  // `sorted`. The former "Latest" 3D coverflow (Stage 2a) pinned the top 20 in a
+  // swipe strip that hid 19 of them behind taps; those top stories now flow into
+  // the list. Filter active: flat list.
   const useEditorial = !hasFilter && sorted.length >= 1;
 
-  const breakingItems  = useEditorial ? sorted.slice(0, BREAKING_COUNT) : [];
-  const afterBreaking  = useEditorial ? sorted.slice(BREAKING_COUNT)    : [];
-
-  const lead      = afterBreaking[0]         ?? null;
-  const secondary = afterBreaking.slice(1, 3);
-  const stream    = afterBreaking.slice(3);
+  const lead      = useEditorial ? sorted[0] ?? null : null;
+  const secondary = useEditorial ? sorted.slice(1, 3) : [];
+  const stream    = useEditorial ? sorted.slice(3)    : [];
   const flatList  = useEditorial ? [] : sorted;
 
   const streamVisible = streamExpanded ? stream : stream.slice(0, STREAM_INITIAL);
@@ -683,21 +569,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     const seen = new Set(events.map((e) => e.category ?? "world"));
     return CATEGORIES.filter((c) => c.key === "all" || seen.has(c.key));
   }, [events]);
-
-  // Topic-folder carousel (mobile): same categories as the chips, with live
-  // per-theme event counts so each folder reads "Politics · 24 stories".
-  const carouselItems = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const e of events) {
-      const k = e.category ?? "world";
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    }
-    return availableCats.map((c) => ({
-      key: c.key,
-      label: c.label,
-      count: c.key === "all" ? events.length : counts.get(c.key) ?? 0,
-    }));
-  }, [availableCats, events]);
 
   // Trending collapses into an accordion row on mobile — one slim toggle
   // instead of a second pill strip competing with the carousel for attention.
@@ -814,21 +685,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         </div>
       )}
 
-      {/* ── Topic folder carousel (mobile) — replaces the chip row < sm ─────── */}
+      {/* ── Category tabs — one wrapping pill row, all widths (Stage 2a: the
+          mobile folder carousel + the desktop-only horizontal scroll are gone). */}
       {!error && events.length > 0 && (
-        <div className="sm:hidden mb-4 -mx-4">
-          <TopicCarousel
-            items={carouselItems}
-            active={activeCategory}
-            onSelect={(k) => setCat(k as Category)}
-          />
-        </div>
-      )}
-
-      {/* ── Category tabs (≥ sm) ─────────────────────────────────────────────── */}
-      {!error && events.length > 0 && (
-        <div className="hidden sm:block mb-4 -mx-1 px-1 overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-1.5 flex-nowrap pb-1">
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-1.5 pb-1">
             {availableCats.map((c) => (
               <button
                 key={c.key}
@@ -941,22 +802,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
         /* ── EDITORIAL LAYOUT ───────────────────────────────────────────────── */
         <div className="space-y-7">
-
-          {/* ── Latest strip (top 5 most recent) ────────────────────────────── */}
-          {breakingItems.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="developing-dot" aria-hidden="true" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-red-600">
-                  Latest
-                </p>
-                <span className="text-[10px] text-[var(--ink-muted)]">
-                  — {breakingItems.length} most recent stories
-                </span>
-              </div>
-              <BreakingCoverflow events={breakingItems} showLang={showLangChip} />
-            </div>
-          )}
 
           {/* ── Lead ────────────────────────────────────────────────────────── */}
           {lead && (
