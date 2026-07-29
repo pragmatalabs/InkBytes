@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials } from "@/lib/api";
-import type { EventSummary, TrendingTopic } from "@/lib/types";
+import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
+import { PersonaIcon } from "@/components/persona-icons";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import RetryButton from "@/components/retry-button";
@@ -218,6 +219,58 @@ function StrengthDot({ count, developing }: { count: number; developing: boolean
 
 // ── LEAD card ─────────────────────────────────────────────────────────────────
 
+// ── Section header (Outlook grammar, Stage 2c) ────────────────────────────────
+// Quiet 16px title + optional count + flush-right action. Replaces the old
+// red-dot / tiny-uppercase feed section labels with the same grammar Outlook uses.
+function SectionHeader({ title, count, action }: { title: string; count?: number; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 mb-3">
+      <h2 className="text-base font-semibold tracking-tight text-[var(--ink)]">
+        {title}
+        {count != null && (
+          <span className="ml-2 text-sm font-normal text-[var(--ink-muted)] tabular-nums">· {count.toLocaleString("en-US")}</span>
+        )}
+      </h2>
+      {action}
+    </div>
+  );
+}
+
+// ── Outlook card (Stage 2c) ───────────────────────────────────────────────────
+// Surfaces the day's lead editorial column in the feed — the best content, which
+// otherwise sits behind a tab. The persona mark + theme accent carry the column
+// identity (same treatment as the /outlook index cards).
+function OutlookCard({ entry }: { entry: OutlookArchiveEntry & { lang: string } }) {
+  const accent  = themeAccent(entry.theme);
+  const persona = entry.persona.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const theme   = entry.theme.charAt(0).toUpperCase() + entry.theme.slice(1);
+  return (
+    <Link
+      href={`/outlook/${entry.theme}?lang=${entry.lang}&date=${entry.edition_date}`}
+      style={{ borderLeftColor: accent }}
+      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <span className="grid place-items-center w-7 h-7 rounded-full text-white shrink-0" style={{ background: accent }} aria-hidden>
+          <PersonaIcon persona={entry.persona} className="w-4 h-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: accent }}>{persona}</span>
+          <span className="block text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">Today&rsquo;s Outlook · {theme}</span>
+        </span>
+        <svg className="ml-auto w-4 h-4 text-[var(--ink-muted)] opacity-60 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </div>
+      <div className="text-[15px] font-bold leading-snug line-clamp-2" style={{ textWrap: "balance" } as React.CSSProperties}>
+        {entry.headline}
+      </div>
+    </Link>
+  );
+}
+
+// ── LEAD card ─────────────────────────────────────────────────────────────────
+
 function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
   const developing = isDeveloping(lastUpdate(event));
   return (
@@ -372,6 +425,9 @@ interface Props {
   activeTopic?: string | null;
   error: string | null;
   focusSearch?: boolean;
+  /** The day's lead Outlook column (Stage 2c) — surfaced as a card near the top
+   *  of the feed. null when Outlook is unavailable (best-effort; never blanks). */
+  outlookLead?: (OutlookArchiveEntry & { lang: string }) | null;
 }
 
 const LANG_KEY = "inkbytes-lang";
@@ -379,7 +435,7 @@ const CAT_KEY  = "inkbytes-cat";
 
 const LANG_LABELS: Record<Lang, string> = { all: "All", en: "EN", es: "ES" };
 
-export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch }: Props) {
+export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLead = null }: Props) {
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [lang, setLangState]                = useState<Lang>("all");
@@ -731,9 +787,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {/* ── Lead ────────────────────────────────────────────────────────── */}
           {lead && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] pb-2 mb-3 border-b border-[var(--border)]">
-                Top story
-              </p>
+              <SectionHeader title="Top story" />
               <LeadCard event={lead} showLang={showLangChip} />
             </div>
           )}
@@ -747,12 +801,13 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
             </div>
           )}
 
+          {/* ── Today's Outlook (Stage 2c) — the day's lead editorial column ─── */}
+          {outlookLead && <OutlookCard entry={outlookLead} />}
+
           {/* ── Stream ──────────────────────────────────────────────────────── */}
           {stream.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] pb-2 mb-1 border-b border-[var(--border)]">
-                More stories — {stream.length} total
-              </p>
+              <SectionHeader title="More stories" count={stream.length} />
               <div>
                 {streamVisible.map((ev, idx) => {
                   // Insert a "Regional" section divider before the first event
@@ -762,14 +817,8 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   return (
                     <Fragment key={ev.id}>
                       {isFirstRegional && (
-                        <div className="flex items-center gap-2 mt-4 mb-1 pt-4 border-t border-[var(--border)]">
-                          <svg className="w-3 h-3 text-[var(--ink-muted)] opacity-60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                          </svg>
-                          <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-                            Regional
-                          </span>
+                        <div className="mt-5 mb-2 pt-4 border-t border-[var(--border)]">
+                          <h3 className="text-sm font-semibold tracking-tight text-[var(--ink-muted)]">Regional</h3>
                         </div>
                       )}
                       <StreamRow event={ev} showLang={showLangChip} />

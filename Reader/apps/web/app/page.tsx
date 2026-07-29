@@ -1,5 +1,5 @@
-import { getEvents, getTrendingTopics } from "@/lib/api";
-import type { EventSummary, TrendingTopic } from "@/lib/types";
+import { getEvents, getTrendingTopics, getOutlookArchive } from "@/lib/api";
+import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/types";
 import FeedClient from "./feed-client";
 
 // force-dynamic: pages calling internal Docker services must never use ISR —
@@ -23,14 +23,26 @@ export default async function HomePage({
 
   let events: EventSummary[] = [];
   let trending: TrendingTopic[] = [];
+  let outlookLead: (OutlookArchiveEntry & { lang: string }) | null = null;
   let error: string | null = null;
 
+  // The day's lead Outlook column surfaced in the feed (Stage 2c). Uses es
+  // (Outlook's primary language); a 7-day window so the card still shows the most
+  // recent column across a weekend / missed-cron gap (editions are newest-first).
+  const OUTLOOK_LANG = "es";
+
   try {
-    // Trending is best-effort — a failure must not blank the feed.
-    [events, trending] = await Promise.all([
+    // Trending + Outlook are best-effort — a failure must not blank the feed.
+    const [ev, tr, outlook] = await Promise.all([
       getEvents(500, topic ? { topic } : undefined),
       getTrendingTopics().catch(() => [] as TrendingTopic[]),
+      getOutlookArchive(OUTLOOK_LANG, 7)
+        .then((r) => r.editions[0] ?? null)
+        .catch(() => null),
     ]);
+    events = ev;
+    trending = tr;
+    outlookLead = outlook ? { ...outlook, lang: OUTLOOK_LANG } : null;
   } catch {
     // Reader-facing copy — never leak internals (service names, ports).
     error = "We're having trouble loading the latest stories right now. It usually resolves in a moment.";
@@ -43,6 +55,7 @@ export default async function HomePage({
       activeTopic={topic}
       error={error}
       focusSearch={focusSearch}
+      outlookLead={outlookLead}
     />
   );
 }
