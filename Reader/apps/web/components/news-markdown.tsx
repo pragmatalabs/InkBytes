@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import CiteChip from "./cite-chip";
 
 /**
  * NewsMarkdown — renders a synthesized news body (`synthesis_md`) as richly
@@ -113,13 +114,18 @@ const components: Components = {
     <th className="border-b border-[var(--border)] px-3 py-2 text-left font-semibold text-[var(--ink)]">{children}</th>
   ),
   td: ({ children }) => <td className="border-b border-[var(--border)]/60 px-3 py-2 align-top">{children}</td>,
-  // Inline source citation chip (emitted by rehypeSourceChips above).
+  // Inline source citation chip (emitted by rehypeSourceChips above) — tappable,
+  // opens the Evidence drawer focused on the cited source (CiteChip, client).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  cite: ({ children }: any) => (
-    <cite className="not-italic inline-block align-middle mx-0.5 rounded bg-gray-100 px-1.5 py-px font-mono text-[10px] font-medium leading-none text-[var(--ink-muted)]">
-      {children}
-    </cite>
-  ),
+  cite: ({ children }: any) => {
+    const label =
+      typeof children === "string"
+        ? children
+        : Array.isArray(children)
+          ? children.join("")
+          : String(children ?? "");
+    return <CiteChip label={label} />;
+  },
 };
 
 export function NewsMarkdown({ source }: { source: string }) {

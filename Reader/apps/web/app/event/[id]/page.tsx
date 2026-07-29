@@ -7,6 +7,7 @@ import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem, TitleHistor
 import ShareButton from "./share-button";
 import EventActionBar from "./event-action-bar";
 import StoryNav from "./story-nav";
+import FollowButton from "./follow-button";
 import { NewsMarkdown } from "@/components/news-markdown";
 import ReadTracker from "@/components/read-tracker";
 import EventCover from "@/components/event-cover";
@@ -215,6 +216,16 @@ export default async function EventPage(
         currentHeadline={page.headline}
         nextId={related[0]?.id ?? null}
         accent={accent}
+      />
+
+      {/* Follow this story — subscribe to updates (prototype). Distinct from the
+          header Save (read-later): surfaces in the Saved screen with an
+          "Updated" badge (Slice B). */}
+      <FollowButton
+        eventId={page.id}
+        headline={page.headline}
+        category={page.category}
+        language={page.language}
       />
     </div>
   );

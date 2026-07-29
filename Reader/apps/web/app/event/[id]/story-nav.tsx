@@ -134,6 +134,8 @@ export default function StoryNav({
   accent,
 }: Props) {
   const [open, setOpen] = useState<SheetKey | null>(null);
+  // Source to scroll to + flash when Evidence opens from a citation tap.
+  const [focusSource, setFocusSource] = useState<string | null>(null);
 
   // Escape closes; lock body scroll while a sheet is open.
   useEffect(() => {
@@ -147,6 +149,34 @@ export default function StoryNav({
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  // Open a sheet from elsewhere on the page (inline citation chips → Evidence).
+  useEffect(() => {
+    const onOpenSheet = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      const sheet = typeof detail === "string" ? detail : detail.sheet;
+      if (sheet === "watch" || sheet === "evidence" || sheet === "entities" || sheet === "related") {
+        setOpen(sheet);
+        setFocusSource(sheet === "evidence" && detail.source ? String(detail.source) : null);
+      }
+    };
+    window.addEventListener("inkb:open-sheet", onOpenSheet);
+    return () => window.removeEventListener("inkb:open-sheet", onOpenSheet);
+  }, []);
+
+  // When Evidence opens focused on a source, scroll it into view + flash it.
+  useEffect(() => {
+    if (open !== "evidence" || !focusSource) return;
+    const scroll = setTimeout(() => {
+      const el = document.querySelector(`[data-evidence-src="${CSS.escape(focusSource)}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 60);
+    const clear = setTimeout(() => setFocusSource(null), 1800);
+    return () => {
+      clearTimeout(scroll);
+      clearTimeout(clear);
+    };
+  }, [open, focusSource]);
 
   const tiles = [
     videos.length > 0 && { key: "watch" as const, n: videos.length },
@@ -220,7 +250,10 @@ export default function StoryNav({
               href={q.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="grid grid-cols-[4px_1fr] gap-3.5 py-4 border-b border-[var(--border)] group"
+              data-evidence-src={q.source_name}
+              className={`grid grid-cols-[4px_1fr] gap-3.5 py-4 border-b border-[var(--border)] group transition-colors ${
+                focusSource === q.source_name ? "bg-gray-50" : ""
+              }`}
             >
               <i className="block" style={{ background: accent }} />
               <div>
