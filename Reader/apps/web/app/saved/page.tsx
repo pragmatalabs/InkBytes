@@ -6,6 +6,8 @@ import { relativeTime } from "@/lib/api";
 import { themeAccent } from "@/lib/theme-colors";
 import { listFollowed, FOLLOWED_EVENT, type FollowedStory } from "@/lib/followed";
 import { listSaved as listSavedEvents, SAVED_EVENT as SAVED_EVENTS_EVENT, type SavedEvent } from "@/lib/saved-events";
+import { listFollowedEntities, FOLLOWED_ENTITIES_EVENT, type FollowedEntity } from "@/lib/followed-entities";
+import { TYPE_META } from "../entities/type-meta";
 import SavedOutlooks from "@/components/saved-outlooks";
 
 /**
@@ -59,21 +61,18 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
 export default function SavedPage() {
   const [following, setFollowing] = useState<FollowedStory[] | null>(null);
   const [saved, setSaved] = useState<SavedEvent[] | null>(null);
+  const [entities, setEntities] = useState<FollowedEntity[] | null>(null);
 
   useEffect(() => {
     const sync = () => {
       setFollowing(listFollowed());
       setSaved(listSavedEvents());
+      setEntities(listFollowedEntities());
     };
     sync();
-    window.addEventListener(FOLLOWED_EVENT, sync);
-    window.addEventListener(SAVED_EVENTS_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(FOLLOWED_EVENT, sync);
-      window.removeEventListener(SAVED_EVENTS_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
+    const events = [FOLLOWED_EVENT, SAVED_EVENTS_EVENT, FOLLOWED_ENTITIES_EVENT, "storage"];
+    events.forEach((e) => window.addEventListener(e, sync));
+    return () => events.forEach((e) => window.removeEventListener(e, sync));
   }, []);
 
   return (
@@ -98,6 +97,33 @@ export default function SavedPage() {
           </EmptyLine>
         )}
       </section>
+
+      {/* Entities you follow — chips deep-link to the entity's sheet (?e=) */}
+      {entities && entities.length > 0 && (
+        <section className="mb-9">
+          <div className={`${SECTION} text-[var(--accent)]`}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5" cy="6" r="2.4" /><circle cx="19" cy="7" r="2.4" /><circle cx="12" cy="18" r="2.4" /><path d="M7.3 6.4 16.6 6.8M6.1 8.2 10.9 15.9M17.5 9.2 13.1 15.9" />
+            </svg>
+            Entities you follow
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {entities.map((e) => {
+              const meta = TYPE_META[e.type] ?? TYPE_META.OTHER;
+              return (
+                <Link
+                  key={e.id}
+                  href={`/entities?e=${encodeURIComponent(e.id)}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-[var(--border)] bg-white text-xs font-medium hover:border-gray-300 transition-colors"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: meta.color }} />
+                  {e.label}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Saved for offline / read later */}
       <section className="mb-9">

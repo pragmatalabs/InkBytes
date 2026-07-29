@@ -9,6 +9,7 @@ import {
 import { listFollowed, clearFollowed, FOLLOWED_EVENT } from "@/lib/followed";
 import { listSaved as listSavedEvents, clearSaved as clearSavedEvents, SAVED_EVENT as SAVED_EVENTS_EVENT } from "@/lib/saved-events";
 import { listSaved as listSavedOutlooks, clearSaved as clearSavedOutlooks, SAVED_EVENT as SAVED_OUTLOOKS_EVENT } from "@/lib/saved-outlooks";
+import { listFollowedEntities, clearFollowedEntities, FOLLOWED_ENTITIES_EVENT } from "@/lib/followed-entities";
 
 /**
  * You screen (mobile redesign, Slice B2) — reader preferences, all localStorage
@@ -49,7 +50,7 @@ export default function YouPage() {
   const [mounted, setMounted] = useState(false);
   const [lang, setLangState] = useState<Lang>("en");
   const [notif, setNotifState] = useState<NotifPrefs>({ developing: true, followed: true, briefing: false });
-  const [counts, setCounts] = useState({ following: 0, saved: 0, outlooks: 0 });
+  const [counts, setCounts] = useState({ following: 0, saved: 0, outlooks: 0, entities: 0 });
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
@@ -60,11 +61,12 @@ export default function YouPage() {
         following: listFollowed().length,
         saved: listSavedEvents().length,
         outlooks: listSavedOutlooks().length,
+        entities: listFollowedEntities().length,
       });
     };
     sync();
     setMounted(true);
-    const events = [PREFS_EVENT, FOLLOWED_EVENT, SAVED_EVENTS_EVENT, SAVED_OUTLOOKS_EVENT, "storage"];
+    const events = [PREFS_EVENT, FOLLOWED_EVENT, SAVED_EVENTS_EVENT, SAVED_OUTLOOKS_EVENT, FOLLOWED_ENTITIES_EVENT, "storage"];
     events.forEach((e) => window.addEventListener(e, sync));
     return () => events.forEach((e) => window.removeEventListener(e, sync));
   }, []);
@@ -79,10 +81,11 @@ export default function YouPage() {
     clearFollowed();
     clearSavedEvents();
     clearSavedOutlooks();
+    clearFollowedEntities();
     setConfirmClear(false);
   };
 
-  const total = counts.following + counts.saved + counts.outlooks;
+  const total = counts.following + counts.saved + counts.outlooks + counts.entities;
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
@@ -133,7 +136,7 @@ export default function YouPage() {
         <div className={LABEL}>Your data</div>
         <p className="text-[13px] text-[var(--ink)] mb-3" suppressHydrationWarning>
           {mounted
-            ? `${counts.following} following · ${counts.saved} saved · ${counts.outlooks} outlooks — on this device.`
+            ? `${counts.following} following · ${counts.entities} entities · ${counts.saved} saved · ${counts.outlooks} outlooks — on this device.`
             : "—"}
         </p>
         {confirmClear ? (

@@ -20,6 +20,49 @@ import { relativeTime } from "@/lib/api";
 import { countryFlag } from "@/lib/country-flags";
 import type { GraphData, GraphNode, EntityType } from "@/lib/types";
 import { TYPE_META, TYPE_ORDER } from "./type-meta";
+import { isFollowedEntity, toggleFollowedEntity, FOLLOWED_ENTITIES_EVENT } from "@/lib/followed-entities";
+
+// ── Follow this entity (mobile redesign, Slice B3) ───────────────────────────
+// Subscribe to an entity from its detail sheet; surfaces in the Saved screen.
+// Singular nouns (TYPE_META.label is the plural tab label — "People", "Places").
+const TYPE_NOUN: Record<EntityType, string> = {
+  PERSON: "person",
+  ORG: "organisation",
+  LOC: "place",
+  EVENT: "event",
+  OTHER: "topic",
+};
+function FollowEntityButton({ node }: { node: GraphNode }) {
+  const [following, setFollowing] = useState(false);
+  useEffect(() => {
+    const sync = () => setFollowing(isFollowedEntity(node.id));
+    sync();
+    window.addEventListener(FOLLOWED_ENTITIES_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(FOLLOWED_ENTITIES_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, [node.id]);
+  const word = TYPE_NOUN[node.type] ?? "topic";
+  return (
+    <button
+      type="button"
+      onClick={() => setFollowing(toggleFollowedEntity({ id: node.id, label: node.label, type: node.type }))}
+      aria-pressed={following}
+      className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-[13px] font-semibold transition-colors ${
+        following
+          ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+          : "border-[var(--border)] bg-white text-[var(--ink)] hover:border-[var(--ink)]"
+      }`}
+    >
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {following ? <path d="M20 6 9 17l-5-5" /> : <path d="M12 5v14M5 12h14" />}
+      </svg>
+      {following ? "Following" : `Follow this ${word}`}
+    </button>
+  );
+}
 
 // ── Type tab icons (match the TYPE_META palette) ─────────────────────────────
 
@@ -208,6 +251,8 @@ function EntitySheet({
             </div>
           </div>
 
+          <FollowEntityButton node={node} />
+
           {/* Relationship preview */}
           {neighbors.length > 0 && (
             <div>
@@ -285,6 +330,14 @@ export default function EntityBrowser({
   const [selected, setSelected] = useState<string | null>(null);
 
   const nodeMap = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+
+  // Deep-link: /entities?e=<id> opens that entity's sheet on mount (used by the
+  // "Entities you follow" chips in /saved). Read from the URL directly to avoid
+  // a useSearchParams Suspense boundary.
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get("e");
+    if (e && nodeMap.has(e)) setSelected(e);
+  }, [nodeMap]);
 
   // Weighted adjacency: neighbor lists sorted by shared-story count.
   const { adjW, deg } = useMemo(() => {
