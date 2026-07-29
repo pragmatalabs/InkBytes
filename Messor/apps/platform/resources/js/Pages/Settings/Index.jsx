@@ -64,6 +64,7 @@ export default function SettingsIndex({
         entity_overlap_min:     settings.entity_overlap_min     ?? 1,
         min_sources_to_publish: settings.min_sources_to_publish ?? 2,
         recent_window_hours:    settings.recent_window_hours    ?? 48,
+        max_article_age_hours:  settings.max_article_age_hours  ?? 24,
         // Embeddings
         embeddings_provider: settings.embeddings_provider ?? 'ollama',
         embeddings_model:    settings.embeddings_model    ?? 'bge-m3',
@@ -365,6 +366,9 @@ export default function SettingsIndex({
                             </Grid>
                             <Grid size={{ xs: 12, md: 3 }}>
                                 {numberField('recent_window_hours',    'Recent window (hours)',  'Cluster lookback window')}
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 3 }}>
+                                {numberField('max_article_age_hours',  'Stale-intake gate (hours)', 'Drop queued articles older than this (0 = off)')}
                             </Grid>
                         </Grid>
                     </Box>

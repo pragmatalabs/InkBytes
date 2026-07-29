@@ -61,6 +61,10 @@ _DB_SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "conclude_after_days":    ("clustering", "conclude_after_days"),
     # Processing kill-switch (Backoffice "Stop Curator").
     "processing_enabled":     ("application", "processing_enabled"),
+    # Stale-message intake gate (hours) — live-tunable so the drop threshold can
+    # be tightened during a backlog without a redeploy (stale-feed incident
+    # 2026-07-29). int-coerced by apply_db_settings.
+    "max_article_age_hours":  ("application", "max_article_age_hours"),
     # Embeddings (ADR-0004). provider/model/base_url are live-overlaid; the
     # EmbeddingService rebuilds its client on change (with a dim-probe guard).
     # `dimensions` is deliberately NOT here — it's a pgvector column width, a
@@ -99,11 +103,13 @@ class AppCfg(BaseModel):
     # this value (see Application._embed_sem / _cluster_lock).
     max_concurrent_articles: int = 8
     # Stale-message intake gate: ack-and-drop a queued article whose scraped_at
-    # is older than this many hours, BEFORE spending an LLM call. The Reader
-    # feed window is 48h (Messor ADR-0015), so older articles can't surface
-    # anyway. Protects against queue floods (105k-msg incident, 2026-06-09).
-    # 0 disables the gate.
-    max_article_age_hours: int = 48
+    # is older than this many hours, BEFORE spending an LLM call. The worker
+    # drains FIFO at ~6-8/min, so a harvest burst builds a backlog that pushes
+    # fresh news hours behind (stale-feed incident 2026-07-29); a tighter gate
+    # bounds that — anything older than a day can't lead the feed anyway. Was 48
+    # (only caught the 105k-msg flood of 2026-06-09). Live-tunable from
+    # backoffice.curator_settings (in _DB_SETTINGS_MAP). 0 disables the gate.
+    max_article_age_hours: int = 24
     # How often (seconds) the consumer re-reads backoffice.curator_settings so
     # an admin change takes effect without a redeploy. 0 disables polling.
     config_refresh_seconds: int = 30
