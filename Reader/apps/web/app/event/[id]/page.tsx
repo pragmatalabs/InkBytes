@@ -115,43 +115,14 @@ export default async function EventPage(
         share={<ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />}
       />
 
-      {/* Hero (ADR-0034). NEVER the source outlet's og:image (legal risk L3 / M1).
-          Tier 2 license-clean generic image when available (cover_image), else the
-          owned procedural cover. lead_image is still stored, just not rendered. */}
-      <EventCover
-        id={page.id}
-        category={page.category}
-        cover={page.cover_image}
-        className="w-full rounded-xl mb-8 aspect-video"
-      />
-
-
-      {/* Meta row */}
-      <div className="flex flex-wrap items-center gap-2 mb-4 text-xs text-[var(--ink-muted)]">
+      {/* Eyebrow — topic + developing + language. The developing dot now sits
+          above the headline (Stage 5); the old meta row + stat grid are gone. */}
+      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
         {page.topic && (
           <span className="px-2 py-0.5 rounded-full bg-gray-100 font-medium text-gray-700">
             {page.topic}
           </span>
         )}
-        <span className="flex items-center gap-1">
-          <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-          {page.source_count} {page.source_count === 1 ? "source" : "sources"}
-        </span>
-        <span>·</span>
-        {/* suppressHydrationWarning: relativeTime uses Date.now() — differs
-            between server (UTC) and client (local tz), causing error #418.
-            The event page shows BOTH clocks: when the story started
-            (occurred_at) and when it was last updated (freshness_at). The feed
-            card shows only the update time. */}
-        {page.occurred_at && (
-          <>
-            <span suppressHydrationWarning>Started {relativeTime(page.occurred_at)}</span>
-            <span>·</span>
-          </>
-        )}
-        <span suppressHydrationWarning>Updated {relativeTime(page.freshness_at)}</span>
         {developing && (
           <span suppressHydrationWarning className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-[10px] text-red-600">
             <span className="developing-dot" aria-hidden="true" />
@@ -159,20 +130,76 @@ export default async function EventPage(
           </span>
         )}
         {page.language && page.language !== "en" && (
-          <span className="font-mono px-1.5 py-0.5 rounded bg-gray-100 uppercase text-[10px] tracking-wide">
+          <span className="font-mono px-1.5 py-0.5 rounded bg-gray-100 uppercase text-[10px] tracking-wide text-[var(--ink-muted)]">
             {page.language}
           </span>
         )}
       </div>
 
-      {/* Headline */}
-      <h1 className="text-[1.6rem] sm:text-[1.75rem] md:text-3xl font-bold leading-tight tracking-tight mb-7">
+      {/* Headline — the first substantial content, above the fold (Stage 5). */}
+      <h1 className="text-[1.6rem] sm:text-[1.75rem] md:text-3xl font-bold leading-tight tracking-tight mb-4">
         {page.headline}
       </h1>
 
-      {/* Entity chips */}
+      {/* Provenance row — avatars · sources · Started · Updated, taps to Evidence.
+          Replaces the old meta row + the 2-up Sources/Coverage stat grid (Stage 5).
+          suppressHydrationWarning: relativeTime uses Date.now() (server UTC vs
+          client local tz) — would otherwise throw React #418. */}
+      <a
+        href="#evidence"
+        className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-8 text-xs text-[var(--ink-muted)]"
+      >
+        {outletNames.length > 0 && (
+          <span className="flex items-center">
+            {outletNames.map((name, i) => (
+              <span
+                key={i}
+                title={name}
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--accent)] text-white text-[8px] font-bold uppercase ring-2 ring-white"
+                style={{ marginLeft: i === 0 ? 0 : -5, zIndex: outletNames.length - i }}
+              >
+                {outletInitials(name)}
+              </span>
+            ))}
+          </span>
+        )}
+        <span className="font-semibold text-[var(--ink)]">
+          {page.source_count} {page.source_count === 1 ? "source" : "sources"}
+        </span>
+        {page.occurred_at && (
+          <>
+            <span aria-hidden>·</span>
+            <span suppressHydrationWarning>Started {relativeTime(page.occurred_at)}</span>
+          </>
+        )}
+        <span aria-hidden>·</span>
+        <span suppressHydrationWarning>Updated {relativeTime(page.freshness_at)}</span>
+        <span className="text-[var(--accent)] font-medium group-hover:underline">· sources&nbsp;↓</span>
+      </a>
+
+      {/* Synthesis — the story, now high on the page (Stage 5). */}
+      <div className="synthesis-body text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-8">
+        <NewsMarkdown source={page.synthesis_md} />
+      </div>
+
+      {/* Owned cover — inset + captioned, BELOW the prose (ADR-0034: never the
+          source og:image, never a photo of this event). Was a full-width
+          aspect-video hero above the fold (Stage 5). */}
+      <figure className="mb-10">
+        <EventCover
+          id={page.id}
+          category={page.category}
+          cover={page.cover_image}
+          className="w-full h-40 rounded-xl"
+        />
+        <figcaption className="mt-2 text-center text-[11px] text-[var(--ink-muted)] italic">
+          Illustrative. Not a photograph of this event.
+        </figcaption>
+      </figure>
+
+      {/* Entity chips — moved below the story (Stage 5 group 9). */}
       {entities.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-8">
+        <div className="flex flex-wrap gap-1.5 mb-10">
           {entities.map((e, i) => (
             <span
               key={i}
@@ -186,42 +213,6 @@ export default async function EventPage(
           ))}
         </div>
       )}
-
-      {/* Sources card (+ outlet avatar stack). The Coverage/article_count card is
-          removed (Stage 2b) — sources is the trust number; article count is
-          pipeline noise the meta row + evidence header already cover. The 2-up
-          grid itself is retired in Stage 5. */}
-      <div className="bg-white border border-[var(--border)] rounded-lg p-4 sm:p-5 mb-10">
-        <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--ink-muted)]">
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-          </svg>
-          Sources
-        </div>
-        <div className="mt-2.5 flex items-baseline gap-1.5">
-          <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">{page.source_count}</span>
-          <span className="text-xs font-medium text-[var(--ink-muted)]">outlets</span>
-        </div>
-        {outletNames.length > 0 && (
-          <div className="mt-3 flex items-center">
-            {outletNames.map((name, i) => (
-              <span
-                key={i}
-                title={name}
-                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-white text-[9px] font-bold uppercase ring-2 ring-white"
-                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: outletNames.length - i }}
-              >
-                {outletInitials(name)}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Synthesis — full markdown (headings, bold, lists, citations) */}
-      <div className="synthesis-body text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-10">
-        <NewsMarkdown source={page.synthesis_md} />
-      </div>
 
       {/* Story timeline — how the headline evolved as the story developed (ADR-0035).
           Hidden until the story has re-synthesized with a changed title. */}
@@ -252,9 +243,9 @@ export default async function EventPage(
         </details>
       )}
 
-      {/* Evidence rail */}
+      {/* Evidence rail — anchor target for the provenance row's "sources ↓" tap. */}
       {evidence.length > 0 && (
-        <div className="border-t border-[var(--border)] pt-7">
+        <div id="evidence" className="border-t border-[var(--border)] pt-7 scroll-mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
               Sources
