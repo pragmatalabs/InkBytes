@@ -84,14 +84,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {/* Search moved into the content top row (one search, not two —
                 the header pill duplicated it). Header stays brand + nav. */}
 
-            {/* Top nav is DESKTOP-only: on mobile the bottom tab bar is the nav,
-                so a second copy here is pure redundancy (Rams — remove it). */}
-            <nav className="hidden sm:flex items-center gap-4 text-sm text-white/70 shrink-0">
-              <Link href="/" className="hover:text-white transition-colors font-medium">News</Link>
-              <Link href="/outlook" className="hover:text-white transition-colors">Outlook</Link>
-              <Link href="/entities" className="hover:text-white transition-colors">Entities</Link>
-              <Link href="/about" className="hover:text-white transition-colors">About</Link>
-            </nav>
+            <div className="flex items-center gap-4 shrink-0">
+              {/* Top nav is DESKTOP-only: on mobile the bottom tab bar is the nav,
+                  so a second copy here is pure redundancy (Rams — remove it). */}
+              <nav className="hidden sm:flex items-center gap-4 text-sm text-white/70">
+                <Link href="/" className="hover:text-white transition-colors font-medium">News</Link>
+                <Link href="/outlook" className="hover:text-white transition-colors">Outlook</Link>
+                <Link href="/entities" className="hover:text-white transition-colors">Entities</Link>
+                <Link href="/about" className="hover:text-white transition-colors">About</Link>
+              </nav>
+
+              {/* Saved + You — entry points for the Slice B screens. Always
+                  visible (the bottom nav has no room until the Slice C rework). */}
+              <div className="flex items-center gap-0.5">
+                <Link href="/saved" aria-label="Saved" className="p-1.5 text-white/70 hover:text-white transition-colors">
+                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </Link>
+                <Link href="/you" aria-label="You" className="p-1.5 text-white/70 hover:text-white transition-colors">
+                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
           </div>
         </header>
 

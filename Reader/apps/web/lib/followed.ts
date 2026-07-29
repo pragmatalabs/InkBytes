@@ -59,4 +59,8 @@ export function toggleFollowed(e: Omit<FollowedStory, "followedAt">): boolean {
   return true;
 }
 
+export function clearFollowed(): void {
+  write([]);
+}
+
 export const FOLLOWED_EVENT = EVT;

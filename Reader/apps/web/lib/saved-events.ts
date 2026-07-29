@@ -58,4 +58,8 @@ export function toggleSaved(e: Omit<SavedEvent, "savedAt">): boolean {
   return true;
 }
 
+export function clearSaved(): void {
+  write([]);
+}
+
 export const SAVED_EVENT = EVT;

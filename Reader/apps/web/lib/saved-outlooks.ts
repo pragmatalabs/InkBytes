@@ -69,4 +69,8 @@ export function removeSaved(o: { theme: string; lang: string; date: string }): v
   write(read().filter((s) => idOf(s) !== id));
 }
 
+export function clearSaved(): void {
+  write([]);
+}
+
 export const SAVED_EVENT = EVT;
