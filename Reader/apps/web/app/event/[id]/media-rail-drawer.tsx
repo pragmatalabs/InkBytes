@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MediaRailItem } from "@/lib/types";
 import VideoCoverflow from "@/components/video-coverflow";
 
@@ -41,8 +41,21 @@ export default function MediaRailDrawer({ rail, back, share }: Props) {
   const videos = rail.filter((m) => m.type === "video");
   const hasMedia = videos.length > 0;
 
+  // The event-page "Watch · n" action-grid button (StoryNav) sits below the
+  // prose; it opens this drawer via a custom event, then we scroll it into view.
+  useEffect(() => {
+    const onOpen = () => {
+      setOpen(true);
+      requestAnimationFrame(() =>
+        document.getElementById("watch")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    };
+    window.addEventListener("inkb:open-video", onOpen);
+    return () => window.removeEventListener("inkb:open-video", onOpen);
+  }, []);
+
   return (
-    <div className="mb-8">
+    <div id="watch" className="mb-8 scroll-mt-4">
       {/* Action bar */}
       <div className="flex items-center justify-between">
         {back}

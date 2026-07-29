@@ -6,6 +6,7 @@ import { themeAccent } from "@/lib/theme-colors";
 import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem, TitleHistoryEntry } from "@/lib/types";
 import ShareButton from "./share-button";
 import MediaRailDrawer from "./media-rail-drawer";
+import StoryNav from "./story-nav";
 import { NewsMarkdown } from "@/components/news-markdown";
 import ReadTracker from "@/components/read-tracker";
 import EventCover from "@/components/event-cover";
@@ -93,18 +94,23 @@ export default async function EventPage(
   // Outlet-initials avatar stack, de-duped, built from the evidence source names.
   const outletNames = Array.from(new Set(evidence.map((e) => e.source_name))).slice(0, 6);
 
+  // Media rail (video-only, ADR-R-0006) — parsed once for the drawer + the
+  // "Watch · n" tile count in StoryNav.
+  const rail: MediaRailItem[] = (() => {
+    const raw = page.media_rail;
+    return Array.isArray(raw) ? raw
+      : typeof raw === "string" ? (JSON.parse(raw) as MediaRailItem[])
+      : [];
+  })();
+  const videoCount = rail.filter((m) => m.type === "video").length;
+
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Content-engagement analytics (Umami custom events) — no-op until configured */}
       <ReadTracker eventId={page.id} category={page.category} language={page.language} freshnessAt={page.freshness_at} />
       {/* Back + Media + Share action bar (MediaRailDrawer owns the toggle state) */}
       <MediaRailDrawer
-        rail={(() => {
-          const raw = page.media_rail;
-          return Array.isArray(raw) ? raw
-            : typeof raw === "string" ? (JSON.parse(raw) as MediaRailItem[])
-            : [];
-        })()}
+        rail={rail}
         back={
           <Link
             href="/"
@@ -202,9 +208,19 @@ export default async function EventPage(
         </figcaption>
       </figure>
 
+      {/* "This story" 2×2 action grid + Next story (prototype). Watch opens the
+          video drawer; Evidence/Entities/Related scroll to their sections below. */}
+      <StoryNav
+        clips={videoCount}
+        quotes={evidence.length}
+        entities={entities.length}
+        related={related.length}
+        nextId={related[0]?.id ?? null}
+      />
+
       {/* Entity chips — moved below the story (Stage 5 group 9). */}
       {entities.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-10">
+        <div id="entities" className="flex flex-wrap gap-1.5 mb-10 scroll-mt-6">
           {entities.map((e, i) => (
             <span
               key={i}
@@ -285,7 +301,7 @@ export default async function EventPage(
 
       {/* Related events strip — entity + topic overlap (ADR-0005 Approach A) */}
       {related.length > 0 && (
-        <div className="border-t border-[var(--border)] pt-7">
+        <div id="related" className="border-t border-[var(--border)] pt-7 scroll-mt-6">
           <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-4">
             Related events
           </h2>
