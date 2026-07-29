@@ -32,14 +32,29 @@ html, body {
   line-height: 1.8;
 }
 
-/* Drop-cap on the first paragraph of the synthesis (matches the prototype). */
+/* Event synthesis body — Source Serif 4 for long reading (prototype). Softer ink
+   than --ink over a full column; the drop cap stays Inter, coloured by the
+   event's category accent (set as --cap on the element). */
+.synthesis-body {
+  font-family: var(--font-source-serif), ui-serif, Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  line-height: 1.62;
+  color: #23242a;
+}
+@media (min-width: 640px) {
+  .synthesis-body { font-size: 18.5px; }
+}
+
+/* Drop-cap on the first paragraph of the synthesis (matches the prototype):
+   Inter 800, category-accent colour via --cap (falls back to --ink). */
 .synthesis-body > p:first-of-type::first-letter {
   float: left;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   font-weight: 800;
-  color: var(--ink);
-  font-size: 3.2em;
-  line-height: 0.8;
-  padding: 0.06em 0.12em 0 0;
+  color: var(--cap, var(--ink));
+  font-size: 3.1em;
+  line-height: 0.78;
+  padding: 0.06em 0.1em 0 0;
 }
 
 /* Pulsing dot for the "Developing" badge. */

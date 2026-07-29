@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import BottomNav from "./bottom-nav";
 import { LogoMark } from "@/components/logo";
@@ -11,6 +11,14 @@ import "./globals.css";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+// Event synthesis body (prototype): Source Serif 4 for long reading, paired with
+// the Inter drop cap. Same next/font/google setup as Inter.
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-source-serif",
   display: "swap",
 });
 
@@ -58,7 +66,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`h-full ${inter.variable}`}>
+    <html lang="en" className={`h-full ${inter.variable} ${sourceSerif.variable}`}>
       <body className="min-h-full flex flex-col">
         <header className="bg-[var(--accent)] sticky top-0 z-40 border-b border-white/10 safe-top">
           <div className="max-w-4xl mx-auto px-4 h-13 flex items-center justify-between gap-4">

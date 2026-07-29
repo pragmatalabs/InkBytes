@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
+import { themeAccent } from "@/lib/theme-colors";
 import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem, TitleHistoryEntry } from "@/lib/types";
 import ShareButton from "./share-button";
 import MediaRailDrawer from "./media-rail-drawer";
@@ -177,8 +178,12 @@ export default async function EventPage(
         <span className="text-[var(--accent)] font-medium group-hover:underline">· sources&nbsp;↓</span>
       </a>
 
-      {/* Synthesis — the story, now high on the page (Stage 5). */}
-      <div className="synthesis-body text-[16px] sm:text-[17px] leading-[1.8] text-[var(--ink)] mb-8">
+      {/* Synthesis — the story, high on the page. Source Serif 4 body + a
+          category-accent Inter drop cap (prototype). */}
+      <div
+        className="synthesis-body mb-8"
+        style={{ ["--cap" as string]: themeAccent(page.category) }}
+      >
         <NewsMarkdown source={page.synthesis_md} />
       </div>
 
