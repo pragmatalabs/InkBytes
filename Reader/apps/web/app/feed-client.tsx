@@ -8,6 +8,7 @@ import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/typ
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
 import { ColumnMast, titleCase } from "@/components/column-mast";
+import { getRead } from "@/lib/read-state";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import RetryButton from "@/components/retry-button";
@@ -154,6 +155,20 @@ function DevelopingBadge() {
   );
 }
 
+// "Updated since you last read this" (Stage 6). Accent (navy), NOT red — the
+// developing dot stays the only red in the app (Stage 2b).
+function UpdatedBadge() {
+  return (
+    <span
+      title="Updated since you last read this"
+      className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--accent)]"
+    >
+      <span className="h-[6px] w-[6px] rounded-full bg-[var(--accent)]" aria-hidden="true" />
+      Updated
+    </span>
+  );
+}
+
 function LangChip({ lang }: { lang: string }) {
   return (
     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wide">
@@ -262,20 +277,20 @@ function OutlookCard({ entry }: { entry: OutlookArchiveEntry & { lang: string } 
 
 // ── LEAD card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
+function LeadCard({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
   const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
       style={{ borderLeftColor: themeAccent(event.category) }}
-      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all"
+      className={`group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all ${read && !updated ? "opacity-[.42]" : ""}`}
     >
       {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
       <EventCover id={event.id} category={event.category} cover={event.cover_image}
         className="w-full h-48 sm:h-56 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-6 sm:p-8">
         <div className="flex flex-wrap items-center gap-2 mb-4 empty:hidden">
-          {developing && <DevelopingBadge />}
+          {updated ? <UpdatedBadge /> : developing && <DevelopingBadge />}
           {showLang && event.language !== "en" && <LangChip lang={event.language} />}
         {showLang && <AlsoIn also={event.also_languages} />}
         </div>
@@ -301,20 +316,20 @@ function LeadCard({ event, showLang }: { event: EventSummary; showLang: boolean 
 
 // ── SECONDARY card ────────────────────────────────────────────────────────────
 
-function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
+function SecondaryCard({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
   const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
       style={{ borderLeftColor: themeAccent(event.category) }}
-      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col"
+      className={`group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col ${read && !updated ? "opacity-[.42]" : ""}`}
     >
       {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
       <EventCover id={event.id} category={event.category} cover={event.cover_image}
         className="w-full h-36 shrink-0 group-hover:scale-[1.02] transition-transform duration-300" />
       <div className="p-5 flex flex-col flex-1">
         <div className="flex flex-wrap items-center gap-1.5 mb-3 empty:hidden">
-          {developing && <DevelopingBadge />}
+          {updated ? <UpdatedBadge /> : developing && <DevelopingBadge />}
           {showLang && event.language !== "en" && <LangChip lang={event.language} />}
         {showLang && <AlsoIn also={event.also_languages} />}
         </div>
@@ -340,12 +355,12 @@ function SecondaryCard({ event, showLang }: { event: EventSummary; showLang: boo
 
 // ── STREAM row ────────────────────────────────────────────────────────────────
 
-function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean }) {
+function StreamRow({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
   const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
-      className="group flex items-center gap-3 py-3.5 border-b border-[var(--border)] last:border-0 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors"
+      className={`group flex items-center gap-3 py-3.5 border-b border-[var(--border)] last:border-0 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors ${read && !updated ? "opacity-[.42]" : ""}`}
     >
       <StrengthDot count={event.source_count} developing={developing} />
       <span className="flex-1 min-w-0">
@@ -353,6 +368,9 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
           {event.headline}
         </span>
         <span className="flex gap-1.5 mt-0.5 items-center flex-wrap empty:hidden">
+          {updated && (
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--accent)]">Updated</span>
+          )}
           {showLang && event.language !== "en" && (
             <span className="text-[10px] font-mono text-[var(--ink-muted)] uppercase">
               {event.language}
@@ -377,16 +395,16 @@ function StreamRow({ event, showLang }: { event: EventSummary; showLang: boolean
 
 // ── Flat card (filtered view) ─────────────────────────────────────────────────
 
-function FlatCard({ event, showLang }: { event: EventSummary; showLang: boolean }) {
+function FlatCard({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
   const developing = isDeveloping(lastUpdate(event));
   return (
     <Link
       href={`/event/${event.id}`}
       style={{ borderLeftColor: themeAccent(event.category) }}
-      className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-r-gray-300 hover:border-t-gray-300 hover:border-b-gray-300 transition-all"
+      className={`group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-r-gray-300 hover:border-t-gray-300 hover:border-b-gray-300 transition-all ${read && !updated ? "opacity-[.42]" : ""}`}
     >
       <div className="flex flex-wrap items-center gap-2 mb-3 empty:hidden">
-        {developing && <DevelopingBadge />}
+        {updated ? <UpdatedBadge /> : developing && <DevelopingBadge />}
         {showLang && event.language !== "en" && <LangChip lang={event.language} />}
         {showLang && <AlsoIn also={event.also_languages} />}
       </div>
@@ -432,6 +450,28 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const [lang, setLangState]                = useState<Lang>("all");
   const [streamExpanded, setStreamExpanded] = useState(false);
   const searchRef                           = useRef<HTMLInputElement>(null);
+
+  // Read state (Stage 6) — client-only. Empty on the server + first paint so the
+  // SSR markup renders every card UNREAD; populated after mount, then a re-render
+  // dims read cards + flags updates. This is the hydration-safe order the brief
+  // requires (rendering read state on the server reintroduces React #418).
+  const [readMap, setReadMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const sync = () => setReadMap(getRead());
+    sync();
+    // Re-sync on return from an event page (same tab) so a just-read story dims.
+    window.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
+  const readState = (ev: EventSummary): { read: boolean; updated: boolean } => {
+    const seen = readMap[ev.id];
+    if (!seen) return { read: false, updated: false };
+    return { read: true, updated: new Date(ev.freshness_at) > new Date(seen) };
+  };
 
   // ── 20-minute auto-refresh ─────────────────────────────────────────────────
   // router.refresh() re-runs the server component tree (re-fetches /events from
@@ -779,7 +819,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {lead && (
             <div>
               <SectionHeader title="Top story" />
-              <LeadCard event={lead} showLang={showLangChip} />
+              <LeadCard event={lead} showLang={showLangChip} {...readState(lead)} />
             </div>
           )}
 
@@ -787,7 +827,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {secondary.length > 0 && (
             <div className={`grid gap-4 ${secondary.length === 1 ? "" : "sm:grid-cols-2"}`}>
               {secondary.map((ev) => (
-                <SecondaryCard key={ev.id} event={ev} showLang={showLangChip} />
+                <SecondaryCard key={ev.id} event={ev} showLang={showLangChip} {...readState(ev)} />
               ))}
             </div>
           )}
@@ -812,7 +852,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                           <h3 className="text-sm font-semibold tracking-tight text-[var(--ink-muted)]">Regional</h3>
                         </div>
                       )}
-                      <StreamRow event={ev} showLang={showLangChip} />
+                      <StreamRow event={ev} showLang={showLangChip} {...readState(ev)} />
                     </Fragment>
                   );
                 })}
@@ -836,7 +876,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         <>
           <div className="flex flex-col gap-2.5">
             {flatList.map((ev) => (
-              <FlatCard key={ev.id} event={ev} showLang={showLangChip} />
+              <FlatCard key={ev.id} event={ev} showLang={showLangChip} {...readState(ev)} />
             ))}
           </div>
           <p className="mt-6 text-center text-xs text-[var(--ink-muted)]">

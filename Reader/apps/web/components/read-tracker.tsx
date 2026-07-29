@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { markRead } from "@/lib/read-state";
 
 declare global {
   interface Window {
@@ -17,9 +18,13 @@ declare global {
  * analytics is configured and on any ad-blocked client. Renders nothing.
  */
 export default function ReadTracker({
-  eventId, category, language,
-}: { eventId: string; category?: string | null; language?: string | null }) {
+  eventId, category, language, freshnessAt,
+}: { eventId: string; category?: string | null; language?: string | null; freshnessAt?: string }) {
   useEffect(() => {
+    // Remember this open (+ the version seen) so the feed can dim it and flag a
+    // later update as "Updated since you read it" (Stage 6, read-state layer).
+    if (freshnessAt) markRead(eventId, freshnessAt);
+
     window.umami?.track?.("event-read", { event_id: eventId, category, language });
 
     const milestones = [25, 50, 75, 100];
@@ -38,7 +43,7 @@ export default function ReadTracker({
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [eventId, category, language]);
+  }, [eventId, category, language, freshnessAt]);
 
   return null;
 }

@@ -95,7 +95,7 @@ export default async function EventPage(
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Content-engagement analytics (Umami custom events) — no-op until configured */}
-      <ReadTracker eventId={page.id} category={page.category} language={page.language} />
+      <ReadTracker eventId={page.id} category={page.category} language={page.language} freshnessAt={page.freshness_at} />
       {/* Back + Media + Share action bar (MediaRailDrawer owns the toggle state) */}
       <MediaRailDrawer
         rail={(() => {
