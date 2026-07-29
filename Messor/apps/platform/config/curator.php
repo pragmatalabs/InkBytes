@@ -89,7 +89,7 @@ return [
     | independently (e.g. Haiku for enrichment, Sonnet for synthesis).
     */
     'allowed_llm' => [
-        'providers' => ['anthropic', 'openai', 'deepseek'],
+        'providers' => ['anthropic', 'openai', 'deepseek', 'openrouter'],
         'models' => [
             'anthropic' => [
                 'enrich'     => ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
@@ -101,10 +101,17 @@ return [
             ],
             // DeepSeek — OpenAI-compatible API (https://api.deepseek.com/v1).
             // Key: DEEPSEEK_API_KEY in Curator's environment (env-only, ADR-0004).
-            // deepseek-chat = DeepSeek-V3 (fast, cheap); deepseek-reasoner = R1 (CoT).
             'deepseek' => [
-                'enrich'     => ['deepseek-chat', 'deepseek-reasoner'],
-                'synthesize' => ['deepseek-chat', 'deepseek-reasoner'],
+                'enrich'     => ['deepseek-v4-flash', 'deepseek-v4-pro'],
+                'synthesize' => ['deepseek-v4-flash', 'deepseek-v4-pro'],
+            ],
+            // OpenRouter — OpenAI-compatible aggregator (https://openrouter.ai/api/v1).
+            // Base URL: set llm_base_url to https://openrouter.ai/api/v1. Key:
+            // openrouter_api_key here or OPENROUTER_API_KEY env. Models are
+            // NAMESPACED (provider/model). Curator ADR-0041.
+            'openrouter' => [
+                'enrich'     => ['deepseek/deepseek-v4-flash', 'openai/gpt-oss-120b', 'qwen/qwen3.7-flash', 'google/gemini-2.5-flash-lite'],
+                'synthesize' => ['deepseek/deepseek-v4-flash', 'google/gemini-2.5-flash', 'anthropic/claude-haiku-4.5', 'qwen/qwen3.7-flash'],
             ],
         ],
     ],
@@ -135,6 +142,12 @@ return [
         'embeddings_provider' => 'ollama',
         'embeddings_model' => 'bge-m3',
         'embeddings_base_url' => 'http://localhost:11434/v1',
+        // OpenRouter routing (Curator ADR-0041). Fallback chains default empty
+        // (Curator then uses its env values); the provider-level DeepSeek
+        // fallback defaults on. Reset restores these.
+        'llm_enrich_fallbacks' => null,
+        'llm_synth_fallbacks' => null,
+        'openrouter_deepseek_fallback' => true,
     ],
 
     /*

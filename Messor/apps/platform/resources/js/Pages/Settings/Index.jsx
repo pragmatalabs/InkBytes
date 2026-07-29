@@ -16,10 +16,12 @@ import {
     DialogContentText,
     DialogTitle,
     Divider,
+    FormControlLabel,
     Grid,
     MenuItem,
     Paper,
     Stack,
+    Switch,
     TextField,
     Typography,
 } from '@mui/material';
@@ -50,6 +52,10 @@ export default function SettingsIndex({
         enrich_model:      settings.enrich_model      ?? 'claude-haiku-4-5',
         synthesize_model:  settings.synthesize_model  ?? 'claude-haiku-4-5',
         llm_base_url:      settings.llm_base_url      ?? '',
+        // OpenRouter routing (ADR-0041) — comma-separated slug chains + toggle.
+        llm_enrich_fallbacks: settings.llm_enrich_fallbacks ?? '',
+        llm_synth_fallbacks:  settings.llm_synth_fallbacks  ?? '',
+        openrouter_deepseek_fallback: settings.openrouter_deepseek_fallback ?? true,
         max_tokens_enrich: settings.max_tokens_enrich ?? 1500,
         max_tokens_synth:  settings.max_tokens_synth  ?? 2500,
         temperature:       settings.temperature       ?? 0.2,
@@ -69,6 +75,7 @@ export default function SettingsIndex({
         anthropic_api_key:  '',
         openai_api_key:     '',
         deepseek_api_key:   '',
+        openrouter_api_key: '',
         embeddings_api_key: '',
     });
 
@@ -81,6 +88,8 @@ export default function SettingsIndex({
             ...data,
             monthly_budget_usd: data.monthly_budget_usd === '' ? null : data.monthly_budget_usd,
             llm_base_url:       data.llm_base_url === '' ? null : data.llm_base_url,
+            llm_enrich_fallbacks: data.llm_enrich_fallbacks === '' ? null : data.llm_enrich_fallbacks,
+            llm_synth_fallbacks:  data.llm_synth_fallbacks === '' ? null : data.llm_synth_fallbacks,
         }));
         form.put(route('settings.update'));
     };
@@ -266,6 +275,61 @@ export default function SettingsIndex({
                         </Grid>
                     </Box>
 
+                    {/* ── OpenRouter routing (ADR-0041) — only for provider=openrouter ── */}
+                    {form.data.llm_provider === 'openrouter' && (
+                        <>
+                            <Divider />
+                            <Box>
+                                <Typography variant="h6" gutterBottom>OpenRouter routing</Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                    Fallback model chains (comma-separated OpenRouter slugs) are tried in order when the
+                                    primary model errors or rate-limits — OpenRouter's request <code>models</code> array.
+                                    Leave a chain blank to use Curator's env default. The provider-level fallback below
+                                    retries on the direct DeepSeek endpoint if the whole OpenRouter account runs out of credits.
+                                </Typography>
+                                <Grid container spacing={2.5}>
+                                    <Grid size={{ xs: 12, md: 6 }}>
+                                        <TextField
+                                            label="Enrich fallback chain"
+                                            value={form.data.llm_enrich_fallbacks}
+                                            onChange={(e) => form.setData('llm_enrich_fallbacks', e.target.value)}
+                                            error={Boolean(form.errors.llm_enrich_fallbacks)}
+                                            helperText={form.errors.llm_enrich_fallbacks ?? 'Comma-separated slugs, tried in order after the enrich model'}
+                                            placeholder="deepseek/deepseek-v4-flash, qwen/qwen3.7-flash"
+                                            fullWidth
+                                        />
+                                    </Grid>
+                                    <Grid size={{ xs: 12, md: 6 }}>
+                                        <TextField
+                                            label="Synthesize fallback chain"
+                                            value={form.data.llm_synth_fallbacks}
+                                            onChange={(e) => form.setData('llm_synth_fallbacks', e.target.value)}
+                                            error={Boolean(form.errors.llm_synth_fallbacks)}
+                                            helperText={form.errors.llm_synth_fallbacks ?? 'Comma-separated slugs, tried in order after the synthesize model'}
+                                            placeholder="deepseek/deepseek-v4-flash, qwen/qwen3.7-flash"
+                                            fullWidth
+                                        />
+                                    </Grid>
+                                    <Grid size={{ xs: 12 }}>
+                                        <FormControlLabel
+                                            control={
+                                                <Switch
+                                                    checked={Boolean(form.data.openrouter_deepseek_fallback)}
+                                                    onChange={(e) => form.setData('openrouter_deepseek_fallback', e.target.checked)}
+                                                />
+                                            }
+                                            label="Fall back to the direct DeepSeek endpoint on an OpenRouter quota/credit error"
+                                        />
+                                        <Typography variant="caption" color="text.secondary" display="block">
+                                            Requires a DeepSeek API key. Retries the failed call on api.deepseek.com when
+                                            OpenRouter itself is out of credits (above the per-model chain above).
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            </Box>
+                        </>
+                    )}
+
                     <Divider />
 
                     {/* ── Generation ─────────────────────────────────────── */}
@@ -401,6 +465,9 @@ export default function SettingsIndex({
                             </Grid>
                             <Grid size={{ xs: 12, md: 6 }}>
                                 {keyField('deepseek_api_key', 'DeepSeek API Key', settings.deepseek_api_key_set)}
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                {keyField('openrouter_api_key', 'OpenRouter API Key', settings.openrouter_api_key_set)}
                             </Grid>
                             <Grid size={{ xs: 12, md: 6 }}>
                                 {keyField('embeddings_api_key', 'Embeddings API Key', settings.embeddings_api_key_set)}

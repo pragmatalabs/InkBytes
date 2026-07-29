@@ -46,8 +46,15 @@ class CuratorSetting extends Model
         'anthropic_api_key',
         'openai_api_key',
         'deepseek_api_key',
+        // ADR-0041: OpenRouter key (masked in UI like the others; env fallback).
+        'openrouter_api_key',
         // Base URL for OpenAI-compatible providers (overrides provider's default endpoint).
         'llm_base_url',
+        // ADR-0041: OpenRouter routing. Fallback chains (comma-separated model
+        // slugs) + the provider-level OpenRouter→direct-DeepSeek quota fallback.
+        'llm_enrich_fallbacks',
+        'llm_synth_fallbacks',
+        'openrouter_deepseek_fallback',
         // Embedding provider key (used when embeddings.provider = openai).
         'embeddings_api_key',
     ];
@@ -61,6 +68,7 @@ class CuratorSetting extends Model
         'min_sources_to_publish' => 'integer',
         'recent_window_hours' => 'integer',
         'processing_enabled' => 'boolean',
+        'openrouter_deepseek_fallback' => 'boolean',
         'monthly_budget_usd' => 'float',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

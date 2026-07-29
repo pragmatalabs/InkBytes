@@ -58,10 +58,15 @@ class CuratorSettingController extends Controller
                 // LLM provider + custom base URL (for OpenAI-compatible providers).
                 'llm_provider' => $settings->llm_provider,
                 'llm_base_url' => $settings->llm_base_url,
+                // ADR-0041: OpenRouter routing (hot-reloaded by Curator).
+                'llm_enrich_fallbacks' => $settings->llm_enrich_fallbacks,
+                'llm_synth_fallbacks'  => $settings->llm_synth_fallbacks,
+                'openrouter_deepseek_fallback' => (bool) ($settings->openrouter_deepseek_fallback ?? true),
                 // API key presence flags — never send the actual key to the UI.
                 'anthropic_api_key_set'    => !empty($settings->anthropic_api_key),
                 'openai_api_key_set'       => !empty($settings->openai_api_key),
                 'deepseek_api_key_set'     => !empty($settings->deepseek_api_key),
+                'openrouter_api_key_set'   => !empty($settings->openrouter_api_key),
                 'embeddings_api_key_set'   => !empty($settings->embeddings_api_key),
                 'updated_at' => $settings->updated_at?->toIso8601String(),
             ],
@@ -100,10 +105,17 @@ class CuratorSettingController extends Controller
             'embeddings_base_url' => ['nullable', 'string', 'url', 'required_if:embeddings_provider,ollama'],
             // Custom base URL for OpenAI-compatible LLM providers.
             'llm_base_url' => ['nullable', 'string', 'url', 'max:255'],
+            // ADR-0041: OpenRouter routing. Fallback chains are comma-separated
+            // model slugs (Curator splits them); the toggle is the provider-level
+            // OpenRouter→direct-DeepSeek quota fallback.
+            'llm_enrich_fallbacks' => ['nullable', 'string', 'max:1000'],
+            'llm_synth_fallbacks'  => ['nullable', 'string', 'max:1000'],
+            'openrouter_deepseek_fallback' => ['required', 'boolean'],
             // API keys — empty string means "don't update"; non-empty saves the new key.
             'anthropic_api_key'  => ['nullable', 'string', 'max:512'],
             'openai_api_key'     => ['nullable', 'string', 'max:512'],
             'deepseek_api_key'   => ['nullable', 'string', 'max:512'],
+            'openrouter_api_key' => ['nullable', 'string', 'max:512'],
             'embeddings_api_key' => ['nullable', 'string', 'max:512'],
         ], [
             'llm_provider.in' => 'LLM provider must be one of: '.implode(', ', $llmProviders).'.',
@@ -121,7 +133,7 @@ class CuratorSettingController extends Controller
         // API key fields: empty string → don't overwrite existing value.
         // Non-empty → save new value. This lets the user update a key without
         // having to clear the existing one first.
-        foreach (['anthropic_api_key', 'openai_api_key', 'deepseek_api_key', 'embeddings_api_key'] as $keyField) {
+        foreach (['anthropic_api_key', 'openai_api_key', 'deepseek_api_key', 'openrouter_api_key', 'embeddings_api_key'] as $keyField) {
             if (isset($data[$keyField]) && $data[$keyField] === '') {
                 unset($data[$keyField]);  // keep current DB value unchanged
             }
@@ -132,7 +144,7 @@ class CuratorSettingController extends Controller
         // Audit: mask key values so raw secrets never hit the audit log.
         $maskedBefore = $before;
         $maskedAfter  = $settings->only(array_keys($before));
-        foreach (['anthropic_api_key', 'openai_api_key', 'deepseek_api_key', 'embeddings_api_key'] as $keyField) {
+        foreach (['anthropic_api_key', 'openai_api_key', 'deepseek_api_key', 'openrouter_api_key', 'embeddings_api_key'] as $keyField) {
             if (isset($maskedBefore[$keyField]))  $maskedBefore[$keyField]  = '***';
             if (isset($maskedAfter[$keyField]))   $maskedAfter[$keyField]   = '***';
         }
