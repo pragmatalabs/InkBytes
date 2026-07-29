@@ -441,6 +441,9 @@ interface Props {
   /** The day's lead Outlook column (Stage 2c) — surfaced as a card near the top
    *  of the feed. null when Outlook is unavailable (best-effort; never blanks). */
   outlookLead?: (OutlookArchiveEntry & { lang: string }) | null;
+  /** Slice C-B: "briefing" (home /) = finite top-N + progress + caught-up, no
+   *  filters; "browse" (/browse) = the full searchable/filterable feed. */
+  mode?: "briefing" | "browse";
 }
 
 const LANG_KEY = "inkbytes-lang";
@@ -481,7 +484,8 @@ function DevelopingRail({ items }: { items: EventSummary[] }) {
   );
 }
 
-export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLead = null }: Props) {
+export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLead = null, mode = "briefing" }: Props) {
+  const briefing = mode === "briefing";
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [lang, setLangState]                = useState<Lang>("all");
@@ -540,7 +544,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     setStreamExpanded(false);
     // If a server-side topic filter is active, clicking a theme chip drops it
     // (theme is the primary feed facet; topic is the trending drill-down).
-    if (activeTopic && c !== "all") startTransition(() => router.push("/"));
+    if (activeTopic && c !== "all") startTransition(() => router.push("/browse"));
   }
   // Trending-topic drill-down (ADR-0027): navigate to ?topic= so the server
   // filters the feed via the Curator ?topic= param (article-level — matches the
@@ -550,7 +554,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     setActiveCategory("all");
     localStorage.setItem(CAT_KEY, "all");
     setStreamExpanded(false);
-    const next = activeTopic === t ? "/" : `/?topic=${encodeURIComponent(t)}`;
+    const next = activeTopic === t ? "/browse" : `/browse?topic=${encodeURIComponent(t)}`;
     startTransition(() => router.push(next));
   }
 
@@ -593,7 +597,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
   function clearAll() {
     setSearch(""); setCat("all"); setLang("all");
-    if (activeTopic) startTransition(() => router.push("/"));  // drop ?topic=
+    if (activeTopic) startTransition(() => router.push("/browse"));  // drop ?topic=
   }
 
   const showLangChip = lang === "all";
@@ -620,7 +624,12 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const stream    = useEditorial ? sorted.slice(3)    : [];
   const flatList  = useEditorial ? [] : sorted;
 
-  const streamVisible = streamExpanded ? stream : stream.slice(0, STREAM_INITIAL);
+  // Briefing caps the stream so the whole view is a finite BRIEFING_SIZE set
+  // (lead + 2 secondary + the rest); the remainder lives in /browse. Browse
+  // keeps the paginated full stream.
+  const streamVisible = briefing
+    ? stream.slice(0, Math.max(0, BRIEFING_SIZE - 3))
+    : streamExpanded ? stream : stream.slice(0, STREAM_INITIAL);
   // Index of the first regional-only (no global outlet) event, computed ONCE so
   // the "Regional" divider renders exactly once. The previous per-row transition
   // test fired at every global→regional boundary, and the freshness sort
@@ -632,14 +641,14 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // Top N ranked = today's briefing (finite). readMap is client-only (starts {}
   // on server + first paint), so progress renders 0 then fills after mount — the
   // same hydration-safe order the card dimming uses (no #418).
-  const briefingSet    = useEditorial ? sorted.slice(0, BRIEFING_SIZE) : [];
+  const briefingSet    = briefing ? sorted.slice(0, BRIEFING_SIZE) : [];
   const briefingTotal  = briefingSet.length;
   const briefingRead   = briefingSet.filter((ev) => readState(ev).read).length;
   const briefingPct    = briefingTotal ? Math.round((briefingRead / briefingTotal) * 100) : 0;
   const briefingCaught = briefingTotal > 0 && briefingRead === briefingTotal;
 
-  // Developing-now rail: the fastest-moving stories (unfiltered view only).
-  const developingNow  = useEditorial ? sorted.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 8) : [];
+  // Developing-now rail: the fastest-moving stories (briefing home only).
+  const developingNow  = briefing ? sorted.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 8) : [];
 
   // Category tabs: only show categories present in the full events list
   const availableCats = useMemo(() => {
@@ -654,8 +663,9 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
 
-      {/* Daily splash — mobile-only "welcome back", once per 24h (over the feed) */}
-      <DailySplash events={events} />
+      {/* Daily splash — mobile-only "welcome back", once per 24h. Briefing home
+          only (not /browse). */}
+      {briefing && <DailySplash events={events} />}
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-5 flex items-start justify-between gap-3">
@@ -664,12 +674,16 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
             {today}
           </p>
           <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">
-            Today&rsquo;s briefing
+            {briefing ? "Today’s briefing" : "Browse"}
           </h1>
           {/* Trimmed subtitle — returning readers don't need the tagline daily.
               Just the count + a live "updated" state. */}
           <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-            {events.length > 0 ? `${events.length} stories` : "No stories yet"}
+            {events.length > 0
+              ? briefing
+                ? `Top ${briefingTotal} of ${events.length} · a finite read`
+                : `${events.length} stories`
+              : "No stories yet"}
           </p>
         </div>
 
@@ -688,7 +702,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
       {/* ── Briefing progress (Slice C1a) — how much of today's finite briefing
           you've read; fills to "✓ Caught up". Unfiltered view only. ─────────── */}
-      {useEditorial && !error && briefingTotal > 0 && (
+      {briefing && !error && briefingTotal > 0 && (
         <div className="mb-5 flex items-center gap-3">
           <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
             <div
@@ -703,7 +717,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       )}
 
       {/* ── Search (top) — the first affordance; find beats browse ─────────── */}
-      {!error && events.length > 0 && (
+      {!briefing && !error && events.length > 0 && (
         <div className="mb-5 flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <svg
@@ -765,7 +779,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
       {/* ── Category tabs — one wrapping pill row, all widths (Stage 2a: the
           mobile folder carousel + the desktop-only horizontal scroll are gone). */}
-      {!error && events.length > 0 && (
+      {!briefing && !error && events.length > 0 && (
         <div className="mb-4">
           <div className="flex flex-wrap items-center gap-1.5 pb-1">
             {availableCats.map((c) => (
@@ -790,7 +804,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       )}
 
       {/* ── Trending topics (ADR-0027) — accordion on mobile, open ≥ sm ─────── */}
-      {!error && trending.length > 0 && (
+      {!briefing && !error && trending.length > 0 && (
         <div className="mb-4">
           <button
             type="button"
@@ -907,7 +921,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {/* ── Stream ──────────────────────────────────────────────────────── */}
           {stream.length > 0 && (
             <div>
-              <SectionHeader title="More stories" count={stream.length} />
+              <SectionHeader title={briefing ? "More in today’s briefing" : "More stories"} count={briefing ? undefined : stream.length} />
               <div>
                 {streamVisible.map((ev, idx) => {
                   // Insert a "Regional" section divider before the first event
@@ -926,14 +940,34 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   );
                 })}
               </div>
-              {streamHidden > 0 && (
+              {briefing ? (
+                <div className="mt-7 flex flex-col items-center gap-3 text-center">
+                  {briefingCaught && (
+                    <>
+                      <span className="grid place-items-center w-11 h-11 rounded-full bg-[#16a34a] text-white text-xl font-bold animate-none" aria-hidden>✓</span>
+                      <div className="text-[17px] font-bold tracking-tight">You&rsquo;re caught up</div>
+                      <p className="text-[13px] text-[var(--ink-muted)] max-w-[28ch] leading-relaxed">
+                        That&rsquo;s today&rsquo;s briefing. New stories arrive through the day — or browse everything now.
+                      </p>
+                    </>
+                  )}
+                  {events.length > briefingTotal && (
+                    <Link
+                      href="/browse"
+                      className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 border border-[var(--ink)] rounded-full text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
+                    >
+                      Browse all {events.length.toLocaleString("en-US")} stories →
+                    </Link>
+                  )}
+                </div>
+              ) : streamHidden > 0 ? (
                 <button
                   onClick={() => setStreamExpanded(true)}
                   className="mt-4 w-full py-2.5 text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)] border border-[var(--border)] rounded-lg hover:border-gray-400 transition-colors"
                 >
                   Show all {streamHidden} more {streamHidden === 1 ? "story" : "stories"}
                 </button>
-              )}
+              ) : null}
             </div>
           )}
 

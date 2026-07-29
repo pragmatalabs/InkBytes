@@ -88,10 +88,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {/* Top nav is DESKTOP-only: on mobile the bottom tab bar is the nav,
                   so a second copy here is pure redundancy (Rams — remove it). */}
               <nav className="hidden sm:flex items-center gap-4 text-sm text-white/70">
-                <Link href="/" className="hover:text-white transition-colors font-medium">News</Link>
+                <Link href="/" className="hover:text-white transition-colors font-medium">Briefing</Link>
+                <Link href="/browse" className="hover:text-white transition-colors">Browse</Link>
                 <Link href="/outlook" className="hover:text-white transition-colors">Outlook</Link>
                 <Link href="/entities" className="hover:text-white transition-colors">Entities</Link>
-                <Link href="/about" className="hover:text-white transition-colors">About</Link>
               </nav>
 
               {/* Saved + You — entry points for the Slice B screens. Always
