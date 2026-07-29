@@ -47,6 +47,8 @@ class CuratorSettingController extends Controller
                 'entity_overlap_min'    => (int) $settings->entity_overlap_min,
                 'min_sources_to_publish' => (int) $settings->min_sources_to_publish,
                 'recent_window_hours'   => (int) $settings->recent_window_hours,
+                // Stale-message intake gate (hours); default 24 for legacy rows.
+                'max_article_age_hours' => (int) ($settings->max_article_age_hours ?? 24),
                 // ADR-0023 "Stop Curator" kill-switch (default true for legacy rows).
                 'processing_enabled' => (bool) ($settings->processing_enabled ?? true),
                 'monthly_budget_usd' => $settings->monthly_budget_usd !== null
@@ -98,6 +100,8 @@ class CuratorSettingController extends Controller
             'entity_overlap_min'    => ['required', 'integer', 'between:0,20'],
             'min_sources_to_publish' => ['required', 'integer', 'between:1,20'],
             'recent_window_hours'   => ['required', 'integer', 'between:1,720'],
+            // Stale-message intake gate (hours). 0 disables; cap at 30 days.
+            'max_article_age_hours' => ['required', 'integer', 'between:0,720'],
             'monthly_budget_usd'    => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             // Embedding tier.
             'embeddings_provider' => ['required', 'string', Rule::in($embeddingProviders)],

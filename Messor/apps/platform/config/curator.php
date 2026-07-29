@@ -137,6 +137,8 @@ return [
         'entity_overlap_min' => 1,
         'min_sources_to_publish' => 2,
         'recent_window_hours' => 48,
+        // Stale-message intake gate (hours). Matches Curator config.py default.
+        'max_article_age_hours' => 24,
         'monthly_budget_usd' => null,
         // Embeddings (ADR-0004). Local-first default: Ollama bge-m3 (1024d).
         'embeddings_provider' => 'ollama',

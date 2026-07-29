@@ -27,6 +27,9 @@ class CuratorSetting extends Model
         'entity_overlap_min',
         'min_sources_to_publish',
         'recent_window_hours',
+        // Stale-message intake gate (hours). Curator ack-drops queued articles
+        // older than this before an LLM call (stale-feed incident 2026-07-29).
+        'max_article_age_hours',
         // ADR-0023: "Stop Curator" kill-switch. Curator polls this; FALSE pauses
         // the processing pipeline (articles requeued, API stays up).
         'processing_enabled',
@@ -67,6 +70,7 @@ class CuratorSetting extends Model
         'entity_overlap_min' => 'integer',
         'min_sources_to_publish' => 'integer',
         'recent_window_hours' => 'integer',
+        'max_article_age_hours' => 'integer',
         'processing_enabled' => 'boolean',
         'openrouter_deepseek_fallback' => 'boolean',
         'monthly_budget_usd' => 'float',
