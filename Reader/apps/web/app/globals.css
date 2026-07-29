@@ -83,6 +83,17 @@ html, body {
   .developing-dot::after { animation: none; }
 }
 
+/* Bottom-sheet drawers (event page "This story" tiles → Watch/Evidence/Entities/
+   Related). Slide up from the bottom over a fading scrim, matching the prototype
+   (border-top 2px ink, translateY 102%→0). */
+@keyframes inkbytes-sheet { from { transform: translateY(102%); } to { transform: translateY(0); } }
+@keyframes inkbytes-fade  { from { opacity: 0; } to { opacity: 1; } }
+.sheet-enter { animation: inkbytes-sheet 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+.scrim-enter { animation: inkbytes-fade 0.2s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet-enter, .scrim-enter { animation: none; }
+}
+
 /* ── PWA safe-area header ────────────────────────────────────────────────────
    Pads the sticky header so its content clears the iOS/Android status bar
    (time, signal, battery) when the app is installed to the home screen.

@@ -5,21 +5,13 @@ import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outl
 import { themeAccent } from "@/lib/theme-colors";
 import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem, TitleHistoryEntry } from "@/lib/types";
 import ShareButton from "./share-button";
-import MediaRailDrawer from "./media-rail-drawer";
+import EventActionBar from "./event-action-bar";
 import StoryNav from "./story-nav";
 import { NewsMarkdown } from "@/components/news-markdown";
 import ReadTracker from "@/components/read-tracker";
 import EventCover from "@/components/event-cover";
 
 export const revalidate = 300;
-
-const ENTITY_COLORS: Record<string, string> = {
-  PERSON: "bg-blue-50 text-blue-700 border-blue-200",
-  ORG:    "bg-purple-50 text-purple-700 border-purple-200",
-  LOC:    "bg-emerald-50 text-emerald-700 border-emerald-200",
-  EVENT:  "bg-orange-50 text-orange-700 border-orange-200",
-  OTHER:  "bg-gray-50 text-gray-600 border-gray-200",
-};
 
 /** First sentence of synthesis — used for OG description. */
 function firstSentence(text: string): string {
@@ -102,15 +94,22 @@ export default async function EventPage(
       : typeof raw === "string" ? (JSON.parse(raw) as MediaRailItem[])
       : [];
   })();
-  const videoCount = rail.filter((m) => m.type === "video").length;
+  const videos = rail.filter((m) => m.type === "video");
+  // Category accent — the drop cap, the sheet rail bars, the match bars.
+  const accent = themeAccent(page.category);
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Content-engagement analytics (Umami custom events) — no-op until configured */}
       <ReadTracker eventId={page.id} category={page.category} language={page.language} freshnessAt={page.freshness_at} />
-      {/* Back + Media + Share action bar (MediaRailDrawer owns the toggle state) */}
-      <MediaRailDrawer
-        rail={rail}
+      {/* Event chrome — back · EN/ES · Save · Share (prototype chromeEvent).
+          Video now lives in the "Watch" sheet (StoryNav), not the action bar. */}
+      <EventActionBar
+        eventId={page.id}
+        headline={page.headline}
+        category={page.category}
+        language={page.language}
+        alsoLanguages={page.also_languages}
         back={
           <Link
             href="/"
@@ -148,14 +147,11 @@ export default async function EventPage(
         {page.headline}
       </h1>
 
-      {/* Provenance row — avatars · sources · Started · Updated, taps to Evidence.
-          Replaces the old meta row + the 2-up Sources/Coverage stat grid (Stage 5).
+      {/* Provenance row — avatars · sources · Started · Updated (informational).
+          The full source quotes open in the Evidence sheet (StoryNav tile below).
           suppressHydrationWarning: relativeTime uses Date.now() (server UTC vs
           client local tz) — would otherwise throw React #418. */}
-      <a
-        href="#evidence"
-        className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-8 text-xs text-[var(--ink-muted)]"
-      >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-8 text-xs text-[var(--ink-muted)]">
         {outletNames.length > 0 && (
           <span className="flex items-center">
             {outletNames.map((name, i) => (
@@ -181,14 +177,13 @@ export default async function EventPage(
         )}
         <span aria-hidden>·</span>
         <span suppressHydrationWarning>Updated {relativeTime(page.freshness_at)}</span>
-        <span className="text-[var(--accent)] font-medium group-hover:underline">· sources&nbsp;↓</span>
-      </a>
+      </div>
 
       {/* Synthesis — the story, high on the page. Source Serif 4 body + a
           category-accent Inter drop cap (prototype). */}
       <div
         className="synthesis-body mb-8"
-        style={{ ["--cap" as string]: themeAccent(page.category) }}
+        style={{ ["--cap" as string]: accent }}
       >
         <NewsMarkdown source={page.synthesis_md} />
       </div>
@@ -208,155 +203,19 @@ export default async function EventPage(
         </figcaption>
       </figure>
 
-      {/* "This story" 2×2 action grid + Next story (prototype). Watch opens the
-          video drawer; Evidence/Entities/Related scroll to their sections below. */}
+      {/* "This story" 2×2 action grid + the drawers each tile opens (prototype).
+          Watch / Evidence / Entities / Related now live in progressive-disclosure
+          bottom sheets instead of long inline sections. */}
       <StoryNav
-        clips={videoCount}
-        quotes={evidence.length}
-        entities={entities.length}
-        related={related.length}
+        videos={videos}
+        evidence={evidence}
+        entities={entities}
+        related={related}
+        timeline={titleHistory}
+        currentHeadline={page.headline}
         nextId={related[0]?.id ?? null}
+        accent={accent}
       />
-
-      {/* Entity chips — moved below the story (Stage 5 group 9). */}
-      {entities.length > 0 && (
-        <div id="entities" className="flex flex-wrap gap-1.5 mb-10 scroll-mt-6">
-          {entities.map((e, i) => (
-            <span
-              key={i}
-              className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${ENTITY_COLORS[e.type] ?? ENTITY_COLORS.OTHER}`}
-            >
-              {e.type && (
-                <span className="font-mono text-[9px] opacity-50 uppercase">{e.type}</span>
-              )}
-              {e.name}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Story timeline — how the headline evolved as the story developed (ADR-0035).
-          Hidden until the story has re-synthesized with a changed title. */}
-      {titleHistory.length > 0 && (
-        <details className="border-t border-[var(--border)] pt-7 mb-10">
-          <summary className="cursor-pointer list-none flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-            <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            Story timeline · {titleHistory.length} earlier {titleHistory.length === 1 ? "headline" : "headlines"}
-          </summary>
-          <ol className="mt-4 space-y-3 border-l border-[var(--border)] pl-4">
-            {titleHistory.map((t, i) => (
-              <li key={i}>
-                <span className="text-sm text-[var(--ink)] leading-snug">{t.headline}</span>
-                {t.at && (
-                  <span suppressHydrationWarning className="block text-[11px] text-[var(--ink-muted)] mt-0.5">
-                    {relativeTime(t.at)} · {t.sources} {t.sources === 1 ? "source" : "sources"}
-                  </span>
-                )}
-              </li>
-            ))}
-            <li>
-              <span className="text-sm font-semibold text-[var(--ink)] leading-snug">{page.headline}</span>
-              <span className="block text-[11px] text-[var(--accent)] mt-0.5">current</span>
-            </li>
-          </ol>
-        </details>
-      )}
-
-      {/* Evidence rail — anchor target for the provenance row's "sources ↓" tap. */}
-      {evidence.length > 0 && (
-        <div id="evidence" className="border-t border-[var(--border)] pt-7 scroll-mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-              Sources
-            </h2>
-            <span className="text-[10px] text-[var(--ink-muted)]">
-              {evidence.length} {evidence.length === 1 ? "quote" : "quotes"}
-            </span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {evidence.map((item, i) => (
-              <a
-                key={i}
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block border border-[var(--border)] rounded-lg p-4 hover:border-[var(--accent)] hover:shadow-sm transition-all bg-white group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold text-[var(--accent)]">
-                    {item.source_name}
-                  </span>
-                  <span className="text-[10px] text-[var(--ink-muted)] group-hover:text-[var(--accent)] transition-colors">↗</span>
-                </div>
-                <blockquote className="text-[13px] text-[var(--ink-muted)] leading-relaxed italic">
-                  &ldquo;{item.quote}&rdquo;
-                </blockquote>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Related events strip — entity + topic overlap (ADR-0005 Approach A) */}
-      {related.length > 0 && (
-        <div id="related" className="border-t border-[var(--border)] pt-7 scroll-mt-6">
-          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-4">
-            Related events
-          </h2>
-          <div className="flex flex-col gap-2">
-            {related.map((ev) => (
-              <Link
-                key={ev.id}
-                href={`/event/${ev.id}`}
-                className="group flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-white px-4 py-3 hover:border-gray-300 hover:shadow-sm transition-all"
-              >
-                <div className="min-w-0">
-                  {ev.topic && (
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] block mb-1">
-                      {ev.topic}
-                    </span>
-                  )}
-                  <p className="text-[14px] font-medium leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors line-clamp-2">
-                    {ev.headline}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[var(--ink-muted)]">
-                    {/* Outlet initials */}
-                    <span className="flex items-center gap-0.5">
-                      {(ev.outlet_names ?? []).slice(0, 3).map((name) => (
-                        <span
-                          key={name}
-                          title={name}
-                          className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-white"
-                          style={{ width: 16, height: 16, fontSize: 6, fontWeight: 700 }}
-                        >
-                          {outletInitials(name)}
-                        </span>
-                      ))}
-                    </span>
-                    <span>{ev.source_count} {ev.source_count === 1 ? "source" : "sources"}</span>
-                    <span>·</span>
-                    <span suppressHydrationWarning>{relativeTime(ev.freshness_at)}</span>
-                    {ev.language !== "en" && (
-                      <span className="font-mono uppercase px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-[9px]">
-                        {ev.language}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* Similarity score badge */}
-                <span
-                  className="shrink-0 mt-0.5 text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-gray-100 text-[var(--ink-muted)]"
-                  title={`Similarity score: ${ev.score}`}
-                >
-                  {Math.round(ev.score * 100)}%
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
