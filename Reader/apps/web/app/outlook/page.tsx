@@ -2,8 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getOutlookArchive } from "@/lib/api";
 import type { OutlookArchiveEntry } from "@/lib/types";
-import { themeAccent } from "@/lib/theme-colors";
-import { PersonaIcon } from "@/components/persona-icons";
+import { ColumnMast } from "@/components/column-mast";
 import SavedOutlooks from "@/components/saved-outlooks";
 import NotifyToggle from "@/components/notify-toggle";
 
@@ -94,40 +93,23 @@ export default async function OutlookIndex({
               {/* Latest day: 2-col grid of persona cards (theme accents doing the
                   identity work); older days: the same cards, denser. */}
               <div className={`grid gap-2.5 ${di === 0 ? "sm:grid-cols-2" : ""}`}>
-                {items.map((t) => {
-                  const a = themeAccent(t.theme);
-                  return (
-                    <Link
-                      key={`${date}-${t.theme}`}
-                      href={`/outlook/${t.theme}?lang=${lang}&date=${date}`}
-                      className="block bg-white border border-[var(--border)] rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all"
+                {items.map((t) => (
+                  <Link
+                    key={`${date}-${t.theme}`}
+                    href={`/outlook/${t.theme}?lang=${lang}&date=${date}`}
+                    className="block bg-white border border-[var(--border)] rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all"
+                  >
+                    <div className="mb-1.5">
+                      <ColumnMast persona={t.persona} theme={t.theme} />
+                    </div>
+                    <div
+                      className="text-[14px] font-bold leading-snug line-clamp-2"
+                      style={{ textWrap: "balance" } as React.CSSProperties}
                     >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span
-                          className="grid place-items-center w-7 h-7 rounded-full text-white shrink-0"
-                          style={{ background: a }}
-                          aria-hidden
-                        >
-                          <PersonaIcon persona={t.persona} className="w-4 h-4" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: a }}>
-                            {prettyPersona(t.persona)}
-                          </span>
-                          <span className="block text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">
-                            {titleCase(t.theme)}
-                          </span>
-                        </span>
-                      </div>
-                      <div
-                        className="text-[14px] font-bold leading-snug line-clamp-2"
-                        style={{ textWrap: "balance" } as React.CSSProperties}
-                      >
-                        {t.headline}
-                      </div>
-                    </Link>
-                  );
-                })}
+                      {t.headline}
+                    </div>
+                  </Link>
+                ))}
               </div>
             </section>
           ))}

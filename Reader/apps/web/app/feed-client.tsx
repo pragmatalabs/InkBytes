@@ -7,7 +7,7 @@ import { relativeTime, isDeveloping, outletInitials } from "@/lib/api";
 import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
-import { PersonaIcon } from "@/components/persona-icons";
+import { ColumnMast, titleCase } from "@/components/column-mast";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import RetryButton from "@/components/retry-button";
@@ -241,23 +241,14 @@ function SectionHeader({ title, count, action }: { title: string; count?: number
 // otherwise sits behind a tab. The persona mark + theme accent carry the column
 // identity (same treatment as the /outlook index cards).
 function OutlookCard({ entry }: { entry: OutlookArchiveEntry & { lang: string } }) {
-  const accent  = themeAccent(entry.theme);
-  const persona = entry.persona.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  const theme   = entry.theme.charAt(0).toUpperCase() + entry.theme.slice(1);
   return (
     <Link
       href={`/outlook/${entry.theme}?lang=${entry.lang}&date=${entry.edition_date}`}
-      style={{ borderLeftColor: accent }}
+      style={{ borderLeftColor: themeAccent(entry.theme) }}
       className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all"
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="grid place-items-center w-7 h-7 rounded-full text-white shrink-0" style={{ background: accent }} aria-hidden>
-          <PersonaIcon persona={entry.persona} className="w-4 h-4" />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: accent }}>{persona}</span>
-          <span className="block text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">Today&rsquo;s Outlook · {theme}</span>
-        </span>
+        <ColumnMast persona={entry.persona} theme={entry.theme} sublabel={`Today’s Outlook · ${titleCase(entry.theme)}`} />
         <svg className="ml-auto w-4 h-4 text-[var(--ink-muted)] opacity-60 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 12h14M13 6l6 6-6 6"/>
         </svg>
