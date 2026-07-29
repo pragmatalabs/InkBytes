@@ -47,6 +47,15 @@ function flagOf(n: { type: EntityType; label: string }): string | null {
   return n.type === "PERSON" ? null : countryFlag(n.label);
 }
 
+/** Initials derived from an entity's name — 1–2 letters, so a photoless entity
+ *  reads as itself instead of the same repeated type silhouette (Stage 3). */
+function initialsOf(label: string): string {
+  const words = label.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 /** The disc contents for an entity: photo (people) > flag (countries) > type
  *  icon. The Commons portrait fills the disc; on load error it falls back. */
 function EntityAvatar({ node, iconClass, flagClass }:
@@ -59,7 +68,9 @@ function EntityAvatar({ node, iconClass, flagClass }:
   }
   const flag = flagOf(node);
   if (flag) return <span className={flagClass} aria-hidden>{flag}</span>;
-  return <TypeIcon type={node.type} className={iconClass} />;
+  // Per-entity initials on the type-coloured disc (was a repeated type glyph).
+  void iconClass;
+  return <span className={`${flagClass} font-bold`} aria-hidden>{initialsOf(node.label)}</span>;
 }
 
 // ── Static radial relationship preview (no physics) ─────────────────────────
@@ -261,7 +272,6 @@ function EntitySheet({
 
 // ── Browser ──────────────────────────────────────────────────────────────────
 
-const TOP_CARDS = 10; // horizontal card row; the rest list vertically
 
 export default function EntityBrowser({
   data, onShowGraph,
@@ -316,8 +326,6 @@ export default function EntityBrowser({
   );
 
   const items = byType.get(tab) ?? [];
-  const topItems = items.slice(0, TOP_CARDS);
-  const restItems = items.slice(TOP_CARDS);
 
   const selNode = selected ? nodeMap.get(selected) ?? null : null;
   const selNeighbors = useMemo(() => {
@@ -340,7 +348,8 @@ export default function EntityBrowser({
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-semibold truncate">{n.label}</span>
           <span className="block text-[11px] text-[var(--ink-muted)]">
-            {n.event_count} {n.event_count === 1 ? "story" : "stories"} · {deg.get(n.id) ?? 0} connections
+            {n.event_count} {n.event_count === 1 ? "story" : "stories"}
+            {(deg.get(n.id) ?? 0) > 0 && ` · ${deg.get(n.id)} connections`}
           </span>
         </span>
         <svg className="w-4 h-4 shrink-0 text-[var(--ink-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -355,7 +364,7 @@ export default function EntityBrowser({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Entities</h1>
           <p className="text-[11px] font-mono text-[var(--ink-muted)] mt-1 tracking-wide">
-            {Number(data.meta.node_count).toLocaleString("en-US")} ENTITIES · {Number(data.meta.edge_count).toLocaleString("en-US")} LINKS · {Number(data.meta.event_count).toLocaleString("en-US")} EVENTS
+            {Number(data.meta.node_count).toLocaleString("en-US")} ENTITIES · {Number(data.meta.event_count).toLocaleString("en-US")} EVENTS
           </p>
         </div>
         <button onClick={onShowGraph}
@@ -413,36 +422,15 @@ export default function EntityBrowser({
             </div>
           </div>
 
-          {/* Top entities — horizontal snap cards */}
-          <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
-            <div className="flex gap-2.5 snap-x snap-mandatory pb-1">
-              {topItems.map((n) => {
-                const meta = TYPE_META[n.type] ?? TYPE_META.OTHER;
-                return (
-                  <button key={n.id} onClick={() => setSelected(n.id)}
-                    className="snap-start shrink-0 w-[150px] rounded-xl border border-[var(--border)] bg-white p-3 text-left hover:shadow-sm transition-shadow">
-                    <span className="grid place-items-center w-9 h-9 rounded-full mb-2"
-                      style={{ background: `${meta.color}18`, color: meta.color }}>
-                      <EntityAvatar node={n} iconClass="w-4.5 h-4.5" flagClass="text-[18px] leading-none" />
-                    </span>
-                    <span className="block text-[13px] font-bold leading-snug line-clamp-2 min-h-[2.4em]">{n.label}</span>
-                    <span className="mt-1.5 inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: `${meta.color}14`, color: meta.color }}>
-                      {n.event_count} {n.event_count === 1 ? "story" : "stories"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* The rest — vertical rows */}
-          {restItems.length > 0 && (
+          {/* Full list — vertical rows, sorted by story count (Stage 3: the
+              featured horizontal card strip was dropped — it clipped at the
+              screen edges and the top entities already lead this list). */}
+          {items.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1">
                 All {(TYPE_META[tab] ?? TYPE_META.OTHER).label.toLowerCase()}
               </p>
-              <div>{restItems.map((n) => <EntityRow key={n.id} n={n} />)}</div>
+              <div>{items.map((n) => <EntityRow key={n.id} n={n} />)}</div>
             </div>
           )}
         </>
