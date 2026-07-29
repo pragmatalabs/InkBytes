@@ -16,6 +16,16 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* scrollbar-hide — used on the horizontal strips (video rail, entity/day chips).
+   Tailwind v4 with no plugin: this utility was referenced ~6× but never defined,
+   so it was a silent no-op and the scrollbar tracks still showed. Define it once
+   here (Stage 1 addition — satisfies the "no visible scrollbar tracks" goal). */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;   /* IE/legacy Edge */
+  scrollbar-width: none;      /* Firefox */
+  &::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
+}
+
 /* Synthesis markdown paragraphs */
 .prose-synthesis p {
   margin-bottom: 1.1em;

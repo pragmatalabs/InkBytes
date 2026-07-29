@@ -25,6 +25,18 @@ export default async function OutlookIndex({
 }: { searchParams: Promise<{ lang?: string }> }) {
   const sp = await searchParams;
   const lang = sp.lang === "en" ? "en" : "es";
+  // Chrome must switch WITH the ES/EN toggle (Stage 1 fix) — the header was
+  // hardcoded English while the notify button rendered Spanish. Also avoid the
+  // internal scheduling phrase "cut at 11:59 AM".
+  const copy = lang === "en"
+    ? {
+        title: "Today's Outlooks",
+        sub: "A daily editorial per topic — one column per vertical. Updated each morning.",
+      }
+    : {
+        title: "Editoriales de hoy",
+        sub: "Una editorial diaria por tema — una columna por vertical. Se actualiza cada mañana.",
+      };
   const { editions } = await getOutlookArchive(lang, 21);
 
   // Group editions by edition_date, preserving the API's newest-first order.
@@ -38,7 +50,7 @@ export default async function OutlookIndex({
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       <div className="flex items-center justify-between gap-3 mb-1">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Today&apos;s Outlooks</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{copy.title}</h1>
         <span className="flex items-center gap-1.5 text-[11px] font-mono text-[var(--ink-muted)]">
           <Link href="?lang=es" className={lang === "es" ? "text-[var(--accent)] font-bold" : "hover:underline"}>ES</Link>
           <span aria-hidden>·</span>
@@ -47,7 +59,7 @@ export default async function OutlookIndex({
       </div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-8">
         <p className="text-sm text-[var(--ink-muted)]">
-          A daily editorial per topic — one column per vertical, cut at 11:59 AM.
+          {copy.sub}
         </p>
         {/* Opt-in push: "notify me when today's outlooks are ready" (PWA) */}
         <NotifyToggle lang={lang} />

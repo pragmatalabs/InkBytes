@@ -158,7 +158,7 @@ export default async function EventPage(
             Developing
           </span>
         )}
-        {page.language !== "en" && (
+        {page.language && page.language !== "en" && (
           <span className="font-mono px-1.5 py-0.5 rounded bg-gray-100 uppercase text-[10px] tracking-wide">
             {page.language}
           </span>

@@ -671,6 +671,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const flatList  = useEditorial ? [] : sorted;
 
   const streamVisible = streamExpanded ? stream : stream.slice(0, STREAM_INITIAL);
+  // Index of the first regional-only (no global outlet) event, computed ONCE so
+  // the "Regional" divider renders exactly once. The previous per-row transition
+  // test fired at every global→regional boundary, and the freshness sort
+  // interleaves the tiers, so it could appear several times (Stage 1 fix).
+  const firstRegionalIdx = streamVisible.findIndex((e) => !e.has_global_outlet);
   const streamHidden  = stream.length - streamVisible.length;
 
   // Category tabs: only show categories present in the full events list
@@ -882,7 +887,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   key={t.topic}
                   onClick={() => toggleTopic(t.topic)}
                   aria-pressed={active}
-                  title={`${t.event_count} stories · ${t.article_count} articles`}
+                  title={`${t.event_count} ${t.event_count === 1 ? "story" : "stories"} · ${t.article_count} ${t.article_count === 1 ? "article" : "articles"}`}
                   className={`group flex flex-col items-start gap-0.5 pl-2.5 pr-3 py-1.5 rounded-r-lg rounded-l-sm border border-l-[3px] ${accent} text-left whitespace-nowrap transition-colors ${
                     active
                       ? "bg-[var(--accent)] border-[var(--accent)] border-l-[3px] text-white"
@@ -896,7 +901,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                     {t.topic}
                   </span>
                   <span className={`text-[10px] tabular-nums ${active ? "text-white/75" : "text-[var(--ink-muted)]"}`}>
-                    {t.event_count} {t.event_count === 1 ? "story" : "stories"} · {t.article_count} articles
+                    {t.event_count} {t.event_count === 1 ? "story" : "stories"} · {t.article_count} {t.article_count === 1 ? "article" : "articles"}
                   </span>
                 </button>
               );
@@ -981,12 +986,9 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               <div>
                 {streamVisible.map((ev, idx) => {
                   // Insert a "Regional" section divider before the first event
-                  // that has no global-outlet coverage (ADR-0017).  The divider
-                  // only appears once — when the ranked list transitions from
-                  // globally-covered stories to regional-only ones.
-                  const isFirstRegional =
-                    !ev.has_global_outlet &&
-                    (idx === 0 || streamVisible[idx - 1].has_global_outlet);
+                  // that has no global-outlet coverage (ADR-0017). Rendered once,
+                  // keyed off the precomputed firstRegionalIdx.
+                  const isFirstRegional = idx === firstRegionalIdx;
                   return (
                     <Fragment key={ev.id}>
                       {isFirstRegional && (

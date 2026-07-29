@@ -355,7 +355,7 @@ export default function EntityBrowser({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Entities</h1>
           <p className="text-[11px] font-mono text-[var(--ink-muted)] mt-1 tracking-wide">
-            {data.meta.node_count} ENTITIES · {data.meta.edge_count} LINKS · {data.meta.event_count} EVENTS
+            {Number(data.meta.node_count).toLocaleString("en-US")} ENTITIES · {Number(data.meta.edge_count).toLocaleString("en-US")} LINKS · {Number(data.meta.event_count).toLocaleString("en-US")} EVENTS
           </p>
         </div>
         <button onClick={onShowGraph}

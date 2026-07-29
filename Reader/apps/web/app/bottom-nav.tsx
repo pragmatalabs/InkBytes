@@ -42,10 +42,21 @@ export default function BottomNav() {
     { href: "/about",     label: "About",    icon: InfoIcon },
   ];
 
-  // Active detection: "/" matches only the exact root; others match prefix.
+  // Which top-level section owns the current route. Detail routes — above all
+  // /event/*, where readers spend most of the session — map back to their
+  // section so the tab bar doesn't go dark there (Stage 1 fix).
+  const SECTION: [RegExp, string][] = [
+    [/^\/event\//, "/"],
+    [/^\/outlook/, "/outlook"],
+    [/^\/entities/, "/entities"],
+    [/^\/about/, "/about"],
+  ];
+  const section = SECTION.find(([re]) => re.test(pathname))?.[1] ?? pathname;
+
+  // Active detection: "/" (and Search) match the home section; others by prefix.
   function isActive(href: string) {
-    if (href === "/" || href === "/?search=1") return pathname === "/";
-    return pathname.startsWith(href);
+    if (href === "/" || href === "/?search=1") return section === "/";
+    return section.startsWith(href);
   }
 
   return (
@@ -66,7 +77,7 @@ export default function BottomNav() {
               href={href}
               onClick={isSearch ? handleSearchTap : undefined}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-col items-center justify-center flex-1 gap-0.5 text-[10px] font-semibold uppercase tracking-widest transition-colors select-none ${
+              className={`flex flex-col items-center justify-center flex-1 gap-0.5 text-[10px] font-semibold uppercase tracking-widest transition-colors select-none rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] ${
                 active
                   ? "text-[var(--accent)]"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
