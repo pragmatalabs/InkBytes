@@ -61,8 +61,11 @@ Save/Follow live in `lib/saved-events` / `lib/followed` / `lib/followed-entities
 drawer both match the prototype (colored avatars; 3-up `STORIES · LINKS · TODAY`;
 Recent events; Connections). The **inside-news detail is its own component**
 (`entity-detail-sheet.tsx`) opening as a stacked sub-sheet over the drawer,
-fed by a new Curator endpoint (Curator ADR-0042) via `/api/entity/[id]`; it
-degrades to a light sheet on 404.
+fed by a Curator endpoint (Curator ADR-0042) via `/api/entity/[id]`; it
+degrades to a light sheet on 404. **That backing endpoint is deferred** (it needs
+a DB index before it's fast enough — ADR-0042), so the sheet currently always
+renders the light fallback (name + type + "View full profile →"); the rich stats
+fill in for free once the endpoint ships.
 
 ## Consequences
 
