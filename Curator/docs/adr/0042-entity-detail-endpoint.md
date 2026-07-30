@@ -1,6 +1,6 @@
 # ADR-0042 — `GET /entities/{name}` single-entity detail endpoint
 
-> *Status: **deferred** (design accepted; endpoint NOT shipped — needs a supporting index) · Owner: Julian · Last updated: 2026-07-30*
+> *Status: **accepted / shipped** (index + scoped query + timeout) · Owner: Julian · Last updated: 2026-07-30*
 
 ## Context
 
@@ -38,53 +38,59 @@ can't reach the internal Curator host — same pattern as `/api/ask`); the
 event-page `EntityDetailSheet` fetches it on open and **degrades to a light
 sheet on 404**.
 
-## ⚠️ Why it is DEFERRED (not shipped in the 2026-07-30 deploy)
+## The performance problem (and how it was solved)
 
-Pre-deploy validation against **prod data** (read-only `psql`) found the query is
-too slow to ship without a supporting index — exactly the check that saved us
-from shipping a 37 s endpoint:
+An initial attempt was **deferred** because the query was too slow: prod
+validation (read-only `psql`) measured a **global** first cut at **~37 s** for
+Donald Trump (unbounded `connection_count` = 84 391), a **scoped** rewrite
+(`target_events`-first, connections capped to top-15) at **~7 s** for Trump, and
+even OPEC (**14 events**) at **~3.8 s**. Root cause: `entities` (≈3.08 M rows /
+663 MB) had **no functional index on `LOWER(name)`**, so every `LOWER(ent.name)
+= $1` lookup **seq-scanned** the whole table — the planner started from all
+published pages and filtered per-article, instead of starting from the entity.
 
-| Version | Entity | Wall time | Notes |
+**The fix — two parts:**
+
+1. **Functional index** `idx_entities_name_lower ON entities (LOWER(name))`
+   (migration 025). On prod it was built **`CONCURRENTLY`** out-of-band (11.5 s,
+   42 MB, no table lock); the migration guard skips it there and only creates it
+   on fresh/dev DBs (small tables → instant).
+2. **`ANALYZE entities`** — the planner won't pick a just-created *expression*
+   index until its stats exist. This was the real unlock: before ANALYZE the
+   index was ignored and the query stayed ~3–8 s; after, the planner uses it.
+
+Post-fix timings (index + ANALYZE, scoped `target_events AS MATERIALIZED`):
+
+| Entity | Events | Before | After |
 |---|---|---|---|
-| Global (`published`+`ev_ents`, as first committed in 42a9551) | Donald Trump | **~37 s** | `connection_count` = 84 391 (unbounded co-occurrence) |
-| Scoped (`target_events`-first, `connection_count` capped to top-15) | Donald Trump | **~7 s** | still too slow |
-| Scoped | OPEC (**only 14 events**) | **~3.8 s** | a *tiny* entity still costs ~3.8 s |
+| OPEC | 14 | ~2.9 s | **316 ms** ✅ |
+| Brent Crude | 51 | ~3.3 s | **459 ms** ✅ |
+| Donald Trump | 1 935 | ~7–8 s | **~8 s** (mega-entity — inherent) |
 
-Root cause: `entities` has **no functional index on `LOWER(name)`** (and the
-co-occurrence aggregation joins `entities`→`articles` by `event_id`), so every
-lookup **sequential-scans the large `entities` table**. Scoping the query and
-capping `connection_count` fixes the mega-entity blow-up, but the base per-entity
-cost stays ~3.8 s — so a `timeout` guard (which I trialled at 3.5 s) would 404
-*almost everything*, making the endpoint effectively useless.
+So **normal/mid entities answer in <500 ms** (rich sheet). The handful of
+mega-entities (Trump, and similar top nodes) are still heavy because the
+co-occurrence aggregation runs over ~1 900 events; a **2.5 s `fetchrow`
+timeout** cuts them → `404` → the Reader's light fallback. A precomputed
+per-entity rollup (aligned with the parked ADR-0039 graph matviews) would make
+even those instant — a future optimisation, not required for the common case.
 
-The correct fix is a **migration adding a functional index** on
-`entities (LOWER(name))` — and likely a supporting index for the
-`event_id`-scoped co-occurrence aggregation — created `CONCURRENTLY` (the
-`entities` table is large; a plain `CREATE INDEX` would lock harvest/enrich
-writes). That is real, careful migration work, not a pre-deploy hotfix, so the
-endpoint is deferred until it lands.
+## What SHIPS (2026-07-30)
 
-## What SHIPS now (2026-07-30)
-
+- `GET /entities/{name}` re-added to `api_server.py` — scoped query
+  (`target_events AS MATERIALIZED` → `ev_meta` / `conns` / `dtype`), top-15
+  capped connections, `entity_media` join for the Commons photo, and the 2.5 s
+  timeout. `import asyncio` at module level for the `except asyncio.TimeoutError`.
+- Migration **025** creates the functional index (fresh/dev) + `ANALYZE`.
 - The Reader's **in-place `EntityDetailSheet`** + `GET /api/entity/[id]` proxy
-  (committed in 42a9551) stay. With no Curator endpoint the proxy returns
-  **`200 { available: false }`** (NOT a 404 — that put a red error on every entity
-  tap in the console; fixed 2026-07-30) and the sheet renders its **light
-  fallback** — entity name + type + a "View full profile →" link into
-  `/entities?e=`. Tapping an entity now opens a sheet in place instead of
-  navigating away; the rich stats fill in **for free, with no client change**,
-  once the endpoint + index ship (the proxy then returns the real detail and the
-  client shows the rich sheet).
-- The Curator `get_entity` handler was **removed** from `api_server.py` so no
-  slow/index-starved route reaches prod.
+  are unchanged: on a `200` they render the **rich** sheet (stats · recent
+  events · connections); on the proxy's `{ available: false }` (any non-200 from
+  Curator — mega-entity timeout or an entity not in a published event) they
+  render the **light** fallback. No client change was needed.
 
-## Follow-up (to make it shippable)
+## Follow-up
 
-1. Migration: `CREATE INDEX CONCURRENTLY … ON entities (LOWER(name))` (+ review
-   the `articles(event_id)` / `entities(article_id)` indexes for the co-occurrence
-   join).
-2. Re-add the **scoped** `get_entity` (target_events-first, top-15 capped
-   connections). Re-validate on prod: a small entity should be well under ~200 ms
-   with the index; re-check a mega-entity (Trump) stays bounded.
-3. Then human review + SAST pass on the AI-generated SQL per org policy, and
-   flip this ADR back to `accepted`.
+- **Mega-entity rollup** (optional): precompute per-entity stats in a matview
+  refreshed on a schedule (ADR-0039 graph-rollup pattern) so Trump-class entities
+  answer instantly too, and drop the timeout.
+- Per org policy the AI-generated SQL (this endpoint + migration 025) still owes
+  a documented human review + SAST pass.

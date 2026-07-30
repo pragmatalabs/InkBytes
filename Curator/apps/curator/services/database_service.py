@@ -182,6 +182,15 @@ class DatabaseService:
                 "WHERE table_schema = 'public' AND table_name = 'events' "
                 "AND column_name = 'merged_into')"
             ),
+            # 025 adds the functional index on LOWER(entities.name) that powers
+            # GET /entities/{name} (ADR-0042). TRUE once the index exists — on
+            # prod it was built CONCURRENTLY out-of-band, so this skips there
+            # (avoids a plain CREATE INDEX locking the 3M-row table).
+            "025_entities_name_lower_index.sql": (
+                "SELECT EXISTS ("
+                "SELECT 1 FROM pg_indexes "
+                "WHERE schemaname = 'public' AND indexname = 'idx_entities_name_lower')"
+            ),
         }
         async with self.pool.acquire() as conn:  # type: ignore[union-attr]
             for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):

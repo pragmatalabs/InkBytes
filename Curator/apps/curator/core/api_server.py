@@ -5,6 +5,7 @@ are intentionally minimal.
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as _dt
 import json as _json
 import logging
@@ -1003,6 +1004,109 @@ def build_app(app: Application) -> FastAPI:
                 "edge_count":  row["edge_count"],
                 "event_count": row["event_count"],
             },
+        }
+
+    @api.get("/entities/{name}")
+    async def get_entity(name: str, response: Response) -> dict[str, Any]:
+        """Single-entity detail for the in-place event-page sheet (prototype
+        entOpen) — a scoped slice of /graph (stats + recent events + top
+        connections for ONE entity), so the Reader never loads the whole (heavy)
+        graph to show one story's entity. `name` is the lowercased entity key.
+
+        Perf (ADR-0042): the `LOWER(name) = $1` lookups ride the
+        `idx_entities_name_lower` functional index (migration 025), so
+        normal/mid entities answer in <500 ms. A ~2.5 s query timeout caps the
+        handful of mega-entities (e.g. Donald Trump ≈ 8 s over ~1900 events) →
+        404 → the Reader renders its light fallback (`/api/entity` proxy).
+        """
+        key = (name or "").strip().lower()
+        if len(key) < 2:
+            raise HTTPException(status_code=404, detail="entity not found")
+        response.headers["Cache-Control"] = "public, max-age=120"
+        try:
+            async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+                row = await conn.fetchrow(
+                    """
+                    WITH target_events AS MATERIALIZED (
+                        SELECT DISTINCT a.event_id
+                          FROM entities ent
+                          JOIN articles a ON a.id = ent.article_id
+                          JOIN events   e ON e.id = a.event_id AND e.status = 'published'
+                          JOIN pages    p ON p.event_id = e.id AND p.published_at IS NOT NULL
+                         WHERE LOWER(ent.name) = $1
+                    ),
+                    ev_meta AS (
+                        SELECT te.event_id, e.source_count,
+                               p.id AS page_id, p.headline, p.freshness_at
+                          FROM target_events te
+                          JOIN events e ON e.id = te.event_id
+                          JOIN pages  p ON p.event_id = te.event_id
+                    ),
+                    conns AS (
+                        SELECT LOWER(ent.name) AS id, MIN(ent.name) AS label,
+                               COUNT(DISTINCT a.event_id) AS weight
+                          FROM entities ent
+                          JOIN articles a ON a.id = ent.article_id
+                         WHERE a.event_id IN (SELECT event_id FROM target_events)
+                           AND LOWER(ent.name) <> $1 AND LENGTH(ent.name) >= 2
+                         GROUP BY LOWER(ent.name)
+                        HAVING COUNT(DISTINCT a.event_id) >= 2
+                         ORDER BY weight DESC
+                         LIMIT 15
+                    ),
+                    dtype AS (
+                        SELECT UPPER(ent.type) AS type
+                          FROM entities ent
+                          JOIN articles a ON a.id = ent.article_id
+                         WHERE LOWER(ent.name) = $1
+                           AND a.event_id IN (SELECT event_id FROM target_events)
+                         GROUP BY UPPER(ent.type)
+                         ORDER BY COUNT(*) DESC,
+                                  CASE UPPER(ent.type) WHEN 'PERSON' THEN 0 WHEN 'ORG' THEN 1
+                                       WHEN 'LOC' THEN 2 WHEN 'EVENT' THEN 3 ELSE 4 END
+                         LIMIT 1
+                    )
+                    SELECT
+                        (SELECT ent.name FROM entities ent
+                          WHERE LOWER(ent.name) = $1
+                          GROUP BY ent.name ORDER BY COUNT(*) DESC LIMIT 1)          AS label,
+                        (SELECT type FROM dtype)                                     AS type,
+                        (SELECT COUNT(*) FROM target_events)                         AS event_count,
+                        (SELECT COUNT(DISTINCT event_id) FROM ev_meta
+                           WHERE freshness_at > NOW() - INTERVAL '24 hours')         AS today_count,
+                        (SELECT COUNT(*) FROM conns)                                 AS connection_count,
+                        COALESCE((SELECT JSON_AGG(x) FROM
+                            (SELECT page_id AS id, headline, source_count, freshness_at
+                               FROM ev_meta ORDER BY freshness_at DESC LIMIT 15) x), '[]'::json) AS recent_events,
+                        COALESCE((SELECT JSON_AGG(y) FROM
+                            (SELECT id, label, weight FROM conns ORDER BY weight DESC LIMIT 15) y), '[]'::json) AS connections,
+                        em.thumb_url AS image, em.description,
+                        em.attribution AS image_attribution, em.source_url AS image_source
+                      FROM (SELECT 1) _base
+                      LEFT JOIN entity_media em ON em.name_norm = $1 AND em.blocked = FALSE
+                    """,
+                    key,
+                    timeout=2.5,
+                )
+        except (TimeoutError, asyncio.TimeoutError):
+            # Mega-entity: too heavy to compute live within the budget. The
+            # Reader falls back to the light sheet on any non-200 response.
+            raise HTTPException(status_code=404, detail="entity detail unavailable")
+        if not row or row["label"] is None:
+            raise HTTPException(status_code=404, detail="entity not found")
+        return {
+            "id": key,
+            "label": row["label"],
+            "type": row["type"] or "OTHER",
+            "event_count": row["event_count"],
+            "today_count": row["today_count"],
+            "connection_count": row["connection_count"],
+            "recent_events": _decode_json_col(row["recent_events"]),
+            "connections": _decode_json_col(row["connections"]),
+            "image": row["image"],
+            "description": row["description"],
+            "image_attribution": row["image_attribution"],
+            "image_source": row["image_source"],
         }
 
     @api.get("/events/{event_id}/related")
