@@ -254,10 +254,21 @@ services:
       retries: 5
 
   # ── INTERNAL: Curator Worker (--worker, RabbitMQ consumer) ──────────────────
+  # Runs as N managed replicas (deploy.replicas) so the throughput the pipeline
+  # needs survives restarts/reboots — formalizing the ad-hoc `docker run` workers
+  # that caused the 2026-07-30 stale-feed incident (they were unmanaged AND on a
+  # stale image, so a partial deploy left them undermining the intake gate).
+  # No container_name: replicas can't share a fixed name — they become
+  # inkbytes-inkbytes-curator-worker-<n>. To restart/exec one, use the service
+  # (`docker compose … restart inkbytes-curator-worker`) or the -<n> suffix.
+  # NOTE: each replica carries the full env + the DO override (seccomp/init/
+  # pids/embeddings) since deploy.replicas fans the merged service config out.
+  # Tune count via CURATOR_WORKER_REPLICAS in infra/.env (mind mem_limit×N).
   inkbytes-curator-worker:
     image: ${CURATOR_IMAGE:-ghcr.io/pragmatalabs/inkbytes-curator:latest}
-    container_name: inkbytes-curator-worker
     restart: unless-stopped
+    deploy:
+      replicas: ${CURATOR_WORKER_REPLICAS:-3}
     command: ["python", "main.py", "--config", "env.yaml", "--worker"]
     networks: [inkbytes-internal]
     extra_hosts:
