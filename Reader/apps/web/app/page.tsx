@@ -18,10 +18,11 @@ export default async function HomePage() {
   const OUTLOOK_LANG = "es";
 
   try {
-    // Still fetch the full set so the briefing can rank the top-N and show the
-    // "Browse all N" count; trending isn't shown on the briefing.
+    // The briefing only needs the top-N (snapshot) + the developing rail (the
+    // freshest, always near the top), so 60 is plenty — no need to serialize all
+    // ~500 to the client. The full set + total count live in /browse.
     const [ev, outlook] = await Promise.all([
-      getEvents(500),
+      getEvents(60),
       getOutlookArchive(OUTLOOK_LANG, 7)
         .then((r) => r.editions[0] ?? null)
         .catch(() => null),

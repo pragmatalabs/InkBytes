@@ -9,6 +9,7 @@ import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
 import { ColumnMast, titleCase } from "@/components/column-mast";
 import { getRead } from "@/lib/read-state";
+import { loadOrCreateBriefing } from "@/lib/briefing-set";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import RetryButton from "@/components/retry-button";
@@ -619,16 +620,38 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // the list. Filter active: flat list.
   const useEditorial = !hasFilter && sorted.length >= 1;
 
-  const lead      = useEditorial ? sorted[0] ?? null : null;
-  const secondary = useEditorial ? sorted.slice(1, 3) : [];
-  const stream    = useEditorial ? sorted.slice(3)    : [];
+  // ── Briefing set (Slice C-B) ──────────────────────────────────────────────
+  // Frozen per-day snapshot of the top-N so the finite briefing stops
+  // reshuffling on every live re-fetch. Hydration-safe: null until mount (server
+  // + first paint fall back to the live top-N, which equals the snapshot on the
+  // day's first load), then the mount effect loads/creates the frozen set.
+  const [briefingIds, setBriefingIds] = useState<string[] | null>(null);
+  const byId = useMemo(() => new Map(sorted.map((e) => [e.id, e])), [sorted]);
+  useEffect(() => {
+    // Only freeze once a full set is available — a partial early fetch would
+    // otherwise snapshot too few. Below BRIEFING_SIZE we fall back to the live
+    // top-N (a genuinely tiny corpus never needs freezing).
+    if (!briefing || sorted.length < BRIEFING_SIZE) return;
+    const day = new Date().toISOString().slice(0, 10);
+    setBriefingIds(loadOrCreateBriefing(day, sorted.slice(0, BRIEFING_SIZE).map((e) => e.id)));
+  }, [briefing, sorted]);
+
+  const briefingSet: EventSummary[] = briefing
+    ? (briefingIds
+        ? briefingIds.map((id) => byId.get(id)).filter((e): e is EventSummary => Boolean(e))
+        : sorted.slice(0, BRIEFING_SIZE))
+    : [];
+
+  // Briefing renders the frozen set; browse renders the live ranked list.
+  const base      = briefing ? briefingSet : sorted;
+  const lead      = useEditorial ? base[0] ?? null : null;
+  const secondary = useEditorial ? base.slice(1, 3) : [];
+  const stream    = useEditorial ? base.slice(3)    : [];
   const flatList  = useEditorial ? [] : sorted;
 
-  // Briefing caps the stream so the whole view is a finite BRIEFING_SIZE set
-  // (lead + 2 secondary + the rest); the remainder lives in /browse. Browse
-  // keeps the paginated full stream.
+  // Briefing shows the whole (already finite) set; browse paginates the stream.
   const streamVisible = briefing
-    ? stream.slice(0, Math.max(0, BRIEFING_SIZE - 3))
+    ? stream
     : streamExpanded ? stream : stream.slice(0, STREAM_INITIAL);
   // Index of the first regional-only (no global outlet) event, computed ONCE so
   // the "Regional" divider renders exactly once. The previous per-row transition
@@ -637,11 +660,10 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const firstRegionalIdx = streamVisible.findIndex((e) => !e.has_global_outlet);
   const streamHidden  = stream.length - streamVisible.length;
 
-  // ── Briefing (Slice C1a) ──────────────────────────────────────────────────
-  // Top N ranked = today's briefing (finite). readMap is client-only (starts {}
-  // on server + first paint), so progress renders 0 then fills after mount — the
-  // same hydration-safe order the card dimming uses (no #418).
-  const briefingSet    = briefing ? sorted.slice(0, BRIEFING_SIZE) : [];
+  // ── Briefing progress (Slice C1a) ─────────────────────────────────────────
+  // Read-progress over the frozen briefingSet above. readMap is client-only
+  // (starts {} on server + first paint), so progress renders 0 then fills after
+  // mount — the same hydration-safe order the card dimming uses (no #418).
   const briefingTotal  = briefingSet.length;
   const briefingRead   = briefingSet.filter((ev) => readState(ev).read).length;
   const briefingPct    = briefingTotal ? Math.round((briefingRead / briefingTotal) * 100) : 0;
@@ -681,7 +703,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           <p className="text-xs text-[var(--ink-muted)] mt-0.5">
             {events.length > 0
               ? briefing
-                ? `Top ${briefingTotal} of ${events.length} · a finite read`
+                ? `${briefingTotal} ${briefingTotal === 1 ? "story" : "stories"} · a finite read`
                 : `${events.length} stories`
               : "No stories yet"}
           </p>
@@ -956,7 +978,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                       href="/browse"
                       className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 border border-[var(--ink)] rounded-full text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
                     >
-                      Browse all {events.length.toLocaleString("en-US")} stories →
+                      Browse all stories →
                     </Link>
                   )}
                 </div>
