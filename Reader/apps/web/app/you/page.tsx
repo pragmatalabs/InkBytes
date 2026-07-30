@@ -89,7 +89,7 @@ export default function YouPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-      <h1 className="text-[1.6rem] sm:text-3xl font-bold tracking-tight mb-8">You</h1>
+      <h1 className="text-[1.6rem] sm:text-3xl font-bold tracking-tight mb-8">Settings</h1>
 
       {/* Reading language */}
       <section className="mb-9">

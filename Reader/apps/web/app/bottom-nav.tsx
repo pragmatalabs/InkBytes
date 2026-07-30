@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NewspaperIcon, SearchIcon } from "@/components/icons";
+import { NewspaperIcon, SearchIcon, NetworkIcon, OutlookIcon } from "@/components/icons";
 
 // ── Nav item ───────────────────────────────────────────────────────────────────
 
@@ -13,46 +13,28 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-// Bookmark + person glyphs (match the header icons in layout.tsx).
-function BookmarkIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-function PersonIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" />
-    </svg>
-  );
-}
-
-// ── Bottom Nav (Slice C-B: Briefing · Browse · Saved · You) ─────────────────────
-// Outlook + Entities are reached from Browse; About from You.
+// ── Bottom Nav (Reader-prototype model: Brief · Outlook · Browse · Entities) ────
+// Saved + Settings + About live in the ☰ hamburger drawer (NavMenu) now, not the
+// tab bar — matching InkBytes Reader.dc.html.
 
 export default function BottomNav() {
   const pathname = usePathname();
 
   const items: NavItem[] = [
-    { href: "/",       label: "Briefing", icon: NewspaperIcon },
-    { href: "/browse", label: "Browse",   icon: SearchIcon },
-    { href: "/saved",  label: "Saved",    icon: BookmarkIcon },
-    { href: "/you",    label: "You",      icon: PersonIcon },
+    { href: "/",         label: "Brief",    icon: NewspaperIcon },
+    { href: "/outlook",  label: "Outlook",  icon: OutlookIcon },
+    { href: "/browse",   label: "Browse",   icon: SearchIcon },
+    { href: "/entities", label: "Entities", icon: NetworkIcon },
   ];
 
   // Which top-level tab owns the current route. Detail routes map back to a tab
-  // so the bar doesn't go dark. Event pages sit under Briefing (where most
-  // reading starts); Outlook + Entities are Browse's territory now.
+  // so the bar doesn't go dark. Event pages sit under Brief (where most reading
+  // starts). Menu pages (Saved / You / About) own no tab — the ☰ menu owns them.
   const SECTION: [RegExp, string][] = [
     [/^\/event\//, "/"],
+    [/^\/outlook/, "/outlook"],
     [/^\/browse/, "/browse"],
-    [/^\/outlook/, "/browse"],
-    [/^\/entities/, "/browse"],
-    [/^\/saved/, "/saved"],
-    [/^\/you/, "/you"],
-    [/^\/about/, "/you"],
+    [/^\/entities/, "/entities"],
   ];
   const section = SECTION.find(([re]) => re.test(pathname))?.[1] ?? pathname;
 

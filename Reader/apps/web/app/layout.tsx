@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import BottomNav from "./bottom-nav";
+import NavMenu from "./nav-menu";
 import { LogoMark } from "@/components/logo";
 import PwaInstallBanner from "@/components/pwa-install-banner";
 import ChatAssistant from "@/components/chat-assistant";
@@ -85,29 +86,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 the header pill duplicated it). Header stays brand + nav. */}
 
             <div className="flex items-center gap-4 shrink-0">
-              {/* Top nav is DESKTOP-only: on mobile the bottom tab bar is the nav,
-                  so a second copy here is pure redundancy (Rams — remove it). */}
+              {/* Top text nav is DESKTOP-only — on mobile the bottom tab bar +
+                  the ☰ menu are the nav. Matches the bottom nav order. */}
               <nav className="hidden sm:flex items-center gap-4 text-sm text-white/70">
-                <Link href="/" className="hover:text-white transition-colors font-medium">Briefing</Link>
-                <Link href="/browse" className="hover:text-white transition-colors">Browse</Link>
+                <Link href="/" className="hover:text-white transition-colors font-medium">Brief</Link>
                 <Link href="/outlook" className="hover:text-white transition-colors">Outlook</Link>
+                <Link href="/browse" className="hover:text-white transition-colors">Browse</Link>
                 <Link href="/entities" className="hover:text-white transition-colors">Entities</Link>
               </nav>
 
-              {/* Saved + You — entry points for the Slice B screens. Always
-                  visible (the bottom nav has no room until the Slice C rework). */}
-              <div className="flex items-center gap-0.5">
-                <Link href="/saved" aria-label="Saved" className="p-1.5 text-white/70 hover:text-white transition-colors">
-                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                  </svg>
-                </Link>
-                <Link href="/you" aria-label="You" className="p-1.5 text-white/70 hover:text-white transition-colors">
-                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" />
-                  </svg>
-                </Link>
-              </div>
+              {/* ☰ menu — screen label + hamburger drawer (Saved / Settings /
+                  About + reading language). Reader-prototype chromeBrand model. */}
+              <NavMenu />
             </div>
           </div>
         </header>
