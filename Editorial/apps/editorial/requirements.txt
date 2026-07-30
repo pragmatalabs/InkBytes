@@ -1,7 +1,7 @@
 asyncpg>=0.29
 pydantic>=2.6
 PyYAML>=6.0
-openai>=1.30
+openai>=1.60          # gpt-image-1-mini covers need images.generate(output_format=…) (ADR-0012)
 anthropic>=0.40
 # TTS (ADR-0011): synthesis is REMOTE in prod (POST to the Piper microservice on the
 # 16 GB box) — the droplet only needs httpx to call it + boto3 to upload the MP3.

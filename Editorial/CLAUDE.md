@@ -20,20 +20,34 @@ continuous; different LLM needs; opinion vs neutral synthesis). See
 Editorial/apps/editorial/
   main.py                 ← CLI: --generate [--theme X] [--lang es] [--date Y] [--dry-run]
                              | --synthesize-missing [--audio-limit N]  (backfill TTS)
-  core/config.py          ← YAML + env overlay (provider-pluggable LLM; TTS; Spaces)
-  core/application.py     ← orchestrator: gather → gate → render persona → LLM → store → speak
+                             | --cover-missing [--cover-limit N]       (backfill covers)
+  core/config.py          ← YAML + env overlay (provider-pluggable LLM; TTS; Covers; Spaces)
+  core/application.py     ← orchestrator: gather → gate → render persona → LLM → store → speak → cover
   services/db.py          ← asyncpg; reads pages/events, writes editorials, applies migration
   services/llm.py         ← ollama|deepseek → OpenAI-compatible; anthropic → native
-  services/tts.py         ← ADR-0011: Piper (CPU) → ffmpeg → MP3; markdown→speakable
-  services/storage.py     ← ADR-0011: boto3 → DO Spaces (public-read), returns public URL
+  services/tts.py         ← ADR-0011: Piper → MP3 (remote tts-server); markdown→speakable
+  services/covers.py      ← ADR-0012: gpt-image-1-mini → WebP hero (stylized, capped)
+  services/storage.py     ← ADR-0011/0012: boto3 → DO Spaces (public-read), returns public URL
   personas.py             ← theme → (key, reader display name, mission)
   prompts/editorial.md    ← persona prompt template (interim single-voice)
+  prompts/cover.md        ← ADR-0012 cover image prompt (abstract, no text/people/photo)
   prompts/personas-spec.md ← ADR-0010 method-persona ROSTERS (150; 10/column;
                              method NOT identity — journalist names are internal
                              routing refs, never shown to readers or imitated)
-  db/migrations/001_editorials.sql · 002_editorial_audio.sql (audio_url etc.)
-  env.example.yaml · requirements.txt · Dockerfile (bakes ffmpeg + Piper voices)
+  db/migrations/001_editorials.sql · 002_editorial_audio.sql · 003_editorial_cover.sql
+  env.example.yaml · requirements.txt · Dockerfile
 ```
+
+## Covers — stylized AI heroes (ADR-0012)
+
+One conceptual hero per `(theme, edition_date)` (language-neutral; es + en share it)
+via OpenAI **`gpt-image-1-mini`** → ~50 KB WebP in Spaces (`covers/outlook/{date}/
+{theme}.webp`), `editorials.cover_url`; Reader shows it as the `/outlook` hero.
+Runs **in the droplet batch** (remote API, zero local compute — unlike Piper). ~14/day
+≈ **$3–4/mo**, hard-capped by `EDITORIAL_COVERS_MONTHLY_CAP_USD` (default $10) +
+`EDITORIAL_COVERS_ENABLED` kill-switch. Prompt (`prompts/cover.md`) forces **abstract
+illustration — no text, no real people, not photoreal** (opinion columns only; the
+news-integrity/legal guard). Best-effort; `--cover-missing` backfills.
 
 ## Audio — self-hosted TTS (ADR-0011)
 

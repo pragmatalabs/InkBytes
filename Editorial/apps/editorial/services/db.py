@@ -107,3 +107,39 @@ class Database:
                 + "ORDER BY edition_date DESC, theme ASC LIMIT $1",
                 *((limit, languages) if languages else (limit,)))
         return [dict(r) for r in rows]
+
+    # ── Covers (ADR-0012) — one image per (theme, edition_date), both languages ──
+
+    async def set_editorial_cover(self, *, theme: str, edition_date,
+                                  cover_url: str, cover_prompt: str) -> None:
+        """Persist the cover URL + prompt on ALL rows of a theme/day (covers are
+        language-neutral, so es + en share the one image)."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            await conn.execute(
+                "UPDATE editorials SET cover_url=$3, cover_prompt=$4, "
+                "       cover_generated_at=NOW() "
+                " WHERE theme=$1 AND edition_date=$2",
+                theme, edition_date, cover_url, cover_prompt)
+
+    async def fetch_theme_days_missing_cover(self, limit: int) -> list[dict[str, Any]]:
+        """Distinct (theme, edition_date) with no cover yet (newest first) + a
+        representative headline (English preferred) for the image prompt — the
+        `--cover-missing` backfill target."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            rows = await conn.fetch(
+                "SELECT DISTINCT ON (theme, edition_date) theme, edition_date, headline "
+                "  FROM editorials "
+                " WHERE cover_url IS NULL "
+                " ORDER BY theme, edition_date DESC, (language='en') DESC "
+                " LIMIT $1", limit)
+        # Re-sort newest-first across themes (DISTINCT ON forces theme,date ordering).
+        return sorted((dict(r) for r in rows),
+                      key=lambda r: r["edition_date"], reverse=True)
+
+    async def count_covers_this_month(self) -> int:
+        """Distinct covers generated since the start of the current month — the
+        basis for the monthly cost cap (ADR-0012)."""
+        async with self.pool.acquire() as conn:  # type: ignore[union-attr]
+            return await conn.fetchval(
+                "SELECT count(DISTINCT (theme, edition_date)) FROM editorials "
+                " WHERE cover_generated_at >= date_trunc('month', NOW())") or 0

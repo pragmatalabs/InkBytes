@@ -91,6 +91,20 @@ export default async function OutlookPage({
 
       {o ? (
         <>
+          {/* ── Stylized hero cover (ADR-0012) — conceptual illustration, not a
+                news photo. Bleeds to the edges on mobile, rounded on desktop. ── */}
+          {o.cover_url && (
+            <div className="mb-6 -mx-4 sm:-mx-6 sm:rounded-2xl overflow-hidden bg-gray-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={o.cover_url}
+                alt=""
+                aria-hidden
+                className="block w-full aspect-[3/2] object-cover"
+              />
+            </div>
+          )}
+
           {/* ── Masthead — the persona is the product ───────────────────── */}
           <div className="flex items-center gap-3">
             <span

@@ -61,9 +61,9 @@ class TtsCfg(BaseModel):
 
 
 class SpacesCfg(BaseModel):
-    """DigitalOcean Spaces (S3) — where the MP3s live, public-read. Reuses the same
-    DO_SPACES_* env the Curator container already carries. Dormant (uploads skipped)
-    if key/secret are blank — TTS then no-ops rather than failing the batch."""
+    """DigitalOcean Spaces (S3) — where the MP3s + covers live, public-read. Reuses
+    the same DO_SPACES_* env the Curator container already carries. Dormant (uploads
+    skipped) if key/secret are blank — audio/covers then no-op rather than failing."""
     endpoint: str = "https://nyc3.digitaloceanspaces.com"
     region: str = "nyc3"
     bucket: str = "inkbytes-prod"
@@ -72,12 +72,31 @@ class SpacesCfg(BaseModel):
     public_base: str = ""   # optional CDN base; blank → {endpoint}/{bucket}
 
 
+class CoversCfg(BaseModel):
+    """Stylized AI hero covers for Outlook columns (ADR-0012) via OpenAI
+    gpt-image-1-mini. One cover per (theme, edition_date), language-neutral, cached
+    in Spaces. Best-effort: a failure never blocks text/audio. Cost-capped:
+    generation stops once this month's spend (distinct covers × unit_cost) hits
+    monthly_cap_usd, and `enabled=false` is a hard kill-switch."""
+    enabled: bool = True
+    model: str = "gpt-image-1-mini"
+    size: str = "1536x1024"                     # landscape hero
+    quality: str = "low"                         # cheapest tier; still clean illustration
+    output_format: str = "webp"                  # small files, direct from the API
+    compression: int = 80                        # webp quality/size trade
+    key_prefix: str = "covers/outlook"           # Spaces key: {prefix}/{date}/{theme}.webp
+    monthly_cap_usd: float = 10.0                # hard ceiling on image spend / month
+    unit_cost_usd: float = 0.008                 # ~gpt-image-1-mini low 1536x1024
+    api_key: str = ""                            # OPENAI_API_KEY (never committed)
+
+
 class Config(BaseModel):
     database: DbCfg
     llm: LlmCfg = LlmCfg()
     editorial: EditorialCfg = EditorialCfg()
     tts: TtsCfg = TtsCfg()
     spaces: SpacesCfg = SpacesCfg()
+    covers: CoversCfg = CoversCfg()
 
     @classmethod
     def load(cls, path: str) -> "Config":
@@ -133,6 +152,22 @@ class Config(BaseModel):
             tts["remote_url"] = v
         if v := os.getenv("EDITORIAL_TTS_SECRET"):
             tts["remote_secret"] = v
+
+        # ── Covers overlay (stylized AI hero images) ──
+        covers = raw.setdefault("covers", {})
+        if (v := os.getenv("EDITORIAL_COVERS_ENABLED")) is not None:
+            covers["enabled"] = v.strip().lower() not in ("0", "false", "no", "")
+        if v := os.getenv("EDITORIAL_COVERS_MODEL"):
+            covers["model"] = v
+        if v := os.getenv("EDITORIAL_COVERS_QUALITY"):
+            covers["quality"] = v
+        if v := os.getenv("EDITORIAL_COVERS_MONTHLY_CAP_USD"):
+            covers["monthly_cap_usd"] = float(v)
+        if v := os.getenv("EDITORIAL_COVERS_UNIT_COST_USD"):
+            covers["unit_cost_usd"] = float(v)
+        # image gen uses OpenAI; accept a dedicated key or the shared OPENAI_API_KEY
+        if v := (os.getenv("EDITORIAL_COVERS_API_KEY") or os.getenv("OPENAI_API_KEY")):
+            covers["api_key"] = v
 
         # ── Spaces overlay (reuses the shared DO_SPACES_* env) ──
         spaces = raw.setdefault("spaces", {})

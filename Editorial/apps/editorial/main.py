@@ -4,6 +4,7 @@
   python main.py --config env.yaml --generate --theme politics --dry-run
   python main.py --config env.yaml --generate --date 2026-06-28 --lang es
   python main.py --config env.yaml --synthesize-missing        # backfill audio only
+  python main.py --config env.yaml --cover-missing             # backfill hero covers only
 """
 from __future__ import annotations
 
@@ -25,6 +26,10 @@ def main() -> None:
                     help="Backfill TTS audio for editorials that have none yet (ADR-0011)")
     ap.add_argument("--audio-limit", type=int, default=500,
                     help="Max editorials to backfill with --synthesize-missing")
+    ap.add_argument("--cover-missing", action="store_true",
+                    help="Backfill stylized hero covers for theme/days that have none (ADR-0012)")
+    ap.add_argument("--cover-limit", type=int, default=200,
+                    help="Max theme/days to backfill with --cover-missing (also cost-capped)")
     ap.add_argument("--theme", default=None, help="Limit to one theme")
     ap.add_argument("--lang", default=None, help="Limit to one language (else config.languages)")
     ap.add_argument("--date", default=None, help="Edition date YYYY-MM-DD (default: today)")
@@ -49,8 +54,11 @@ def main() -> None:
             if args.synthesize_missing:
                 await app.synthesize_missing(args.audio_limit)
                 return
+            if args.cover_missing:
+                await app.cover_missing(args.cover_limit)
+                return
             if not args.generate:
-                print("nothing to do — pass --generate or --synthesize-missing")
+                print("nothing to do — pass --generate, --synthesize-missing, or --cover-missing")
                 return
             if args.theme:
                 written = []

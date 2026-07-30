@@ -16,6 +16,7 @@ from pathlib import Path
 
 from core.config import Config
 from personas import PERSONAS, MethodPersona, global_policy, persona_for, roster_for
+from services.covers import Covers
 from services.db import Database
 from services.llm import Llm
 from services.storage import SpacesStorage
@@ -38,6 +39,8 @@ class Application:
         self.tts = Tts(cfg.tts)
         self.storage = SpacesStorage(cfg.spaces)
         self._template = (_APP_DIR / cfg.editorial.persona_dir / "editorial.md").read_text("utf-8")
+        _cover_tpl = (_APP_DIR / cfg.editorial.persona_dir / "cover.md").read_text("utf-8")
+        self.covers = Covers(cfg.covers, _cover_tpl)
 
     async def start(self) -> None:
         await self.db.connect()
@@ -186,6 +189,53 @@ class Application:
                     done, len(items), self.cfg.tts.concurrency)
         return done
 
+    # ── Covers (ADR-0012) — stylized AI hero per theme/day ──────────────────────
+
+    async def _generate_cover(self, theme: str, edition_date, headline: str) -> bool:
+        """gpt-image-1-mini → WebP → Spaces → editorials.cover_url (all langs).
+        Best-effort — a failure never blocks the batch."""
+        if not (self.covers.available() and self.storage.configured):
+            return False
+        try:
+            img, prompt = await asyncio.to_thread(self.covers.generate, theme, headline)
+            key = f"{self.cfg.covers.key_prefix}/{edition_date}/{theme}.webp"
+            url = await asyncio.to_thread(self.storage.upload_bytes, img, key, "image/webp")
+            await self.db.set_editorial_cover(
+                theme=theme, edition_date=edition_date, cover_url=url, cover_prompt=prompt)
+            logger.info("COVER %s/%s %d KB -> %s", theme, edition_date, len(img) // 1024, url)
+            return True
+        except Exception as e:  # noqa: BLE001 — covers are best-effort
+            logger.warning("cover gen failed for %s/%s: %s", theme, edition_date, e)
+            return False
+
+    async def _cover_batch(self, items: list[dict]) -> int:
+        """Generate covers for a list of unique {theme, edition_date, headline},
+        enforcing the monthly cost cap (ADR-0012). Sequential — image gen is a remote
+        API call, and sequential keeps the spend accounting simple."""
+        if not (self.covers.available() and self.storage.configured):
+            logger.info("cover batch skipped — covers disabled or Spaces not configured")
+            return 0
+        unit, cap = self.cfg.covers.unit_cost_usd, self.cfg.covers.monthly_cap_usd
+        spent = (await self.db.count_covers_this_month()) * unit
+        budget = cap - spent
+        max_new = int(budget // unit) if unit > 0 else len(items)
+        if max_new <= 0:
+            logger.warning("cover cap reached: $%.2f of $%.2f this month — skipping %d",
+                           spent, cap, len(items))
+            return 0
+        if max_new < len(items):
+            logger.warning("cover cap: budget for %d of %d covers this run ($%.2f/$%.2f spent)",
+                           max_new, len(items), spent, cap)
+        done = 0
+        for it in items:
+            if done >= max_new:
+                logger.warning("cover cap hit mid-run — stopped after %d (capped)", done)
+                break
+            if await self._generate_cover(it["theme"], it["edition_date"], it["headline"]):
+                done += 1
+        logger.info("cover batch: %d generated (cap $%.2f/mo, ~$%.3f/img)", done, cap, unit)
+        return done
+
     async def generate_all(self, edition_date: date_cls, dry_run: bool = False) -> int:
         written: list[dict] = []
         for language in self.cfg.editorial.languages:
@@ -196,8 +246,22 @@ class Application:
         logger.info("EDITORIAL batch done: %d columns for %s", len(written), edition_date)
         if written and not dry_run:
             await self._synthesize_batch(written)   # voice today's columns (concurrent)
+            await self._cover_batch(self._unique_theme_days(written))  # one cover/theme/day
             await self._notify_outlook_ready()
         return len(written)
+
+    @staticmethod
+    def _unique_theme_days(written: list[dict]) -> list[dict]:
+        """Collapse the written columns to one {theme, edition_date, headline} per
+        theme/day for cover generation — preferring the English headline for the
+        image prompt (covers are language-neutral)."""
+        by_key: dict[tuple, dict] = {}
+        for it in written:
+            k = (it["theme"], it["edition_date"])
+            if k not in by_key or it["language"] == "en":
+                by_key[k] = {"theme": it["theme"], "edition_date": it["edition_date"],
+                             "headline": it["headline"]}
+        return list(by_key.values())
 
     async def synthesize_missing(self, limit: int = 500) -> int:
         """Backfill audio for existing editorials that have none yet (ADR-0011) —
@@ -210,6 +274,16 @@ class Application:
             limit, self.cfg.editorial.languages)
         logger.info("synthesize-missing: %d editorial(s) without audio", len(rows))
         return await self._synthesize_batch(rows)
+
+    async def cover_missing(self, limit: int = 200) -> int:
+        """Backfill covers for existing theme/days that have none yet (ADR-0012) —
+        idempotent + monthly-cost-capped. Returns the count generated."""
+        if not (self.covers.available() and self.storage.configured):
+            logger.info("cover-missing: covers disabled or Spaces not configured — nothing to do")
+            return 0
+        rows = await self.db.fetch_theme_days_missing_cover(limit)
+        logger.info("cover-missing: %d theme/day(s) without a cover", len(rows))
+        return await self._cover_batch(rows)
 
     @staticmethod
     async def _notify_outlook_ready() -> None:
