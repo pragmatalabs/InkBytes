@@ -140,14 +140,16 @@ export function parseJson<T>(value: T | string): T {
   return value;
 }
 
-export function relativeTime(iso: string): string {
+export function relativeTime(iso: string, lang: "en" | "es" = "en"): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60_000);
-  if (m < 2) return "just now";
-  if (m < 60) return `${m}m ago`;
+  const es = lang === "es";
+  if (m < 2) return es ? "ahora" : "just now";
+  if (m < 60) return es ? `hace ${m}m` : `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return es ? `hace ${h}h` : `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return es ? `hace ${d}d` : `${d}d ago`;
 }
 
 /** Returns a Tailwind border-left color class based on content age. */

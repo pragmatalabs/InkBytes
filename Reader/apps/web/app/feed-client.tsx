@@ -5,7 +5,7 @@ import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "r
 import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials } from "@/lib/api";
 import { useLang } from "@/lib/prefs";
-import { t } from "@/lib/i18n";
+import { t, categoryLabel } from "@/lib/i18n";
 import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
@@ -228,7 +228,8 @@ function AlsoIn({ also }: { also?: Record<string, string> }) {
  * event page's Developing badge.)
  */
 function TimeAgo({ iso }: { iso: string }) {
-  return <span suppressHydrationWarning>{relativeTime(iso)}</span>;
+  const lang = useLang();
+  return <span suppressHydrationWarning>{relativeTime(iso, lang)}</span>;
 }
 
 function StrengthDot({ count, developing }: { count: number; developing: boolean }) {
@@ -447,7 +448,8 @@ interface Props {
   focusSearch?: boolean;
   /** The day's lead Outlook column (Stage 2c) — surfaced as a card near the top
    *  of the feed. null when Outlook is unavailable (best-effort; never blanks). */
-  outlookLead?: (OutlookArchiveEntry & { lang: string }) | null;
+  outlookLeadEn?: (OutlookArchiveEntry & { lang: string }) | null;
+  outlookLeadEs?: (OutlookArchiveEntry & { lang: string }) | null;
   /** Slice C-B: "briefing" (home /) = finite top-N + progress + caught-up, no
    *  filters; "browse" (/browse) = the full searchable/filterable feed. */
   mode?: "briefing" | "browse";
@@ -513,9 +515,12 @@ function BriefSection({ label, count, accent = false }: { label: string; count: 
   );
 }
 
-export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLead = null, mode = "briefing" }: Props) {
+export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLeadEn = null, outlookLeadEs = null, mode = "briefing" }: Props) {
   const briefing = mode === "briefing";
   const uiLang = useLang();
+  // The day's lead editorial column in the reader's language (fall back to
+  // whichever edition exists). Fill-after-mount: EN on first paint, ES swaps in.
+  const outlookLead = (uiLang === "es" ? outlookLeadEs : outlookLeadEn) ?? outlookLeadEn ?? outlookLeadEs;
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [lang, setLangState]                = useState<Lang>("all");
@@ -655,7 +660,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // `sorted`. The former "Latest" 3D coverflow (Stage 2a) pinned the top 20 in a
   // swipe strip that hid 19 of them behind taps; those top stories now flow into
   // the list. Filter active: flat list.
-  const useEditorial = !hasFilter && sorted.length >= 1;
+  // Browse is now the prototype flat rail-card list (isBrowse) — only the
+  // briefing home uses the "editorial" branch (which for it renders the isBrief
+  // sections). So the coverflow/lead/secondary editorial layout is briefing-gated
+  // off and never taken in browse.
+  const useEditorial = briefing && !hasFilter && sorted.length >= 1;
 
   // ── Briefing set (Slice C-B) ──────────────────────────────────────────────
   // Frozen per-day snapshot of the top-N so the finite briefing stops
@@ -729,6 +738,24 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     return CATEGORIES.filter((c) => c.key === "all" || seen.has(c.key));
   }, [events]);
 
+  // Per-category counts for the browse rail-chips (prototype isBrowse: "Politics 127").
+  const catCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of events) {
+      const k = e.category ?? "world";
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [events]);
+  const catCount = (key: string) => (key === "all" ? events.length : catCounts.get(key) ?? 0);
+
+  // Browse section header: "ALL STORIES" (all) or "POLITICS · 127" (a category).
+  const activeCatLabel = CATEGORIES.find((c) => c.key === activeCategory)?.label ?? "";
+  const browseHeading =
+    activeCategory === "all"
+      ? t(uiLang, "all_stories")
+      : `${categoryLabel(uiLang, activeCategory, activeCatLabel)} · ${catCount(activeCategory)}`;
+
   // Trending collapses into an accordion row on mobile — one slim toggle
   // instead of a second pill strip competing with the carousel for attention.
   const [trendOpen, setTrendOpen] = useState(false);
@@ -740,8 +767,8 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           only (not /browse). */}
       {briefing && <DailySplash events={events} />}
 
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      {briefing ? (
+      {/* ── Header (briefing only — browse goes straight to search, isBrowse) ── */}
+      {briefing && (
         /* Prototype isBrief: mono dateline + big weekday title + stories·min·read
            + a segmented progress strip (one bar per story, filled when read). */
         <div className="mb-1">
@@ -758,7 +785,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                 <span aria-hidden>·</span>
                 <span>≈{briefingMins} {t(uiLang, "min_unit")}</span>
                 <span aria-hidden>·</span>
-                <span className="text-[var(--ink)] font-bold">{briefingRead} {t(uiLang, "read_count")}</span>
+                <span className="text-[var(--ink)] font-bold">{briefingRead} {t(uiLang, briefingRead === 1 ? "read_one" : "read_many")}</span>
               </div>
               <div className="mt-3.5 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${briefingTotal}, minmax(0,1fr))` }}>
                 {briefingSet.map((ev) => (
@@ -768,29 +795,13 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
             </>
           )}
         </div>
-      ) : (
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <p suppressHydrationWarning className="text-[11px] font-medium uppercase tracking-widest text-[var(--ink-muted)] mb-1">{today}</p>
-            <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">{t(uiLang, "browse_title")}</h1>
-            <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-              {events.length > 0 ? `${events.length} ${t(uiLang, "story_many")}` : t(uiLang, "no_stories_yet")}
-            </p>
-          </div>
-          <Link href="/outlook" aria-label="Today's Outlooks" title="Today's Outlooks" className="outlook-pulse relative grid place-items-center w-9 h-9 rounded-full text-[var(--accent)] hover:bg-[var(--accent)]/8 transition-colors shrink-0 self-start">
-            <OutlookIcon className="w-5 h-5" />
-          </Link>
-        </div>
       )}
 
-      {/* ── Search (top) — the first affordance; find beats browse ─────────── */}
+      {/* ── Browse: search (squared) + counted category rail-chips (isBrowse) ── */}
       {!briefing && !error && events.length > 0 && (
-        <div className="mb-5 flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
-            <svg
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-muted)] pointer-events-none"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-            >
+        <>
+          <div className="flex items-center gap-2 border border-[var(--border)] bg-white px-3.5 py-2.5">
+            <svg className="w-[15px] h-[15px] text-[var(--ink-muted)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
             </svg>
             <input
@@ -799,136 +810,41 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               placeholder={t(uiLang, "search_events")}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setStreamExpanded(false); }}
-              className="w-full pl-10 pr-3 py-2.5 text-sm bg-white border border-[var(--border)] rounded-full outline-none focus:border-gray-400 transition-colors"
+              className="flex-1 min-w-0 border-0 outline-none text-[13.5px] font-medium text-[var(--ink)] bg-transparent"
             />
-          </div>
-          {/* Language filter — lives with the other feed filters now */}
-          <div
-            className="inline-flex items-center p-0.5 bg-gray-100 rounded-full gap-0.5 shrink-0"
-            role="group"
-            aria-label="Language filter"
-          >
-            {(["all", "en", "es"] as Lang[]).map((l) => (
+            {!!search.trim() && (
               <button
-                key={l}
-                onClick={() => setLang(l)}
-                aria-pressed={lang === l}
-                className={`px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  lang === l
-                    ? "bg-white text-[var(--accent)] shadow-sm"
-                    : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
-                }`}
+                onClick={() => setSearch("")}
+                className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
               >
-                {LANG_LABELS[l]}
+                {t(uiLang, "clear")}
               </button>
-            ))}
+            )}
           </div>
-          <Link
-            href="/entities"
-            aria-label="Entities"
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-[var(--border)] text-[var(--accent)] hover:bg-[var(--accent)]/5 hover:border-[var(--accent)]/40 transition-colors shrink-0"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="7" r="2.4"/><circle cx="12" cy="18" r="2.4"/>
-              <path d="M7 7 17 7M6.5 8 11 16M17.5 9 13 16"/>
-            </svg>
-          </Link>
-          {hasFilter && (
-            <button
-              onClick={clearAll}
-              className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline transition-colors shrink-0"
-            >
-              {t(uiLang, "clear")}
-            </button>
-          )}
-        </div>
-      )}
 
-      {/* ── Category tabs — one wrapping pill row, all widths (Stage 2a: the
-          mobile folder carousel + the desktop-only horizontal scroll are gone). */}
-      {!briefing && !error && events.length > 0 && (
-        <div className="mb-4">
-          <div className="flex flex-wrap items-center gap-1.5 pb-1">
-            {availableCats.map((c) => (
-              <button
-                key={c.key}
-                onClick={() => setCat(c.key)}
-                aria-pressed={activeCategory === c.key}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors ${
-                  activeCategory === c.key
-                    ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-                    : "bg-white border-[var(--border)] text-[var(--ink-muted)] hover:border-gray-400 hover:text-[var(--ink)]"
-                }`}
-              >
-                {c.key !== "all" && (
-                  <CategoryIcon category={c.key} className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                )}
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Trending topics (ADR-0027) — accordion on mobile, open ≥ sm ─────── */}
-      {!briefing && !error && trending.length > 0 && (
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => setTrendOpen((o) => !o)}
-            aria-expanded={trendOpen}
-            className="sm:hidden flex w-full items-center gap-2 py-2 -my-1"
-          >
-            <span className="developing-dot shrink-0" aria-hidden="true" />
-            <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--accent)]">
-              {t(uiLang, "trending")}
-            </span>
-            <span className="text-[11px] text-[var(--ink-muted)]">
-              — {trending.length} {t(uiLang, trending.length === 1 ? "topic_one" : "topic_many")}
-            </span>
-            <svg
-              className={`ml-auto w-3.5 h-3.5 text-[var(--ink-muted)] transition-transform ${trendOpen ? "rotate-180" : ""}`}
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-          <div className={`${trendOpen ? "" : "hidden"} sm:block -mx-1 px-1 overflow-x-auto scrollbar-hide`}>
-          <div className="flex items-center gap-1.5 flex-nowrap pb-1 pt-1 sm:pt-0">
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--accent)] whitespace-nowrap pr-1">
-              <span className="developing-dot shrink-0" aria-hidden="true" />
-              {t(uiLang, "trending")}
-            </span>
-            {trending.map((t) => {
-              const active = activeTopic === t.topic;
-              const accent = TREND_ACCENT[t.theme ?? "world"] ?? "border-l-gray-400";
+          <div className="flex flex-wrap gap-1.5 mt-3.5">
+            {availableCats.map((c) => {
+              const active = activeCategory === c.key;
+              const rail = c.key === "all" ? "transparent" : themeAccent(c.key);
               return (
                 <button
-                  key={t.topic}
-                  onClick={() => toggleTopic(t.topic)}
+                  key={c.key}
+                  onClick={() => setCat(c.key)}
                   aria-pressed={active}
-                  title={`${t.event_count} ${t.event_count === 1 ? "story" : "stories"} · ${t.article_count} ${t.article_count === 1 ? "article" : "articles"}`}
-                  className={`group flex flex-col items-start gap-0.5 pl-2.5 pr-3 py-1.5 rounded-r-lg rounded-l-sm border border-l-[3px] ${accent} text-left whitespace-nowrap transition-colors ${
+                  style={{ borderLeftColor: rail, borderLeftWidth: 3 }}
+                  className={`text-[11px] font-bold px-2.5 py-[7px] border transition-colors ${
                     active
-                      ? "bg-[var(--accent)] border-[var(--accent)] border-l-[3px] text-white"
-                      : "bg-white border-[var(--border)] hover:border-gray-400"
+                      ? "bg-[var(--ink)] text-white border-[var(--ink)]"
+                      : "bg-white text-[var(--ink)] border-[var(--border)] hover:border-gray-400"
                   }`}
                 >
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold ${active ? "text-white" : "text-[var(--ink)]"}`}>
-                    <svg viewBox="0 0 24 24" className="w-3 h-3 shrink-0" fill="currentColor" aria-hidden="true">
-                      <path d="M12 2c.5 3-1.5 4.5-2.8 6.2C7.7 10.2 7 11.9 7 13.8 7 17.2 9.7 20 13 20s6-2.6 6-6c0-3.4-2.2-5.2-3.6-7.2-.9 1-1.7 1.6-2.6 1.2C13.6 6.6 13.4 4 12 2z"/>
-                    </svg>
-                    {t.topic}
-                  </span>
-                  <span className={`text-[10px] tabular-nums ${active ? "text-white/75" : "text-[var(--ink-muted)]"}`}>
-                    {t.event_count} {t.event_count === 1 ? "story" : "stories"} · {t.article_count} {t.article_count === 1 ? "article" : "articles"}
-                  </span>
+                  {categoryLabel(uiLang, c.key, c.label)}{" "}
+                  <span className={`font-mono text-[10px] tabular-nums ${active ? "text-white/70" : "text-[var(--ink-muted)]"}`}>{catCount(c.key)}</span>
                 </button>
               );
             })}
           </div>
-          </div>
-        </div>
+        </>
       )}
 
       {/* Outlook promo banner removed — the pulsing Outlook icon on the header
@@ -950,9 +866,10 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         </div>
 
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--border)] px-5 py-10 text-center text-sm text-[var(--ink-muted)]">
-          {t(uiLang, "no_match")}
-          <button onClick={clearAll} className="block mx-auto mt-2 text-xs underline hover:text-[var(--ink)] transition-colors">
+        <div className="py-12 text-center">
+          <div className="text-[15px] font-bold tracking-tight">{t(uiLang, "browse_empty_title")}</div>
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-muted)] max-w-[36ch] mx-auto">{t(uiLang, "browse_empty_body")}</p>
+          <button onClick={clearAll} className="mt-3 text-xs underline text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">
             {t(uiLang, "clear_filters")}
           </button>
         </div>
@@ -1067,20 +984,16 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
       ) : (
 
-        /* ── FLAT LIST (filtered) ────────────────────────────────────────────── */
+        /* ── BROWSE LIST (prototype isBrowse): ALL STORIES · NEWEST FIRST +
+             a flat rail-card list (BriefRow). Filtered results, freshness order. */
         <>
-          <div className="flex flex-col gap-2.5">
-            {flatList.map((ev) => (
-              <FlatCard key={ev.id} event={ev} showLang={showLangChip} {...readState(ev)} />
-            ))}
+          <div className="flex items-center gap-2 mt-5 pb-1.5 border-b-2 border-[var(--ink)]">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">{browseHeading}</span>
+            <span className="ml-auto font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{t(uiLang, "newest_first")}</span>
           </div>
-          <p className="mt-6 text-center text-xs text-[var(--ink-muted)]">
-            {filtered.length} {filtered.length === 1 ? "story" : "stories"} matching your filter
-            {" · "}
-            <button onClick={clearAll} className="underline hover:text-[var(--ink)] transition-colors">
-              clear
-            </button>
-          </p>
+          {sorted.map((ev) => (
+            <BriefRow key={ev.id} event={ev} {...readState(ev)} />
+          ))}
         </>
       )}
 

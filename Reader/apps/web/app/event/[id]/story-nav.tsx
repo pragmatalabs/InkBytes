@@ -340,7 +340,7 @@ export default function StoryNav({
                   <span className="absolute top-1 -left-[21px] w-1.5 h-1.5 bg-[var(--border)]" aria-hidden />
                   {ti.at && (
                     <div suppressHydrationWarning className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)]">
-                      {relativeTime(ti.at)}
+                      {relativeTime(ti.at, lang)}
                     </div>
                   )}
                   <div className="text-[14.5px] leading-snug tracking-tight mt-1">{ti.headline}</div>
@@ -370,7 +370,7 @@ export default function StoryNav({
                   </div>
                   <div className="flex items-center gap-2.5 mt-1.5 text-[11px] text-[var(--ink-muted)]">
                     <span>{r.source_count} {t(lang, r.source_count === 1 ? "source_one" : "source_many")}</span>
-                    <span suppressHydrationWarning className="font-mono">{relativeTime(r.freshness_at)}</span>
+                    <span suppressHydrationWarning className="font-mono">{relativeTime(r.freshness_at, lang)}</span>
                     {r.language !== "en" && (
                       <span className="font-mono uppercase text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{r.language}</span>
                     )}

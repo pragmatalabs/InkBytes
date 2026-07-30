@@ -38,7 +38,8 @@ const DICT: Dict = {
   story_one:        { en: "story",   es: "historia" },
   story_many:       { en: "stories", es: "historias" },
   min_unit:         { en: "min",     es: "min" },
-  read_count:       { en: "read",    es: "leídas" },
+  read_one:         { en: "read",    es: "leída" },
+  read_many:        { en: "read",    es: "leídas" },
   read_tag:         { en: "READ",    es: "LEÍDO" },
   developing_now:   { en: "Developing now", es: "En desarrollo ahora" },
   the_briefing:     { en: "The briefing",   es: "El resumen" },
@@ -55,6 +56,10 @@ const DICT: Dict = {
   trending:         { en: "Trending",       es: "Tendencias" },
   topic_one:        { en: "topic",          es: "tema" },
   topic_many:       { en: "topics",         es: "temas" },
+  all_stories:      { en: "All stories",    es: "Todas las historias" },
+  newest_first:     { en: "Newest first",   es: "Más recientes" },
+  browse_empty_title: { en: "Nothing here yet.", es: "Aquí no hay nada todavía." },
+  browse_empty_body:  { en: "No events match that filter today. Try another theme, or clear the search.", es: "Ningún evento coincide con ese filtro hoy. Prueba otro tema o limpia la búsqueda." },
   top_story:        { en: "Top story",      es: "Historia principal" },
   more_stories:     { en: "More stories",   es: "Más historias" },
   regional:         { en: "Regional",       es: "Regional" },
@@ -134,6 +139,20 @@ export function t(lang: Lang, key: keyof typeof DICT, vars?: Record<string, stri
   let s = entry ? entry[lang] : String(key);
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
+}
+
+/** Spanish category labels (keyed by category key). EN labels come from the
+ *  caller's CATEGORIES list; only the ES side is mapped here. */
+const CAT_ES: Record<string, string> = {
+  all: "Todas", politics: "Política", business: "Negocios", technology: "Tecnología",
+  sports: "Deportes", health: "Salud", environment: "Clima", culture: "Cultura",
+  world: "Mundo", science: "Ciencia", entertainment: "Entretenimiento", crime: "Crimen",
+  education: "Educación", lifestyle: "Estilo", religion: "Religión", disaster: "Desastre",
+};
+
+/** Localized category chip label: ES from the map, else the passed EN label. */
+export function categoryLabel(lang: Lang, key: string, enLabel: string): string {
+  return lang === "es" ? CAT_ES[key] ?? enLabel : enLabel;
 }
 
 const NOUN_KEY: Record<string, keyof typeof DICT> = {

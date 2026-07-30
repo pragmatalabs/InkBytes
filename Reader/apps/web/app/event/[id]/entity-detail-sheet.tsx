@@ -126,7 +126,7 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
                     {detail.recent_events.map((ev) => (
                       <Link key={ev.id} href={`/event/${ev.id}`} onClick={onClose} className="py-3 group">
                         <p className="text-[13px] font-medium leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-2">{ev.headline}</p>
-                        <p suppressHydrationWarning className="text-[11px] text-[var(--ink-muted)] mt-1">{ev.source_count} {t(lang, ev.source_count === 1 ? "source_one" : "source_many")} · {relativeTime(ev.freshness_at)}</p>
+                        <p suppressHydrationWarning className="text-[11px] text-[var(--ink-muted)] mt-1">{ev.source_count} {t(lang, ev.source_count === 1 ? "source_one" : "source_many")} · {relativeTime(ev.freshness_at, lang)}</p>
                       </Link>
                     ))}
                   </div>
