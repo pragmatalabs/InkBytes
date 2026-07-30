@@ -11,7 +11,7 @@ import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
 import { ColumnMast, titleCase } from "@/components/column-mast";
 import { getRead } from "@/lib/read-state";
-import { loadOrCreateBriefing } from "@/lib/briefing-set";
+import { reconcileBriefing } from "@/lib/briefing-set";
 import { DailySplash } from "@/components/daily-splash";
 import EventCover from "@/components/event-cover";
 import RetryButton from "@/components/retry-button";
@@ -670,7 +670,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     // top-N (a genuinely tiny corpus never needs freezing).
     if (!briefing || sorted.length < BRIEFING_SIZE) return;
     const day = new Date().toISOString().slice(0, 10);
-    setBriefingIds(loadOrCreateBriefing(day, sorted.slice(0, BRIEFING_SIZE).map((e) => e.id)));
+    // Heal the frozen set against the live feed: keep stable survivors, backfill
+    // fresh top stories so it stays full instead of dwindling as the day's
+    // stories age out of the window (which collapsed the sections). Pass the
+    // full ranked id list so the backfill pool is the whole feed.
+    setBriefingIds(reconcileBriefing(day, sorted.map((e) => e.id), BRIEFING_SIZE));
   }, [briefing, sorted]);
 
   const briefingSet: EventSummary[] = briefing
@@ -711,7 +715,11 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // developing.
   const briefingMins = Math.max(1, Math.round(briefingTotal * 1.4));
   const briefingLeft = briefingTotal - briefingRead;
-  const devSet  = briefingSet.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 3);
+  // Only peel a "Developing now" lead off the top when there's still a briefing
+  // left underneath — a small set would otherwise land entirely in the lead and
+  // "The briefing" section would disappear (the bug on sparse/decayed days).
+  const canSplit = briefingTotal > 3;
+  const devSet  = canSplit ? briefingSet.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 3) : [];
   const devIds  = new Set(devSet.map((ev) => ev.id));
   const restSet = briefingSet.filter((ev) => !devIds.has(ev.id));
 
