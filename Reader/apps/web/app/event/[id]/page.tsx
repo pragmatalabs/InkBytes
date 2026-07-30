@@ -20,6 +20,25 @@ function firstSentence(text: string): string {
   return match ? match[0].trim() : text.slice(0, 160);
 }
 
+// ── Prototype isEvent helpers ─────────────────────────────────────────────────
+// Hashed outlet-avatar colours (mirrors feed-client), corroboration strength
+// (source-count → label + colour, same thresholds as the feed StrengthDot), and
+// a compact mono time ("2D", "41M") for the STARTED/UPDATED clock line.
+const OUTLET_COLORS = ["#1a1a2e", "#2d5282", "#276749", "#7b341e", "#553c9a", "#97266d", "#2c5f62", "#744210"];
+function outletColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return OUTLET_COLORS[Math.abs(h) % OUTLET_COLORS.length];
+}
+function corroboration(n: number): { label: string; color: string } {
+  return n >= 5 ? { label: "Strong corroboration", color: "#16a34a" }
+    : n >= 3 ? { label: "Moderate corroboration", color: "#d97706" }
+    : { label: "Limited corroboration", color: "#9ca3af" };
+}
+function shortAgo(iso: string): string {
+  return relativeTime(iso).replace(/\s*ago$/i, "").toUpperCase();
+}
+
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Metadata> {
@@ -99,6 +118,11 @@ export default async function EventPage(
   // Category accent — the drop cap, the sheet rail bars, the match bars.
   const accent = themeAccent(page.category);
 
+  // Prototype isEvent provenance: sources·quotes + corroboration + clock line.
+  const quotes = evidence.length;
+  const corrob = corroboration(page.source_count);
+  const catLabel = (page.category ?? page.topic ?? "").toUpperCase();
+
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Content-engagement analytics (Umami custom events) — no-op until configured */}
@@ -122,62 +146,65 @@ export default async function EventPage(
         share={<ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />}
       />
 
-      {/* Eyebrow — topic + developing + language. The developing dot now sits
-          above the headline (Stage 5); the old meta row + stat grid are gone. */}
-      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
-        {page.topic && (
-          <span className="px-2 py-0.5 rounded-full bg-gray-100 font-medium text-gray-700">
-            {page.topic}
-          </span>
-        )}
+      {/* Eyebrow (prototype isEvent): ● DEVELOPING (left) · CATEGORY (right). */}
+      <div className="flex items-center gap-2 mb-3">
         {developing && (
-          <span suppressHydrationWarning className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-[10px] text-red-600">
+          <span suppressHydrationWarning className="inline-flex items-center gap-1.5">
             <span className="developing-dot" aria-hidden="true" />
-            Developing
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-red-600">Developing</span>
           </span>
         )}
-        {page.language && page.language !== "en" && (
-          <span className="font-mono px-1.5 py-0.5 rounded bg-gray-100 uppercase text-[10px] tracking-wide text-[var(--ink-muted)]">
-            {page.language}
+        {catLabel && (
+          <span className="ml-auto font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ink-muted)]">
+            {catLabel}
           </span>
         )}
       </div>
 
-      {/* Headline — the first substantial content, above the fold (Stage 5). */}
-      <h1 className="text-[1.6rem] sm:text-[1.75rem] md:text-3xl font-bold leading-tight tracking-tight mb-4">
+      {/* Headline — heavy + tight (prototype isEvent: 29px/800/-.035em). */}
+      <h1 className="text-[28px] sm:text-[32px] font-extrabold leading-[1.08] tracking-[-0.035em] text-balance">
         {page.headline}
       </h1>
 
-      {/* Provenance row — avatars · sources · Started · Updated (informational).
-          The full source quotes open in the Evidence sheet (StoryNav tile below).
+      {/* Provenance row (prototype isEvent): avatars + sources·quotes +
+          corroboration strength + STARTED/UPDATED clock. Bordered top+bottom.
           suppressHydrationWarning: relativeTime uses Date.now() (server UTC vs
-          client local tz) — would otherwise throw React #418. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-8 text-xs text-[var(--ink-muted)]">
+          client local tz). */}
+      <div className="flex items-center gap-3 mt-4 mb-8 py-3 border-t border-b border-[var(--border)]">
         {outletNames.length > 0 && (
-          <span className="flex items-center">
-            {outletNames.map((name, i) => (
+          <span className="flex items-center shrink-0">
+            {outletNames.slice(0, 3).map((name, i) => (
               <span
                 key={i}
                 title={name}
-                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--accent)] text-white text-[8px] font-bold uppercase ring-2 ring-white"
-                style={{ marginLeft: i === 0 ? 0 : -5, zIndex: outletNames.length - i }}
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[7.5px] font-bold uppercase ring-2 ring-[var(--bg)]"
+                style={{ background: outletColor(name), marginLeft: i === 0 ? 0 : -6, zIndex: 3 - i }}
               >
                 {outletInitials(name)}
               </span>
             ))}
+            {page.source_count > 3 && (
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 text-gray-600 text-[7.5px] font-bold ring-2 ring-[var(--bg)]" style={{ marginLeft: -6 }}>
+                +{page.source_count - 3}
+              </span>
+            )}
           </span>
         )}
-        <span className="font-semibold text-[var(--ink)]">
-          {page.source_count} {page.source_count === 1 ? "source" : "sources"}
-        </span>
-        {page.occurred_at && (
-          <>
-            <span aria-hidden>·</span>
-            <span suppressHydrationWarning>Started {relativeTime(page.occurred_at)}</span>
-          </>
-        )}
-        <span aria-hidden>·</span>
-        <span suppressHydrationWarning>Updated {relativeTime(page.freshness_at)}</span>
+        <div className="leading-[1.35] min-w-0">
+          <div className="text-[12px] font-semibold text-[var(--ink)] tabular-nums">
+            {page.source_count} {page.source_count === 1 ? "source" : "sources"}
+            {quotes > 0 && ` · ${quotes} ${quotes === 1 ? "quote" : "quotes"}`}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: corrob.color }} aria-hidden />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: corrob.color }}>
+              {corrob.label} · {page.source_count} of {page.source_count}
+            </span>
+          </div>
+          <div suppressHydrationWarning className="font-mono text-[10.5px] text-[var(--ink-muted)] mt-0.5 uppercase tracking-[0.02em]">
+            {page.occurred_at && <>Started {shortAgo(page.occurred_at)} · </>}Updated {shortAgo(page.freshness_at)}
+          </div>
+        </div>
       </div>
 
       {/* Synthesis — the story, high on the page. Source Serif 4 body + a

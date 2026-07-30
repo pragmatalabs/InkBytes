@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { isSaved, toggleSaved, SAVED_EVENT } from "@/lib/saved-events";
+import { readBriefingIds } from "@/lib/briefing-set";
 
 /**
  * Event chrome (prototype `chromeEvent`): ← back · EN/ES reading-language toggle
@@ -33,12 +34,18 @@ export default function EventActionBar({
   alsoLanguages,
 }: Props) {
   const [saved, setSaved] = useState(false);
+  // Position within today's frozen briefing → "BRIEFING n/m" (prototype
+  // chromeEvent). null until mount (server render uses the `back` fallback).
+  const [briefPos, setBriefPos] = useState<{ n: number; total: number } | null>(null);
 
   useEffect(() => {
     const sync = () => setSaved(isSaved(eventId));
     sync();
     window.addEventListener(SAVED_EVENT, sync);
     window.addEventListener("storage", sync); // cross-tab
+    const ids = readBriefingIds();
+    const idx = ids.indexOf(eventId);
+    if (idx >= 0) setBriefPos({ n: idx + 1, total: ids.length });
     return () => {
       window.removeEventListener(SAVED_EVENT, sync);
       window.removeEventListener("storage", sync);
@@ -50,7 +57,17 @@ export default function EventActionBar({
 
   return (
     <div className="flex items-center justify-between mb-8">
-      {back}
+      {briefPos ? (
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          Briefing {briefPos.n}/{briefPos.total}
+        </Link>
+      ) : (
+        back
+      )}
 
       <div className="flex items-center gap-3">
         {/* Reading-language toggle */}

@@ -11,6 +11,19 @@
  */
 const KEY = "inkbytes:briefing";
 
+/** Read today's frozen briefing IDs (or [] if none / stale) — no side effects.
+ *  Used to show a story's "BRIEFING n/m" position on the event page. */
+export function readBriefingIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    return saved && Array.isArray(saved.ids) ? (saved.ids as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Return today's frozen set if present, else freeze `candidateIds` and return them. */
 export function loadOrCreateBriefing(day: string, candidateIds: string[]): string[] {
   if (typeof window === "undefined") return candidateIds;
