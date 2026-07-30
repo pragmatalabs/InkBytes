@@ -59,12 +59,29 @@ export default function NavMenu() {
 
   const pickLang = (l: Lang) => { setLang(l); setLangState(l); };
   const label = labelFor(pathname);
+  // The event page carries its own EN/ES (EventActionBar) — don't double it.
+  const isEvent = /^\/event\//.test(pathname);
 
   return (
     <>
       <div className="flex items-center gap-3">
         {label && (
           <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</span>
+        )}
+        {!isEvent && (
+          <div className="flex border border-white/30">
+            {(["en", "es"] as Lang[]).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => pickLang(l)}
+                aria-pressed={lang === l}
+                className={`font-mono text-[10px] font-bold px-2 py-1 leading-none transition-colors ${lang === l ? "bg-white text-[var(--accent)]" : "text-white/60 hover:text-white"}`}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
         )}
         <button
           type="button"

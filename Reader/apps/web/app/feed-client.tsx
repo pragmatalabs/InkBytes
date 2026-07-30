@@ -452,35 +452,56 @@ const CAT_KEY  = "inkbytes-cat";
 
 const LANG_LABELS: Record<Lang, string> = { all: "All", en: "EN", es: "ES" };
 
-// ── Developing-now rail (Slice C1a) ───────────────────────────────────────────
-// A quick-scan horizontal strip of the fastest-moving stories, at the top of the
-// briefing. Compact cards; taps open the event.
-function DevelopingRail({ items }: { items: EventSummary[] }) {
-  if (items.length === 0) return null;
+// ── Brief row (Reader-prototype isBrief style) ────────────────────────────────
+// Uniform text card: category rail + heavy headline + mono meta (sources · time,
+// or "READ" when read). Optional outlet avatars (Developing rows). Read → dim.
+function BriefRow({ event, showAvatars = false, read = false, updated = false }: {
+  event: EventSummary; showAvatars?: boolean; read?: boolean; updated?: boolean;
+}) {
   return (
-    <div className="mb-7">
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className="developing-dot shrink-0" aria-hidden="true" />
-        <span className="text-[11px] font-bold uppercase tracking-widest text-red-600">Developing now</span>
-        <span className="text-[11px] text-[var(--ink-muted)]">— {items.length}</span>
-      </div>
-      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
-        <div className="flex gap-2.5 flex-nowrap pb-1">
-          {items.map((ev) => (
-            <Link
-              key={ev.id}
-              href={`/event/${ev.id}`}
-              style={{ borderLeftColor: themeAccent(ev.category) }}
-              className="shrink-0 w-56 bg-white border border-[var(--border)] border-l-[3px] rounded-lg p-3 hover:shadow-md hover:border-gray-300 transition-all"
-            >
-              <p className="text-[13px] font-semibold leading-snug tracking-tight line-clamp-3">{ev.headline}</p>
-              <p className="mt-2 text-[11px] text-[var(--ink-muted)]">
-                {ev.source_count} {ev.source_count === 1 ? "source" : "sources"} · <TimeAgo iso={ev.freshness_at} />
-              </p>
-            </Link>
-          ))}
+    <Link
+      href={`/event/${event.id}`}
+      className={`grid grid-cols-[4px_1fr] gap-3.5 py-3.5 border-b border-[var(--border)] group transition-colors hover:bg-[#f4f3f0] -mx-2 px-2 ${read && !updated ? "opacity-50" : ""}`}
+    >
+      <i className="block rounded-sm" style={{ background: themeAccent(event.category) }} />
+      <div className="min-w-0">
+        <div className={`${showAvatars ? "text-[17px]" : "text-[16px]"} font-bold leading-[1.25] tracking-[-0.02em] text-balance group-hover:text-[var(--accent)] transition-colors`}>
+          {event.headline}
+        </div>
+        <div className="flex items-center gap-2.5 mt-2">
+          {showAvatars && (
+            <span className="flex items-center">
+              {(event.outlet_names ?? []).slice(0, 4).map((name, i) => (
+                <span
+                  key={i}
+                  title={name}
+                  className="inline-flex items-center justify-center rounded-full text-white ring-2 ring-[var(--bg)]"
+                  style={{ width: 17, height: 17, fontSize: 6.5, fontWeight: 700, background: colorFor(name), marginLeft: i === 0 ? 0 : -5, zIndex: 4 - i }}
+                >
+                  {outletInitials(name)}
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="text-[11.5px] text-[var(--ink-muted)] tabular-nums">
+            {event.source_count} {event.source_count === 1 ? "source" : "sources"}
+          </span>
+          <span className="ml-auto font-mono text-[11.5px] text-[var(--ink-muted)] tabular-nums">
+            {read && !updated ? "READ" : <TimeAgo iso={event.freshness_at} />}
+          </span>
         </div>
       </div>
+    </Link>
+  );
+}
+
+// ── Section rule (mono label + count, strong ink underline) ───────────────────
+function BriefSection({ label, count, accent = false }: { label: string; count: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 mt-7 pb-1.5 border-b-2 border-[var(--ink)]">
+      {accent && <span className="developing-dot shrink-0" aria-hidden="true" />}
+      <span className={`font-mono text-[11px] font-bold uppercase tracking-[0.12em] ${accent ? "text-red-600" : "text-[var(--ink)]"}`}>{label}</span>
+      <span className="ml-auto font-mono text-[11px] font-bold text-[var(--ink-muted)] tabular-nums">{count}</span>
     </div>
   );
 }
@@ -603,14 +624,21 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
   const showLangChip = lang === "all";
 
-  // Date rendered only on client to avoid hydration mismatch
+  // Date rendered only on client to avoid hydration mismatch. `brief` holds the
+  // prototype dateline ("TUE · 28 JUL 2026 · 07:10") + weekday for the title.
   const [today, setToday] = useState("");
+  const [brief, setBrief] = useState({ dateline: "", weekday: "" });
   useEffect(() => {
-    setToday(
-      new Date().toLocaleDateString("en-US", {
-        weekday: "long", month: "long", day: "numeric", year: "numeric",
-      }),
-    );
+    const d = new Date();
+    setToday(d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
+    const wds = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+    const mon = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+    const day = String(d.getDate()).padStart(2, "0");
+    const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    setBrief({
+      dateline: `${wds} · ${day} ${mon} ${d.getFullYear()} · ${time}`,
+      weekday: d.toLocaleDateString("en-US", { weekday: "long" }),
+    });
   }, []);
 
   // ── Editorial tiers ──────────────────────────────────────────────────────
@@ -666,11 +694,17 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // mount — the same hydration-safe order the card dimming uses (no #418).
   const briefingTotal  = briefingSet.length;
   const briefingRead   = briefingSet.filter((ev) => readState(ev).read).length;
-  const briefingPct    = briefingTotal ? Math.round((briefingRead / briefingTotal) * 100) : 0;
   const briefingCaught = briefingTotal > 0 && briefingRead === briefingTotal;
 
-  // Developing-now rail: the fastest-moving stories (briefing home only).
-  const developingNow  = briefing ? sorted.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 8) : [];
+  // Prototype isBrief split: the finite set → a small "Developing now" lead
+  // (cap ~3, most-recent breaking) + "The briefing" (everything else). Capping
+  // keeps both sections populated even when the freshness gate marks many as
+  // developing.
+  const briefingMins = Math.max(1, Math.round(briefingTotal * 1.4));
+  const briefingLeft = briefingTotal - briefingRead;
+  const devSet  = briefingSet.filter((ev) => isDeveloping(ev.freshness_at)).slice(0, 3);
+  const devIds  = new Set(devSet.map((ev) => ev.id));
+  const restSet = briefingSet.filter((ev) => !devIds.has(ev.id));
 
   // Category tabs: only show categories present in the full events list
   const availableCats = useMemo(() => {
@@ -690,51 +724,45 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       {briefing && <DailySplash events={events} />}
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-[var(--ink-muted)] mb-1">
-            {today}
-          </p>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">
-            {briefing ? "Today’s briefing" : "Browse"}
-          </h1>
-          {/* Trimmed subtitle — returning readers don't need the tagline daily.
-              Just the count + a live "updated" state. */}
-          <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-            {events.length > 0
-              ? briefing
-                ? `${briefingTotal} ${briefingTotal === 1 ? "story" : "stories"} · a finite read`
-                : `${events.length} stories`
-              : "No stories yet"}
-          </p>
-        </div>
-
-        {/* Right of the title: only the Outlook pulse — small enough that the
-            date + "Today's events" never wrap. The language toggle moved to the
-            search row (a filter, next to the other filters). */}
-        <Link
-          href="/outlook"
-          aria-label="Today's Outlooks"
-          title="Today's Outlooks"
-          className="outlook-pulse relative grid place-items-center w-9 h-9 rounded-full text-[var(--accent)] hover:bg-[var(--accent)]/8 transition-colors shrink-0 self-start"
-        >
-          <OutlookIcon className="w-5 h-5" />
-        </Link>
-      </div>
-
-      {/* ── Briefing progress (Slice C1a) — how much of today's finite briefing
-          you've read; fills to "✓ Caught up". Unfiltered view only. ─────────── */}
-      {briefing && !error && briefingTotal > 0 && (
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500"
-              style={{ width: `${briefingPct}%` }}
-            />
+      {briefing ? (
+        /* Prototype isBrief: mono dateline + big weekday title + stories·min·read
+           + a segmented progress strip (one bar per story, filled when read). */
+        <div className="mb-1">
+          <div suppressHydrationWarning className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
+            {brief.dateline || " "}
           </div>
-          <span className="text-[11px] font-medium text-[var(--ink-muted)] tabular-nums whitespace-nowrap">
-            {briefingCaught ? "✓ Caught up" : `${briefingRead} of ${briefingTotal} read`}
-          </span>
+          <h1 className="mt-2 text-[30px] sm:text-[33px] font-extrabold tracking-[-0.035em] leading-[1.03] text-balance text-[var(--ink)]">
+            {brief.weekday ? `${brief.weekday}’s briefing` : "Today’s briefing"}
+          </h1>
+          {events.length > 0 && briefingTotal > 0 && (
+            <>
+              <div className="mt-2.5 flex items-baseline gap-2 text-[12px] font-medium text-[var(--ink-muted)] tabular-nums">
+                <span>{briefingTotal} {briefingTotal === 1 ? "story" : "stories"}</span>
+                <span aria-hidden>·</span>
+                <span>≈{briefingMins} min</span>
+                <span aria-hidden>·</span>
+                <span className="text-[var(--ink)] font-bold">{briefingRead} read</span>
+              </div>
+              <div className="mt-3.5 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${briefingTotal}, minmax(0,1fr))` }}>
+                {briefingSet.map((ev) => (
+                  <i key={ev.id} className="h-[3px]" style={{ background: readState(ev).read ? "var(--accent)" : "var(--border)" }} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-widest text-[var(--ink-muted)] mb-1">{today}</p>
+            <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">Browse</h1>
+            <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+              {events.length > 0 ? `${events.length} stories` : "No stories yet"}
+            </p>
+          </div>
+          <Link href="/outlook" aria-label="Today's Outlooks" title="Today's Outlooks" className="outlook-pulse relative grid place-items-center w-9 h-9 rounded-full text-[var(--accent)] hover:bg-[var(--accent)]/8 transition-colors shrink-0 self-start">
+            <OutlookIcon className="w-5 h-5" />
+          </Link>
         </div>
       )}
 
@@ -914,11 +942,57 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
       ) : useEditorial ? (
 
-        /* ── EDITORIAL LAYOUT ───────────────────────────────────────────────── */
-        <div className="space-y-7">
+        briefing ? (
 
-          {/* ── Developing now — fast-moving stories, quick-scan rail (C1a) ──── */}
-          <DevelopingRail items={developingNow} />
+          /* ── BRIEFING (Reader-prototype isBrief) — mono lists, no big cover ── */
+          <div>
+            {devSet.length > 0 && (
+              <>
+                <BriefSection label="Developing now" count={devSet.length} accent />
+                {devSet.map((ev) => (
+                  <BriefRow key={ev.id} event={ev} showAvatars {...readState(ev)} />
+                ))}
+              </>
+            )}
+
+            {restSet.length > 0 && (
+              <>
+                <BriefSection label="The briefing" count={`${briefingLeft} left`} />
+                {restSet.map((ev) => (
+                  <BriefRow key={ev.id} event={ev} {...readState(ev)} />
+                ))}
+              </>
+            )}
+
+            {/* Today's Outlook — the day's lead editorial column */}
+            {outlookLead && <div className="mt-5"><OutlookCard entry={outlookLead} /></div>}
+
+            {/* Caught-up end-state + Browse-all */}
+            <div className="mt-8 flex flex-col items-center gap-3 text-center">
+              {briefingCaught && (
+                <>
+                  <span className="grid place-items-center w-11 h-11 rounded-full bg-[#16a34a] text-white text-xl font-bold" aria-hidden>✓</span>
+                  <div className="text-[17px] font-bold tracking-tight">You&rsquo;re caught up</div>
+                  <p className="text-[13px] text-[var(--ink-muted)] max-w-[28ch] leading-relaxed">
+                    That&rsquo;s today&rsquo;s briefing. New stories arrive through the day — or browse everything now.
+                  </p>
+                </>
+              )}
+              {events.length > briefingTotal && (
+                <Link
+                  href="/browse"
+                  className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 border border-[var(--ink)] rounded-full text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
+                >
+                  Browse all stories →
+                </Link>
+              )}
+            </div>
+          </div>
+
+        ) : (
+
+        /* ── EDITORIAL LAYOUT (browse) ──────────────────────────────────────── */
+        <div className="space-y-7">
 
           {/* ── Lead ────────────────────────────────────────────────────────── */}
           {lead && (
@@ -943,12 +1017,9 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {/* ── Stream ──────────────────────────────────────────────────────── */}
           {stream.length > 0 && (
             <div>
-              <SectionHeader title={briefing ? "More in today’s briefing" : "More stories"} count={briefing ? undefined : stream.length} />
+              <SectionHeader title="More stories" count={stream.length} />
               <div>
                 {streamVisible.map((ev, idx) => {
-                  // Insert a "Regional" section divider before the first event
-                  // that has no global-outlet coverage (ADR-0017). Rendered once,
-                  // keyed off the precomputed firstRegionalIdx.
                   const isFirstRegional = idx === firstRegionalIdx;
                   return (
                     <Fragment key={ev.id}>
@@ -962,38 +1033,20 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   );
                 })}
               </div>
-              {briefing ? (
-                <div className="mt-7 flex flex-col items-center gap-3 text-center">
-                  {briefingCaught && (
-                    <>
-                      <span className="grid place-items-center w-11 h-11 rounded-full bg-[#16a34a] text-white text-xl font-bold animate-none" aria-hidden>✓</span>
-                      <div className="text-[17px] font-bold tracking-tight">You&rsquo;re caught up</div>
-                      <p className="text-[13px] text-[var(--ink-muted)] max-w-[28ch] leading-relaxed">
-                        That&rsquo;s today&rsquo;s briefing. New stories arrive through the day — or browse everything now.
-                      </p>
-                    </>
-                  )}
-                  {events.length > briefingTotal && (
-                    <Link
-                      href="/browse"
-                      className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 border border-[var(--ink)] rounded-full text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
-                    >
-                      Browse all stories →
-                    </Link>
-                  )}
-                </div>
-              ) : streamHidden > 0 ? (
+              {streamHidden > 0 && (
                 <button
                   onClick={() => setStreamExpanded(true)}
                   className="mt-4 w-full py-2.5 text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)] border border-[var(--border)] rounded-lg hover:border-gray-400 transition-colors"
                 >
                   Show all {streamHidden} more {streamHidden === 1 ? "story" : "stories"}
                 </button>
-              ) : null}
+              )}
             </div>
           )}
 
         </div>
+
+        )
 
       ) : (
 
