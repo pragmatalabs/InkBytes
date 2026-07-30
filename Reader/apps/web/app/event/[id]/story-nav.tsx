@@ -67,6 +67,19 @@ const HEADS: Record<SheetKey, string> = {
   related: "Related",
 };
 
+// Colored entity avatars (prototype "Entities in this story") + friendly type
+// nouns. Event-page entities carry only name+type, so the row meta is the type;
+// tapping deep-links to the full entity profile (stories/connections) in /graph.
+const ENTITY_PALETTE = ["#5b6472", "#276749", "#2c5f62", "#7b341e", "#553c9a", "#97266d", "#2d5282", "#744210"];
+function entityColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return ENTITY_PALETTE[Math.abs(h) % ENTITY_PALETTE.length];
+}
+const ENTITY_NOUN: Record<string, string> = {
+  PERSON: "Person", ORG: "Organisation", LOC: "Place", EVENT: "Event", OTHER: "Topic",
+};
+
 // ── Bottom sheet shell ─────────────────────────────────────────────────────────
 
 function Sheet({
@@ -74,12 +87,16 @@ function Sheet({
   count,
   onClose,
   children,
+  title,
 }: {
   which: SheetKey;
   count: number;
   onClose: () => void;
   children: React.ReactNode;
+  /** Overrides the default header label (e.g. "Entities in this story"). */
+  title?: string;
 }) {
+  const heading = title ?? HEADS[which];
   return (
     <>
       {/* Scrim */}
@@ -94,15 +111,15 @@ function Sheet({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={HEADS[which]}
+          aria-label={heading}
           className="sheet-enter w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-white border-t-2 border-[var(--ink)] shadow-[0_-18px_40px_rgba(10,10,15,0.28)] px-5 pt-2.5 pb-8 safe-bottom"
         >
           {/* grabber */}
           <div className="w-10 h-1 rounded-full bg-[var(--border)] mx-auto mb-3.5" aria-hidden />
           <div className="flex items-center gap-2.5 pb-2.5 border-b-2 border-[var(--ink)]">
             <span className="text-[var(--ink)]">{ICONS[which]}</span>
-            <span className="font-mono text-[12px] font-bold uppercase tracking-[0.12em]">{HEADS[which]}</span>
-            <span className="font-mono text-[12px] font-bold text-[var(--ink-muted)] tabular-nums">{count}</span>
+            <span className="font-mono text-[12px] font-bold uppercase tracking-[0.12em]">{heading}</span>
+            <span className="font-mono text-[12px] font-bold text-[var(--ink-muted)] tabular-nums">· {count}</span>
             <button
               type="button"
               onClick={onClose}
@@ -275,24 +292,32 @@ export default function StoryNav({
         </Sheet>
       )}
 
-      {/* ── Entities ──────────────────────────────────────────────────────── */}
+      {/* ── Entities in this story (prototype isEntsDrawer) ──────────────────── */}
       {open === "entities" && (
-        <Sheet which="entities" count={entities.length} onClose={close}>
+        <Sheet which="entities" count={entities.length} onClose={close} title="Entities in this story">
           {entities.map((e, i) => (
-            <div key={i} className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-[var(--accent)] text-white text-[11px] font-extrabold shrink-0">
+            <Link
+              key={i}
+              href={`/entities?e=${encodeURIComponent(e.name.toLowerCase())}`}
+              onClick={close}
+              className="flex items-center gap-3 py-3 border-b border-[var(--border)] group"
+            >
+              <span
+                className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-[11px] font-extrabold shrink-0"
+                style={{ background: entityColor(e.name) }}
+              >
                 {outletInitials(e.name)}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-[14.5px] font-bold tracking-tight truncate">{e.name}</div>
-                {e.type && (
-                  <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--ink-muted)]">{e.type}</div>
-                )}
+                <div className="text-[15px] font-bold tracking-tight truncate group-hover:text-[var(--accent)] transition-colors">{e.name}</div>
+                {e.type && <div className="text-[12px] text-[var(--ink-muted)]">{ENTITY_NOUN[e.type] ?? "Topic"}</div>}
               </div>
-            </div>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#9a9a9a" strokeWidth="2" className="shrink-0"><polyline points="9 6 15 12 9 18" /></svg>
+            </Link>
           ))}
           <Link
             href="/entities"
+            onClick={close}
             className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)] hover:underline"
           >
             Explore the entity graph

@@ -116,55 +116,6 @@ function EntityAvatar({ node, iconClass, flagClass }:
   return <span className={`${flagClass} font-bold`} aria-hidden>{initialsOf(node.label)}</span>;
 }
 
-// ── Static radial relationship preview (no physics) ─────────────────────────
-
-function MiniGraph({
-  node, neighbors, onSelect,
-}: {
-  node: GraphNode;
-  neighbors: { n: GraphNode; w: number }[];
-  onSelect: (id: string) => void;
-}) {
-  const shown = neighbors.slice(0, 6);
-  if (shown.length === 0) return null;
-  const W = 340, H = 210, cx = W / 2, cy = H / 2, R = 78;
-  const maxW = Math.max(...shown.map((x) => x.w), 1);
-  const center = TYPE_META[node.type] ?? TYPE_META.OTHER;
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none" role="img"
-      aria-label={`Entities most connected to ${node.label}`}>
-      {shown.map(({ n, w }, i) => {
-        const ang = -Math.PI / 2 + (i / shown.length) * Math.PI * 2;
-        const x = cx + Math.cos(ang) * R;
-        const y = cy + Math.sin(ang) * R * 0.82;
-        const meta = TYPE_META[n.type] ?? TYPE_META.OTHER;
-        const label = n.label.length > 16 ? `${n.label.slice(0, 15)}…` : n.label;
-        return (
-          <g key={n.id} onClick={() => onSelect(n.id)} style={{ cursor: "pointer" }}>
-            <line x1={cx} y1={cy} x2={x} y2={y}
-              stroke="#d4d4d8" strokeWidth={1 + (w / maxW) * 2.2} strokeOpacity={0.8} />
-            <circle cx={x} cy={y} r={13} fill="#fff" stroke={meta.color} strokeWidth="2" />
-            <circle cx={x} cy={y} r={4} fill={meta.color} />
-            <text x={x} y={y > cy ? y + 26 : y - 19} textAnchor="middle" fontSize="10.5" fontWeight="600"
-              fill="var(--ink)" paintOrder="stroke" stroke="var(--bg)" strokeWidth="3" strokeLinejoin="round">
-              {label}
-            </text>
-            <text x={x} y={y > cy ? y + 37 : y - 8} textAnchor="middle" fontSize="8.5"
-              fill="var(--ink-muted)" paintOrder="stroke" stroke="var(--bg)" strokeWidth="3">
-              {w} shared
-            </text>
-          </g>
-        );
-      })}
-      {/* Centre node on top */}
-      <circle cx={cx} cy={cy} r={21} fill={center.color} stroke="#fff" strokeWidth="3" />
-      <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="9.5" fontWeight="700" fill="#fff">
-        {node.label.length > 9 ? `${node.label.slice(0, 8)}…` : node.label}
-      </text>
-    </svg>
-  );
-}
-
 // ── Entity details bottom sheet ──────────────────────────────────────────────
 
 function EntitySheet({
@@ -180,6 +131,11 @@ function EntitySheet({
   const pages = [...node.pages].sort(
     (a, b) => new Date(b.freshness_at).getTime() - new Date(a.freshness_at).getTime(),
   );
+  // "Today" stat (prototype entOpen) — events touched in the last 24h. From the
+  // capped `pages` (PAGES_PER_NODE), so it's a floor for very active entities.
+  const todayCount = node.pages.filter(
+    (p) => Date.now() - new Date(p.freshness_at).getTime() < 86_400_000,
+  ).length;
 
   // Lock page scroll behind the sheet; restore on close/unmount.
   useEffect(() => {
@@ -239,40 +195,25 @@ function EntitySheet({
         </div>
 
         <div className="px-5 py-4 flex flex-col gap-5 pb-8">
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-xl border border-[var(--border)] px-3.5 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">Stories</p>
-              <p className="text-lg font-bold tabular-nums">{node.event_count}</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] px-3.5 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">Connections</p>
-              <p className="text-lg font-bold tabular-nums">{deg}</p>
-            </div>
+          {/* Stats — 3-up (prototype entOpen): value over mono label, 1px rules */}
+          <div className="grid grid-cols-3 gap-px bg-[var(--border)] border border-[var(--border)] rounded-xl overflow-hidden">
+            {([["Stories", node.event_count], ["Links", deg], ["Today", todayCount]] as const).map(([label, val]) => (
+              <div key={label} className="bg-white px-3 py-3">
+                <p className="text-xl font-bold tabular-nums leading-none">{val}</p>
+                <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-muted)] mt-1.5">{label}</p>
+              </div>
+            ))}
           </div>
 
           <FollowEntityButton node={node} />
 
-          {/* Relationship preview */}
-          {neighbors.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1.5">
-                Entity relationships
-              </p>
-              <div className="rounded-xl border border-[var(--border)] px-2 py-1"
-                style={{ background: "radial-gradient(circle at 1px 1px, rgba(20,22,28,.05) 1px, transparent 0) 0 0 / 22px 22px, #fff" }}>
-                <MiniGraph node={node} neighbors={neighbors} onSelect={onSelect} />
-              </div>
-            </div>
-          )}
-
-          {/* Coverage — pages are pre-trimmed server-side to the freshest N
-              (see PAGES_PER_NODE in page.tsx); event_count is the true total. */}
+          {/* Recent events — pages pre-trimmed server-side to the freshest N
+              (PAGES_PER_NODE in page.tsx); event_count is the true total. */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1">
-              Appears in
+              Recent events
               {node.event_count > pages.length && (
-                <span className="normal-case tracking-normal font-normal"> — {pages.length} most recent of {node.event_count}</span>
+                <span className="normal-case tracking-normal font-normal"> — {pages.length} of {node.event_count}</span>
               )}
             </p>
             <div className="flex flex-col divide-y divide-[var(--border)]">
@@ -293,7 +234,7 @@ function EntitySheet({
           {neighbors.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-2">
-                Connected entities
+                Connections
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {neighbors.map(({ n }) => {
@@ -336,8 +277,14 @@ export default function EntityBrowser({
   // a useSearchParams Suspense boundary.
   useEffect(() => {
     const e = new URLSearchParams(window.location.search).get("e");
-    if (e && nodeMap.has(e)) setSelected(e);
-  }, [nodeMap]);
+    if (!e) return;
+    const key = e.toLowerCase();
+    if (nodeMap.has(key)) { setSelected(key); return; }
+    // Fall back to a case-insensitive id/label match — the event page links by
+    // name.toLowerCase(), which may not equal the graph's stored node id.
+    const hit = nodes.find((n) => n.id.toLowerCase() === key || n.label.toLowerCase() === key);
+    if (hit) setSelected(hit.id);
+  }, [nodeMap, nodes]);
 
   // Weighted adjacency: neighbor lists sorted by shared-story count.
   const { adjW, deg } = useMemo(() => {
