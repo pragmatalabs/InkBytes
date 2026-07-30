@@ -6,14 +6,12 @@ import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials } from "@/lib/api";
 import { useLang } from "@/lib/prefs";
 import { t, categoryLabel } from "@/lib/i18n";
-import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/types";
-import { CategoryIcon, OutlookIcon } from "@/components/icons";
+import type { EventSummary, OutlookArchiveEntry } from "@/lib/types";
 import { themeAccent } from "@/lib/theme-colors";
 import { ColumnMast, titleCase } from "@/components/column-mast";
 import { getRead } from "@/lib/read-state";
 import { reconcileBriefing } from "@/lib/briefing-set";
 import { DailySplash } from "@/components/daily-splash";
-import EventCover from "@/components/event-cover";
 import RetryButton from "@/components/retry-button";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -28,7 +26,6 @@ type Category = "all" | "politics" | "business" | "technology" | "sports"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const STREAM_INITIAL = 60;  // stream rows shown before "show more"
 // "A briefing, not a feed" (Slice C1a): the top N ranked events are today's
 // briefing — a finite set the read-progress bar tracks. The rest of the feed
 // stays browsable below (the full finite/Browse split is Slice C-B).
@@ -80,26 +77,6 @@ function importance(ev: EventSummary): number {
   return new Date(lastUpdate(ev)).getTime() + bonus;
 }
 
-// Left-accent border color per theme for the trending pills (ADR-0027 6b).
-const TREND_ACCENT: Record<string, string> = {
-  politics:    "border-l-red-500",
-  business:    "border-l-blue-500",
-  technology:  "border-l-violet-500",
-  sports:      "border-l-green-500",
-  health:      "border-l-pink-500",
-  environment: "border-l-emerald-500",
-  culture:     "border-l-amber-500",
-  world:       "border-l-gray-400",
-  // ADR-0032 item 1 — 7 added themes (match CAT_STYLES hues at -500).
-  science:       "border-l-cyan-500",
-  entertainment: "border-l-fuchsia-500",
-  crime:         "border-l-slate-500",
-  education:     "border-l-indigo-500",
-  lifestyle:     "border-l-teal-500",
-  religion:      "border-l-yellow-500",
-  disaster:      "border-l-orange-500",
-};
-
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
 const OUTLET_COLORS = [
@@ -115,109 +92,6 @@ function colorFor(name: string): string {
 
 // ── Shared atoms ──────────────────────────────────────────────────────────────
 
-function AvatarStack({ outlets, count, size = 20 }: { outlets: string[]; count: number; size?: number }) {
-  const shown = outlets.slice(0, 5);
-  const extra = count - shown.length;
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="flex items-center">
-        {shown.map((name, i) => (
-          <span
-            key={i}
-            title={name}
-            className="inline-flex items-center justify-center rounded-full text-white ring-2 ring-white"
-            style={{
-              width: size, height: size,
-              fontSize: Math.round(size * 0.36), fontWeight: 700,
-              background: colorFor(name),
-              marginLeft: i === 0 ? 0 : -Math.round(size * 0.3),
-              zIndex: shown.length - i,
-            }}
-          >
-            {outletInitials(name)}
-          </span>
-        ))}
-        {extra > 0 && (
-          <span
-            className="inline-flex items-center justify-center rounded-full bg-gray-300 text-gray-600 ring-2 ring-white"
-            style={{ width: size, height: size, fontSize: Math.round(size * 0.36), fontWeight: 700, marginLeft: -Math.round(size * 0.3) }}
-          >
-            +{extra}
-          </span>
-        )}
-      </span>
-      <span className="text-xs text-[var(--ink-muted)] font-medium tabular-nums">
-        {count} {count === 1 ? "source" : "sources"}
-      </span>
-    </span>
-  );
-}
-
-function DevelopingBadge() {
-  const lang = useLang();
-  return (
-    <span suppressHydrationWarning className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-red-600">
-      <span className="developing-dot" aria-hidden="true" />
-      {t(lang, "developing")}
-    </span>
-  );
-}
-
-// "Updated since you last read this" (Stage 6). Accent (navy), NOT red — the
-// developing dot stays the only red in the app (Stage 2b).
-function UpdatedBadge() {
-  const lang = useLang();
-  return (
-    <span
-      suppressHydrationWarning
-      title={t(lang, "updated_since")}
-      className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--accent)]"
-    >
-      <span className="h-[6px] w-[6px] rounded-full bg-[var(--accent)]" aria-hidden="true" />
-      {t(lang, "updated")}
-    </span>
-  );
-}
-
-function LangChip({ lang }: { lang: string }) {
-  return (
-    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wide">
-      {lang}
-    </span>
-  );
-}
-
-// ADR-0037: "also in {lang}" opens the same story's other-language page(s).
-// Shown only in the "All" view (where cross-language duplicates are collapsed).
-// NOT a <Link>: every AlsoIn renders inside a card that is itself an <a>, and
-// nested anchors are invalid HTML — browsers DOM-correct them unpredictably and
-// React logs a hydration error on every card. A button + router.push navigates
-// identically without the nesting; stopPropagation/preventDefault keep the tap
-// from also following the card's own link.
-function AlsoIn({ also }: { also?: Record<string, string> }) {
-  const router = useRouter();
-  const entries = Object.entries(also ?? {});
-  if (entries.length === 0) return null;
-  return (
-    <>
-      {entries.map(([lng, id]) => (
-        <button
-          key={lng}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            router.push(`/event/${id}`);
-          }}
-          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--accent)]/8 text-[var(--accent)] uppercase tracking-wide hover:underline cursor-pointer"
-          title={`Also covered in ${lng.toUpperCase()}`}
-        >
-          also {lng}
-        </button>
-      ))}
-    </>
-  );
-}
 
 /**
  * Relative timestamp ("29m ago"). relativeTime() uses Date.now(), so the
@@ -232,35 +106,12 @@ function TimeAgo({ iso }: { iso: string }) {
   return <span suppressHydrationWarning>{relativeTime(iso, lang)}</span>;
 }
 
-function StrengthDot({ count, developing }: { count: number; developing: boolean }) {
-  if (developing) return <span className="developing-dot shrink-0" aria-hidden="true" />;
-  const color =
-    count >= 5 ? "#16a34a" :
-    count >= 3 ? "#d97706" :
-                 "#9ca3af";
-  return (
-    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />
-  );
-}
 
 // ── LEAD card ─────────────────────────────────────────────────────────────────
 
 // ── Section header (Outlook grammar, Stage 2c) ────────────────────────────────
 // Quiet 16px title + optional count + flush-right action. Replaces the old
 // red-dot / tiny-uppercase feed section labels with the same grammar Outlook uses.
-function SectionHeader({ title, count, action }: { title: string; count?: number; action?: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 mb-3">
-      <h2 className="text-base font-semibold tracking-tight text-[var(--ink)]">
-        {title}
-        {count != null && (
-          <span className="ml-2 text-sm font-normal text-[var(--ink-muted)] tabular-nums">· {count.toLocaleString("en-US")}</span>
-        )}
-      </h2>
-      {action}
-    </div>
-  );
-}
 
 // ── Outlook card (Stage 2c) ───────────────────────────────────────────────────
 // Surfaces the day's lead editorial column in the feed — the best content, which
@@ -289,158 +140,20 @@ function OutlookCard({ entry }: { entry: OutlookArchiveEntry & { lang: string } 
 
 // ── LEAD card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
-  const developing = isDeveloping(lastUpdate(event));
-  return (
-    <Link
-      href={`/event/${event.id}`}
-      style={{ borderLeftColor: themeAccent(event.category) }}
-      className={`group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-lg hover:border-r-gray-200 hover:border-t-gray-200 hover:border-b-gray-200 transition-all ${read && !updated ? "opacity-[.42]" : ""}`}
-    >
-      {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
-      <EventCover id={event.id} category={event.category} cover={event.cover_image}
-        className="w-full h-48 sm:h-56 group-hover:scale-[1.02] transition-transform duration-300" />
-      <div className="p-6 sm:p-8">
-        <div className="flex flex-wrap items-center gap-2 mb-4 empty:hidden">
-          {updated ? <UpdatedBadge /> : developing && <DevelopingBadge />}
-          {showLang && event.language !== "en" && <LangChip lang={event.language} />}
-        {showLang && <AlsoIn also={event.also_languages} />}
-        </div>
-        <h2
-          className="text-[1.5rem] sm:text-[1.75rem] font-extrabold leading-tight tracking-tight group-hover:text-[var(--accent)] transition-colors mb-2"
-          style={{ textWrap: "balance" } as React.CSSProperties}
-        >
-          {event.headline}
-        </h2>
-        {event.topic && (
-          <p className="text-xs text-[var(--ink-muted)] italic mb-5 line-clamp-1">{event.topic}</p>
-        )}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={22} />
-          <div className="text-xs text-[var(--ink-muted)]">
-            <TimeAgo iso={lastUpdate(event)} />
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 // ── SECONDARY card ────────────────────────────────────────────────────────────
 
-function SecondaryCard({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
-  const developing = isDeveloping(lastUpdate(event));
-  return (
-    <Link
-      href={`/event/${event.id}`}
-      style={{ borderLeftColor: themeAccent(event.category) }}
-      className={`group block bg-white border border-[var(--border)] border-l-4 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all flex flex-col ${read && !updated ? "opacity-[.42]" : ""}`}
-    >
-      {/* Owned procedural cover (ADR-0034) — never the source og:image (L3 / M1) */}
-      <EventCover id={event.id} category={event.category} cover={event.cover_image}
-        className="w-full h-36 shrink-0 group-hover:scale-[1.02] transition-transform duration-300" />
-      <div className="p-5 flex flex-col flex-1">
-        <div className="flex flex-wrap items-center gap-1.5 mb-3 empty:hidden">
-          {updated ? <UpdatedBadge /> : developing && <DevelopingBadge />}
-          {showLang && event.language !== "en" && <LangChip lang={event.language} />}
-        {showLang && <AlsoIn also={event.also_languages} />}
-        </div>
-        <h3
-          className="text-[15px] font-bold leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors flex-1 mb-1"
-          style={{ textWrap: "balance" } as React.CSSProperties}
-        >
-          {event.headline}
-        </h3>
-        {event.topic && (
-          <p className="text-[11px] text-[var(--ink-muted)] italic mb-3 line-clamp-1">{event.topic}</p>
-        )}
-        <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
-          <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} size={18} />
-          <span className="text-xs text-[var(--ink-muted)]">
-            <TimeAgo iso={lastUpdate(event)} />
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 // ── STREAM row ────────────────────────────────────────────────────────────────
 
-function StreamRow({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
-  const developing = isDeveloping(lastUpdate(event));
-  return (
-    <Link
-      href={`/event/${event.id}`}
-      className={`group flex items-center gap-3 py-3.5 border-b border-[var(--border)] last:border-0 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors ${read && !updated ? "opacity-[.42]" : ""}`}
-    >
-      <StrengthDot count={event.source_count} developing={developing} />
-      <span className="flex-1 min-w-0">
-        <span className="text-sm font-medium leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-2">
-          {event.headline}
-        </span>
-        <span className="flex gap-1.5 mt-0.5 items-center flex-wrap empty:hidden">
-          {updated && (
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--accent)]">Updated</span>
-          )}
-          {showLang && event.language !== "en" && (
-            <span className="text-[10px] font-mono text-[var(--ink-muted)] uppercase">
-              {event.language}
-            </span>
-          )}
-          {showLang && <AlsoIn also={event.also_languages} />}
-        </span>
-      </span>
-      <div className="shrink-0 flex items-center gap-1.5 text-xs text-[var(--ink-muted)] tabular-nums">
-        <span
-          className="font-semibold"
-          style={{ color: event.source_count >= 5 ? "#16a34a" : event.source_count >= 3 ? "#d97706" : undefined }}
-        >
-          {event.source_count}
-        </span>
-        <span aria-hidden>·</span>
-        <span><TimeAgo iso={lastUpdate(event)} /></span>
-      </div>
-    </Link>
-  );
-}
 
 // ── Flat card (filtered view) ─────────────────────────────────────────────────
 
-function FlatCard({ event, showLang, read = false, updated = false }: { event: EventSummary; showLang: boolean; read?: boolean; updated?: boolean }) {
-  const developing = isDeveloping(lastUpdate(event));
-  return (
-    <Link
-      href={`/event/${event.id}`}
-      style={{ borderLeftColor: themeAccent(event.category) }}
-      className={`group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-r-gray-300 hover:border-t-gray-300 hover:border-b-gray-300 transition-all ${read && !updated ? "opacity-[.42]" : ""}`}
-    >
-      <div className="flex flex-wrap items-center gap-2 mb-3 empty:hidden">
-        {updated ? <UpdatedBadge /> : developing && <DevelopingBadge />}
-        {showLang && event.language !== "en" && <LangChip lang={event.language} />}
-        {showLang && <AlsoIn also={event.also_languages} />}
-      </div>
-      <h2 className="text-[15px] sm:text-[16px] font-semibold leading-snug tracking-tight group-hover:text-[var(--accent)] transition-colors mb-1">
-        {event.headline}
-      </h2>
-      {event.topic && (
-        <p className="text-[11px] text-[var(--ink-muted)] italic mb-3 line-clamp-1">{event.topic}</p>
-      )}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <AvatarStack outlets={event.outlet_names ?? []} count={event.source_count} />
-        <div className="text-xs text-[var(--ink-muted)]">
-          <TimeAgo iso={lastUpdate(event)} />
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 // ── Feed client ───────────────────────────────────────────────────────────────
 
 interface Props {
   events: EventSummary[];
-  trending?: TrendingTopic[];
   /** Active trending topic from ?topic= — the feed `events` are already
    *  server-filtered to it (ADR-0027); we only drive chip state + navigation. */
   activeTopic?: string | null;
@@ -458,7 +171,6 @@ interface Props {
 const LANG_KEY = "inkbytes-lang";
 const CAT_KEY  = "inkbytes-cat";
 
-const LANG_LABELS: Record<Lang, string> = { all: "All", en: "EN", es: "ES" };
 
 // ── Brief row (Reader-prototype isBrief style) ────────────────────────────────
 // Uniform text card: category rail + heavy headline + mono meta (sources · time,
@@ -515,7 +227,7 @@ function BriefSection({ label, count, accent = false }: { label: string; count: 
   );
 }
 
-export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLeadEn = null, outlookLeadEs = null, mode = "briefing" }: Props) {
+export default function FeedClient({ events, activeTopic = null, error, focusSearch, outlookLeadEn = null, outlookLeadEs = null, mode = "briefing" }: Props) {
   const briefing = mode === "briefing";
   const uiLang = useLang();
   // The day's lead editorial column in the reader's language (fall back to
@@ -524,7 +236,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [lang, setLangState]                = useState<Lang>("all");
-  const [streamExpanded, setStreamExpanded] = useState(false);
   const searchRef                           = useRef<HTMLInputElement>(null);
 
   // Read state (Stage 6) — client-only. Empty on the server + first paint so the
@@ -576,21 +287,9 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   function setCat(c: Category) {
     setActiveCategory(c);
     localStorage.setItem(CAT_KEY, c);
-    setStreamExpanded(false);
     // If a server-side topic filter is active, clicking a theme chip drops it
     // (theme is the primary feed facet; topic is the trending drill-down).
     if (activeTopic && c !== "all") startTransition(() => router.push("/browse"));
-  }
-  // Trending-topic drill-down (ADR-0027): navigate to ?topic= so the server
-  // filters the feed via the Curator ?topic= param (article-level — matches the
-  // trending count). Toggling the active topic clears it. Theme is a separate
-  // client filter that composes on top; we reset it so the two don't surprise.
-  function toggleTopic(t: string) {
-    setActiveCategory("all");
-    localStorage.setItem(CAT_KEY, "all");
-    setStreamExpanded(false);
-    const next = activeTopic === t ? "/browse" : `/browse?topic=${encodeURIComponent(t)}`;
-    startTransition(() => router.push(next));
   }
 
   useEffect(() => {
@@ -600,7 +299,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     }
   }, [focusSearch]);
 
-  const hasFilter = lang !== "all" || activeCategory !== "all" || !!activeTopic || !!search.trim();
 
   const filtered = useMemo(() => {
     let list = events;
@@ -635,16 +333,13 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
     if (activeTopic) startTransition(() => router.push("/browse"));  // drop ?topic=
   }
 
-  const showLangChip = lang === "all";
 
   // Date rendered only on client to avoid hydration mismatch. `brief` holds the
   // prototype dateline ("TUE · 28 JUL 2026 · 07:10") + weekday for the title.
-  const [today, setToday] = useState("");
   const [brief, setBrief] = useState({ dateline: "", weekday: "" });
   useEffect(() => {
     const d = new Date();
     const loc = uiLang === "es" ? "es-ES" : "en-US";
-    setToday(d.toLocaleDateString(loc, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
     const wds = d.toLocaleDateString(loc, { weekday: "short" }).toUpperCase();
     const mon = d.toLocaleDateString(loc, { month: "short" }).toUpperCase();
     const day = String(d.getDate()).padStart(2, "0");
@@ -660,11 +355,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   // `sorted`. The former "Latest" 3D coverflow (Stage 2a) pinned the top 20 in a
   // swipe strip that hid 19 of them behind taps; those top stories now flow into
   // the list. Filter active: flat list.
-  // Browse is now the prototype flat rail-card list (isBrowse) — only the
-  // briefing home uses the "editorial" branch (which for it renders the isBrief
-  // sections). So the coverflow/lead/secondary editorial layout is briefing-gated
-  // off and never taken in browse.
-  const useEditorial = briefing && !hasFilter && sorted.length >= 1;
 
   // ── Briefing set (Slice C-B) ──────────────────────────────────────────────
   // Frozen per-day snapshot of the top-N so the finite briefing stops
@@ -692,23 +382,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
         : sorted.slice(0, BRIEFING_SIZE))
     : [];
 
-  // Briefing renders the frozen set; browse renders the live ranked list.
-  const base      = briefing ? briefingSet : sorted;
-  const lead      = useEditorial ? base[0] ?? null : null;
-  const secondary = useEditorial ? base.slice(1, 3) : [];
-  const stream    = useEditorial ? base.slice(3)    : [];
-  const flatList  = useEditorial ? [] : sorted;
-
-  // Briefing shows the whole (already finite) set; browse paginates the stream.
-  const streamVisible = briefing
-    ? stream
-    : streamExpanded ? stream : stream.slice(0, STREAM_INITIAL);
-  // Index of the first regional-only (no global outlet) event, computed ONCE so
-  // the "Regional" divider renders exactly once. The previous per-row transition
-  // test fired at every global→regional boundary, and the freshness sort
-  // interleaves the tiers, so it could appear several times (Stage 1 fix).
-  const firstRegionalIdx = streamVisible.findIndex((e) => !e.has_global_outlet);
-  const streamHidden  = stream.length - streamVisible.length;
 
   // ── Briefing progress (Slice C1a) ─────────────────────────────────────────
   // Read-progress over the frozen briefingSet above. readMap is client-only
@@ -756,9 +429,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       ? t(uiLang, "all_stories")
       : `${categoryLabel(uiLang, activeCategory, activeCatLabel)} · ${catCount(activeCategory)}`;
 
-  // Trending collapses into an accordion row on mobile — one slim toggle
-  // instead of a second pill strip competing with the carousel for attention.
-  const [trendOpen, setTrendOpen] = useState(false);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -809,7 +479,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               type="text"
               placeholder={t(uiLang, "search_events")}
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setStreamExpanded(false); }}
+              onChange={(e) => setSearch(e.target.value)}
               className="flex-1 min-w-0 border-0 outline-none text-[13.5px] font-medium text-[var(--ink)] bg-transparent"
             />
             {!!search.trim() && (
@@ -874,9 +544,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           </button>
         </div>
 
-      ) : useEditorial ? (
-
-        briefing ? (
+      ) : briefing ? (
 
           /* ── BRIEFING (Reader-prototype isBrief) — mono lists, no big cover ── */
           <div>
@@ -924,65 +592,6 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           </div>
 
         ) : (
-
-        /* ── EDITORIAL LAYOUT (browse) ──────────────────────────────────────── */
-        <div className="space-y-7">
-
-          {/* ── Lead ────────────────────────────────────────────────────────── */}
-          {lead && (
-            <div>
-              <SectionHeader title={t(uiLang, "top_story")} />
-              <LeadCard event={lead} showLang={showLangChip} {...readState(lead)} />
-            </div>
-          )}
-
-          {/* ── Secondary 2-col grid ─────────────────────────────────────────── */}
-          {secondary.length > 0 && (
-            <div className={`grid gap-4 ${secondary.length === 1 ? "" : "sm:grid-cols-2"}`}>
-              {secondary.map((ev) => (
-                <SecondaryCard key={ev.id} event={ev} showLang={showLangChip} {...readState(ev)} />
-              ))}
-            </div>
-          )}
-
-          {/* ── Today's Outlook (Stage 2c) — the day's lead editorial column ─── */}
-          {outlookLead && <OutlookCard entry={outlookLead} />}
-
-          {/* ── Stream ──────────────────────────────────────────────────────── */}
-          {stream.length > 0 && (
-            <div>
-              <SectionHeader title={t(uiLang, "more_stories")} count={stream.length} />
-              <div>
-                {streamVisible.map((ev, idx) => {
-                  const isFirstRegional = idx === firstRegionalIdx;
-                  return (
-                    <Fragment key={ev.id}>
-                      {isFirstRegional && (
-                        <div className="mt-5 mb-2 pt-4 border-t border-[var(--border)]">
-                          <h3 className="text-sm font-semibold tracking-tight text-[var(--ink-muted)]">Regional</h3>
-                        </div>
-                      )}
-                      <StreamRow event={ev} showLang={showLangChip} {...readState(ev)} />
-                    </Fragment>
-                  );
-                })}
-              </div>
-              {streamHidden > 0 && (
-                <button
-                  onClick={() => setStreamExpanded(true)}
-                  className="mt-4 w-full py-2.5 text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)] border border-[var(--border)] rounded-lg hover:border-gray-400 transition-colors"
-                >
-                  {t(uiLang, "show_all_more", { n: streamHidden, unit: t(uiLang, streamHidden === 1 ? "story_one" : "story_many") })}
-                </button>
-              )}
-            </div>
-          )}
-
-        </div>
-
-        )
-
-      ) : (
 
         /* ── BROWSE LIST (prototype isBrowse): ALL STORIES · NEWEST FIRST +
              a flat rail-card list (BriefRow). Filtered results, freshness order. */

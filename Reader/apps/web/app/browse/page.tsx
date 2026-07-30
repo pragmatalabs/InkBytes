@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { getEvents, getTrendingTopics } from "@/lib/api";
-import type { EventSummary, TrendingTopic } from "@/lib/types";
+import { getEvents } from "@/lib/api";
+import type { EventSummary } from "@/lib/types";
 import FeedClient from "../feed-client";
 
 // force-dynamic — internal Curator service is only resolvable at runtime (ADR-R-0005).
@@ -25,16 +25,10 @@ export default async function BrowsePage({
   const topic = ((params as Record<string, string>).topic ?? "").trim() || null;
 
   let events: EventSummary[] = [];
-  let trending: TrendingTopic[] = [];
   let error: string | null = null;
 
   try {
-    const [ev, tr] = await Promise.all([
-      getEvents(500, topic ? { topic } : undefined),
-      getTrendingTopics().catch(() => [] as TrendingTopic[]),
-    ]);
-    events = ev;
-    trending = tr;
+    events = await getEvents(500, topic ? { topic } : undefined);
   } catch {
     error = "We're having trouble loading the latest stories right now. It usually resolves in a moment.";
   }
@@ -43,7 +37,6 @@ export default async function BrowsePage({
     <FeedClient
       mode="browse"
       events={events}
-      trending={trending}
       activeTopic={topic}
       error={error}
       focusSearch={focusSearch}
