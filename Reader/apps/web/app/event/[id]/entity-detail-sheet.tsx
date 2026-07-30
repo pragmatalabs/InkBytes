@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { relativeTime, outletInitials } from "@/lib/api";
+import { useLang } from "@/lib/prefs";
+import { t, entityNoun } from "@/lib/i18n";
 import type { EntityDetail, EntityType } from "@/lib/types";
 
 /**
@@ -20,13 +22,10 @@ function colorOf(s: string): string {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffffff;
   return PALETTE[Math.abs(h) % PALETTE.length];
 }
-const NOUN: Record<string, string> = {
-  PERSON: "Person", ORG: "Organisation", LOC: "Place", EVENT: "Event", OTHER: "Topic",
-};
-
 export interface DrawerEntity { id: string; name: string; type: EntityType }
 
 export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerEntity | null; onClose: () => void }) {
+  const lang = useLang();
   const [detail, setDetail] = useState<EntityDetail | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "light">("loading");
 
@@ -65,7 +64,7 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
   }, [entity, onClose]);
 
   if (!entity) return null;
-  const noun = NOUN[entity.type] ?? "Topic";
+  const noun = entityNoun(lang, entity.type);
 
   return (
     <>
@@ -107,7 +106,7 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
               )}
               {/* 3-up stats */}
               <div className="grid grid-cols-3 gap-px bg-[var(--border)] border border-[var(--border)]">
-                {([["Stories", detail.event_count], ["Links", detail.connection_count], ["Today", detail.today_count]] as const).map(([label, val]) => (
+                {([[t(lang, "stat_stories"), detail.event_count], [t(lang, "stat_links"), detail.connection_count], [t(lang, "stat_today"), detail.today_count]] as const).map(([label, val]) => (
                   <div key={label} className="bg-white px-3 py-3">
                     <p className="text-xl font-bold tabular-nums leading-none">{val}</p>
                     <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-muted)] mt-1.5">{label}</p>
@@ -118,16 +117,16 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
               {detail.recent_events.length > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1">
-                    Recent events
+                    {t(lang, "recent_events")}
                     {detail.event_count > detail.recent_events.length && (
-                      <span className="normal-case tracking-normal font-normal"> — {detail.recent_events.length} of {detail.event_count}</span>
+                      <span className="normal-case tracking-normal font-normal"> — {detail.recent_events.length} {t(lang, "of")} {detail.event_count}</span>
                     )}
                   </p>
                   <div className="flex flex-col divide-y divide-[var(--border)]">
                     {detail.recent_events.map((ev) => (
                       <Link key={ev.id} href={`/event/${ev.id}`} onClick={onClose} className="py-3 group">
                         <p className="text-[13px] font-medium leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-2">{ev.headline}</p>
-                        <p suppressHydrationWarning className="text-[11px] text-[var(--ink-muted)] mt-1">{ev.source_count} sources · {relativeTime(ev.freshness_at)}</p>
+                        <p suppressHydrationWarning className="text-[11px] text-[var(--ink-muted)] mt-1">{ev.source_count} {t(lang, ev.source_count === 1 ? "source_one" : "source_many")} · {relativeTime(ev.freshness_at)}</p>
                       </Link>
                     ))}
                   </div>
@@ -136,7 +135,7 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
               {/* Connections */}
               {detail.connections.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-2">Connections</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-2">{t(lang, "connections")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {detail.connections.map((c) => (
                       <Link key={c.id} href={`/entities?e=${encodeURIComponent(c.id)}`} onClick={onClose} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-[var(--border)] bg-white text-xs font-medium hover:border-gray-300 transition-colors">
@@ -153,14 +152,14 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
           {state === "light" && (
             <div className="pt-4 flex flex-col gap-4">
               <p className="text-[13px] leading-relaxed text-[var(--ink-muted)]">
-                Mentioned in this story. Open the full profile for this {noun.toLowerCase()}&rsquo;s stats, recent coverage, and connections.
+                {t(lang, "mentioned_in_story", { noun: noun.toLowerCase() })}
               </p>
               <Link
                 href={`/entities?e=${encodeURIComponent(entity.id)}`}
                 onClick={onClose}
                 className="inline-flex items-center justify-center gap-2 py-3 border border-[var(--ink)] text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
               >
-                View full profile →
+                {t(lang, "view_full_profile")}
               </Link>
             </div>
           )}

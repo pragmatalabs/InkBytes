@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState, useMemo, useRef, useEffect, useTransition, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { relativeTime, isDeveloping, outletInitials } from "@/lib/api";
+import { useLang } from "@/lib/prefs";
+import { t } from "@/lib/i18n";
 import type { EventSummary, TrendingTopic, OutlookArchiveEntry } from "@/lib/types";
 import { CategoryIcon, OutlookIcon } from "@/components/icons";
 import { themeAccent } from "@/lib/theme-colors";
@@ -152,10 +154,11 @@ function AvatarStack({ outlets, count, size = 20 }: { outlets: string[]; count: 
 }
 
 function DevelopingBadge() {
+  const lang = useLang();
   return (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-red-600">
+    <span suppressHydrationWarning className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-red-600">
       <span className="developing-dot" aria-hidden="true" />
-      Developing
+      {t(lang, "developing")}
     </span>
   );
 }
@@ -163,13 +166,15 @@ function DevelopingBadge() {
 // "Updated since you last read this" (Stage 6). Accent (navy), NOT red — the
 // developing dot stays the only red in the app (Stage 2b).
 function UpdatedBadge() {
+  const lang = useLang();
   return (
     <span
-      title="Updated since you last read this"
+      suppressHydrationWarning
+      title={t(lang, "updated_since")}
       className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--accent)]"
     >
       <span className="h-[6px] w-[6px] rounded-full bg-[var(--accent)]" aria-hidden="true" />
-      Updated
+      {t(lang, "updated")}
     </span>
   );
 }
@@ -261,6 +266,7 @@ function SectionHeader({ title, count, action }: { title: string; count?: number
 // otherwise sits behind a tab. The persona mark + theme accent carry the column
 // identity (same treatment as the /outlook index cards).
 function OutlookCard({ entry }: { entry: OutlookArchiveEntry & { lang: string } }) {
+  const lang = useLang();
   return (
     <Link
       href={`/outlook/${entry.theme}?lang=${entry.lang}&date=${entry.edition_date}`}
@@ -268,7 +274,7 @@ function OutlookCard({ entry }: { entry: OutlookArchiveEntry & { lang: string } 
       className="group block bg-white border border-[var(--border)] border-l-4 rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all"
     >
       <div className="flex items-center gap-2 mb-2">
-        <ColumnMast persona={entry.persona} theme={entry.theme} sublabel={`Today’s Outlook · ${titleCase(entry.theme)}`} />
+        <ColumnMast persona={entry.persona} theme={entry.theme} sublabel={`${t(lang, "todays_outlook")} · ${titleCase(entry.theme)}`} />
         <svg className="ml-auto w-4 h-4 text-[var(--ink-muted)] opacity-60 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 12h14M13 6l6 6-6 6"/>
         </svg>
@@ -458,6 +464,7 @@ const LANG_LABELS: Record<Lang, string> = { all: "All", en: "EN", es: "ES" };
 function BriefRow({ event, showAvatars = false, read = false, updated = false }: {
   event: EventSummary; showAvatars?: boolean; read?: boolean; updated?: boolean;
 }) {
+  const lang = useLang();
   return (
     <Link
       href={`/event/${event.id}`}
@@ -483,11 +490,11 @@ function BriefRow({ event, showAvatars = false, read = false, updated = false }:
               ))}
             </span>
           )}
-          <span className="text-[11.5px] text-[var(--ink-muted)] tabular-nums">
-            {event.source_count} {event.source_count === 1 ? "source" : "sources"}
+          <span suppressHydrationWarning className="text-[11.5px] text-[var(--ink-muted)] tabular-nums">
+            {event.source_count} {t(lang, event.source_count === 1 ? "source_one" : "source_many")}
           </span>
-          <span className="ml-auto font-mono text-[11.5px] text-[var(--ink-muted)] tabular-nums">
-            {read && !updated ? "READ" : <TimeAgo iso={event.freshness_at} />}
+          <span suppressHydrationWarning className="ml-auto font-mono text-[11.5px] text-[var(--ink-muted)] tabular-nums">
+            {read && !updated ? t(lang, "read_tag") : <TimeAgo iso={event.freshness_at} />}
           </span>
         </div>
       </div>
@@ -508,6 +515,7 @@ function BriefSection({ label, count, accent = false }: { label: string; count: 
 
 export default function FeedClient({ events, trending = [], activeTopic = null, error, focusSearch, outlookLead = null, mode = "briefing" }: Props) {
   const briefing = mode === "briefing";
+  const uiLang = useLang();
   const [search, setSearch]                 = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [lang, setLangState]                = useState<Lang>("all");
@@ -630,16 +638,17 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
   const [brief, setBrief] = useState({ dateline: "", weekday: "" });
   useEffect(() => {
     const d = new Date();
-    setToday(d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
-    const wds = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
-    const mon = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+    const loc = uiLang === "es" ? "es-ES" : "en-US";
+    setToday(d.toLocaleDateString(loc, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
+    const wds = d.toLocaleDateString(loc, { weekday: "short" }).toUpperCase();
+    const mon = d.toLocaleDateString(loc, { month: "short" }).toUpperCase();
     const day = String(d.getDate()).padStart(2, "0");
-    const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const time = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", hour12: false });
     setBrief({
       dateline: `${wds} · ${day} ${mon} ${d.getFullYear()} · ${time}`,
-      weekday: d.toLocaleDateString("en-US", { weekday: "long" }),
+      weekday: d.toLocaleDateString(loc, { weekday: "long" }),
     });
-  }, []);
+  }, [uiLang]);
 
   // ── Editorial tiers ──────────────────────────────────────────────────────
   // No-filter view: ONE ranked list — lead + 2 secondary + stream, straight off
@@ -731,17 +740,17 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           <div suppressHydrationWarning className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
             {brief.dateline || " "}
           </div>
-          <h1 className="mt-2 text-[30px] sm:text-[33px] font-extrabold tracking-[-0.035em] leading-[1.03] text-balance text-[var(--ink)]">
-            {brief.weekday ? `${brief.weekday}’s briefing` : "Today’s briefing"}
+          <h1 suppressHydrationWarning className="mt-2 text-[30px] sm:text-[33px] font-extrabold tracking-[-0.035em] leading-[1.03] text-balance text-[var(--ink)]">
+            {brief.weekday ? t(uiLang, "weekday_briefing", { weekday: brief.weekday }) : t(uiLang, "todays_briefing")}
           </h1>
           {events.length > 0 && briefingTotal > 0 && (
             <>
-              <div className="mt-2.5 flex items-baseline gap-2 text-[12px] font-medium text-[var(--ink-muted)] tabular-nums">
-                <span>{briefingTotal} {briefingTotal === 1 ? "story" : "stories"}</span>
+              <div suppressHydrationWarning className="mt-2.5 flex items-baseline gap-2 text-[12px] font-medium text-[var(--ink-muted)] tabular-nums">
+                <span>{briefingTotal} {t(uiLang, briefingTotal === 1 ? "story_one" : "story_many")}</span>
                 <span aria-hidden>·</span>
-                <span>≈{briefingMins} min</span>
+                <span>≈{briefingMins} {t(uiLang, "min_unit")}</span>
                 <span aria-hidden>·</span>
-                <span className="text-[var(--ink)] font-bold">{briefingRead} read</span>
+                <span className="text-[var(--ink)] font-bold">{briefingRead} {t(uiLang, "read_count")}</span>
               </div>
               <div className="mt-3.5 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${briefingTotal}, minmax(0,1fr))` }}>
                 {briefingSet.map((ev) => (
@@ -754,10 +763,10 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       ) : (
         <div className="mb-5 flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-widest text-[var(--ink-muted)] mb-1">{today}</p>
-            <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">Browse</h1>
+            <p suppressHydrationWarning className="text-[11px] font-medium uppercase tracking-widest text-[var(--ink-muted)] mb-1">{today}</p>
+            <h1 className="text-xl font-bold tracking-tight text-[var(--ink)]">{t(uiLang, "browse_title")}</h1>
             <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-              {events.length > 0 ? `${events.length} stories` : "No stories yet"}
+              {events.length > 0 ? `${events.length} ${t(uiLang, "story_many")}` : t(uiLang, "no_stories_yet")}
             </p>
           </div>
           <Link href="/outlook" aria-label="Today's Outlooks" title="Today's Outlooks" className="outlook-pulse relative grid place-items-center w-9 h-9 rounded-full text-[var(--accent)] hover:bg-[var(--accent)]/8 transition-colors shrink-0 self-start">
@@ -779,7 +788,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
             <input
               ref={searchRef}
               type="text"
-              placeholder={lang === "es" ? "Buscar eventos…" : "Search events…"}
+              placeholder={t(uiLang, "search_events")}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setStreamExpanded(false); }}
               className="w-full pl-10 pr-3 py-2.5 text-sm bg-white border border-[var(--border)] rounded-full outline-none focus:border-gray-400 transition-colors"
@@ -821,7 +830,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               onClick={clearAll}
               className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline transition-colors shrink-0"
             >
-              Clear
+              {t(uiLang, "clear")}
             </button>
           )}
         </div>
@@ -864,10 +873,10 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           >
             <span className="developing-dot shrink-0" aria-hidden="true" />
             <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--accent)]">
-              Trending
+              {t(uiLang, "trending")}
             </span>
             <span className="text-[11px] text-[var(--ink-muted)]">
-              — {trending.length} {trending.length === 1 ? "topic" : "topics"}
+              — {trending.length} {t(uiLang, trending.length === 1 ? "topic_one" : "topic_many")}
             </span>
             <svg
               className={`ml-auto w-3.5 h-3.5 text-[var(--ink-muted)] transition-transform ${trendOpen ? "rotate-180" : ""}`}
@@ -880,7 +889,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           <div className="flex items-center gap-1.5 flex-nowrap pb-1 pt-1 sm:pt-0">
             <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--accent)] whitespace-nowrap pr-1">
               <span className="developing-dot shrink-0" aria-hidden="true" />
-              Trending
+              {t(uiLang, "trending")}
             </span>
             {trending.map((t) => {
               const active = activeTopic === t.topic;
@@ -921,22 +930,22 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
       {error ? (
         <div className="rounded-xl border border-[var(--border)] bg-white px-6 py-10 text-center">
           <p className="text-2xl mb-3" aria-hidden>📰</p>
-          <p className="text-sm font-semibold mb-1">The news feed is catching its breath</p>
+          <p className="text-sm font-semibold mb-1">{t(uiLang, "feed_error")}</p>
           <p className="text-xs text-[var(--ink-muted)] mb-5 max-w-xs mx-auto">{error}</p>
           <RetryButton />
         </div>
 
       ) : events.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--border)] px-5 py-10 text-center text-sm text-[var(--ink-muted)]">
-          No published events yet.
+          {t(uiLang, "no_events")}
           <span className="block mt-1 text-xs opacity-70">Run Curator with real API keys to generate pages.</span>
         </div>
 
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--border)] px-5 py-10 text-center text-sm text-[var(--ink-muted)]">
-          No events match your filter.
+          {t(uiLang, "no_match")}
           <button onClick={clearAll} className="block mx-auto mt-2 text-xs underline hover:text-[var(--ink)] transition-colors">
-            Clear filters
+            {t(uiLang, "clear_filters")}
           </button>
         </div>
 
@@ -948,7 +957,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           <div>
             {devSet.length > 0 && (
               <>
-                <BriefSection label="Developing now" count={devSet.length} accent />
+                <BriefSection label={t(uiLang, "developing_now")} count={devSet.length} accent />
                 {devSet.map((ev) => (
                   <BriefRow key={ev.id} event={ev} showAvatars {...readState(ev)} />
                 ))}
@@ -957,7 +966,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
 
             {restSet.length > 0 && (
               <>
-                <BriefSection label="The briefing" count={`${briefingLeft} left`} />
+                <BriefSection label={t(uiLang, "the_briefing")} count={`${briefingLeft} ${t(uiLang, "left_count")}`} />
                 {restSet.map((ev) => (
                   <BriefRow key={ev.id} event={ev} {...readState(ev)} />
                 ))}
@@ -972,9 +981,9 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
               {briefingCaught && (
                 <>
                   <span className="grid place-items-center w-11 h-11 rounded-full bg-[#16a34a] text-white text-xl font-bold" aria-hidden>✓</span>
-                  <div className="text-[17px] font-bold tracking-tight">You&rsquo;re caught up</div>
+                  <div className="text-[17px] font-bold tracking-tight">{t(uiLang, "caught_up")}</div>
                   <p className="text-[13px] text-[var(--ink-muted)] max-w-[28ch] leading-relaxed">
-                    That&rsquo;s today&rsquo;s briefing. New stories arrive through the day — or browse everything now.
+                    {t(uiLang, "caught_up_desc")}
                   </p>
                 </>
               )}
@@ -983,7 +992,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   href="/browse"
                   className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 border border-[var(--ink)] rounded-full text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
                 >
-                  Browse all stories →
+                  {t(uiLang, "browse_all")}
                 </Link>
               )}
             </div>
@@ -997,7 +1006,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {/* ── Lead ────────────────────────────────────────────────────────── */}
           {lead && (
             <div>
-              <SectionHeader title="Top story" />
+              <SectionHeader title={t(uiLang, "top_story")} />
               <LeadCard event={lead} showLang={showLangChip} {...readState(lead)} />
             </div>
           )}
@@ -1017,7 +1026,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
           {/* ── Stream ──────────────────────────────────────────────────────── */}
           {stream.length > 0 && (
             <div>
-              <SectionHeader title="More stories" count={stream.length} />
+              <SectionHeader title={t(uiLang, "more_stories")} count={stream.length} />
               <div>
                 {streamVisible.map((ev, idx) => {
                   const isFirstRegional = idx === firstRegionalIdx;
@@ -1038,7 +1047,7 @@ export default function FeedClient({ events, trending = [], activeTopic = null, 
                   onClick={() => setStreamExpanded(true)}
                   className="mt-4 w-full py-2.5 text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)] border border-[var(--border)] rounded-lg hover:border-gray-400 transition-colors"
                 >
-                  Show all {streamHidden} more {streamHidden === 1 ? "story" : "stories"}
+                  {t(uiLang, "show_all_more", { n: streamHidden, unit: t(uiLang, streamHidden === 1 ? "story_one" : "story_many") })}
                 </button>
               )}
             </div>

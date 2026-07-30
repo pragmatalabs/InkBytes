@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { isFollowed, toggleFollowed, FOLLOWED_EVENT } from "@/lib/followed";
+import { useLang } from "@/lib/prefs";
+import { t } from "@/lib/i18n";
 
 /**
  * "Follow this story" — full-width toggle (prototype). Subscribes the reader to
@@ -16,6 +18,7 @@ export default function FollowButton(props: {
   language: string;
 }) {
   const { eventId, headline, category, language } = props;
+  const lang = useLang();
   const [following, setFollowing] = useState(false);
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function FollowButton(props: {
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
         {following ? <path d="M20 6 9 17l-5-5" /> : <path d="M12 5v14M5 12h14" />}
       </svg>
-      {following ? "Following this story" : "Follow this story"}
+      {following ? t(lang, "following_story") : t(lang, "follow_story")}
     </button>
   );
 }

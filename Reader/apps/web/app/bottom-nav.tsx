@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NewspaperIcon, SearchIcon, NetworkIcon, OutlookIcon } from "@/components/icons";
+import { useLang } from "@/lib/prefs";
+import { t } from "@/lib/i18n";
 
 // ── Nav item ───────────────────────────────────────────────────────────────────
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: "nav_brief" | "nav_outlook" | "nav_browse" | "nav_entities";
   /** Icon component — receives a className string with sizing + color */
   icon: React.ComponentType<{ className?: string }>;
 }
@@ -19,12 +21,13 @@ interface NavItem {
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const lang = useLang();
 
   const items: NavItem[] = [
-    { href: "/",         label: "Brief",    icon: NewspaperIcon },
-    { href: "/outlook",  label: "Outlook",  icon: OutlookIcon },
-    { href: "/browse",   label: "Browse",   icon: SearchIcon },
-    { href: "/entities", label: "Entities", icon: NetworkIcon },
+    { href: "/",         labelKey: "nav_brief",    icon: NewspaperIcon },
+    { href: "/outlook",  labelKey: "nav_outlook",  icon: OutlookIcon },
+    { href: "/browse",   labelKey: "nav_browse",   icon: SearchIcon },
+    { href: "/entities", labelKey: "nav_entities", icon: NetworkIcon },
   ];
 
   // Which top-level tab owns the current route. Detail routes map back to a tab
@@ -48,11 +51,11 @@ export default function BottomNav() {
       aria-label="Main navigation"
     >
       <div className="flex items-stretch h-[58px]">
-        {items.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active = isActive(href);
           return (
             <Link
-              key={label}
+              key={href}
               href={href}
               aria-current={active ? "page" : undefined}
               className={`flex flex-col items-center justify-center flex-1 gap-0.5 text-[10px] font-semibold uppercase tracking-widest transition-colors select-none rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] ${
@@ -60,7 +63,7 @@ export default function BottomNav() {
               }`}
             >
               <Icon className={`w-6 h-6 transition-opacity ${active ? "opacity-100" : "opacity-60"}`} />
-              <span>{label}</span>
+              <span>{t(lang, labelKey)}</span>
             </Link>
           );
         })}

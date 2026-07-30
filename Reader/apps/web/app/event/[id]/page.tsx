@@ -1,11 +1,11 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
-import { getEvent, getRelatedEvents, relativeTime, parseJson, isDeveloping, outletInitials } from "@/lib/api";
+import { getEvent, getRelatedEvents, parseJson, isDeveloping } from "@/lib/api";
 import { themeAccent } from "@/lib/theme-colors";
 import type { EvidenceItem, EntityItem, RelatedEvent, MediaRailItem, TitleHistoryEntry } from "@/lib/types";
 import ShareButton from "./share-button";
 import EventActionBar from "./event-action-bar";
+import { EventEyebrow, EventProvenance, CoverCaption } from "./event-chrome";
 import StoryNav from "./story-nav";
 import FollowButton from "./follow-button";
 import { NewsMarkdown } from "@/components/news-markdown";
@@ -18,25 +18,6 @@ export const revalidate = 300;
 function firstSentence(text: string): string {
   const match = text.replace(/\[(?:Source|Fuente): [^\]]+\]/g, "").match(/[^.!?]+[.!?]/);
   return match ? match[0].trim() : text.slice(0, 160);
-}
-
-// ── Prototype isEvent helpers ─────────────────────────────────────────────────
-// Hashed outlet-avatar colours (mirrors feed-client), corroboration strength
-// (source-count → label + colour, same thresholds as the feed StrengthDot), and
-// a compact mono time ("2D", "41M") for the STARTED/UPDATED clock line.
-const OUTLET_COLORS = ["#1a1a2e", "#2d5282", "#276749", "#7b341e", "#553c9a", "#97266d", "#2c5f62", "#744210"];
-function outletColor(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return OUTLET_COLORS[Math.abs(h) % OUTLET_COLORS.length];
-}
-function corroboration(n: number): { label: string; color: string } {
-  return n >= 5 ? { label: "Strong corroboration", color: "#16a34a" }
-    : n >= 3 ? { label: "Moderate corroboration", color: "#d97706" }
-    : { label: "Limited corroboration", color: "#9ca3af" };
-}
-function shortAgo(iso: string): string {
-  return relativeTime(iso).replace(/\s*ago$/i, "").toUpperCase();
 }
 
 export async function generateMetadata(
@@ -118,9 +99,9 @@ export default async function EventPage(
   // Category accent — the drop cap, the sheet rail bars, the match bars.
   const accent = themeAccent(page.category);
 
-  // Prototype isEvent provenance: sources·quotes + corroboration + clock line.
+  // Prototype isEvent provenance: sources·quotes + clock line. Labels localize
+  // inside EventEyebrow / EventProvenance (client, useLang).
   const quotes = evidence.length;
-  const corrob = corroboration(page.source_count);
   const catLabel = (page.category ?? page.topic ?? "").toUpperCase();
 
   return (
@@ -135,31 +116,11 @@ export default async function EventPage(
         category={page.category}
         language={page.language}
         alsoLanguages={page.also_languages}
-        back={
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
-          >
-            ← All events
-          </Link>
-        }
         share={<ShareButton title={page.headline} text={firstSentence(page.synthesis_md)} />}
       />
 
       {/* Eyebrow (prototype isEvent): ● DEVELOPING (left) · CATEGORY (right). */}
-      <div className="flex items-center gap-2 mb-3">
-        {developing && (
-          <span suppressHydrationWarning className="inline-flex items-center gap-1.5">
-            <span className="developing-dot" aria-hidden="true" />
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-red-600">Developing</span>
-          </span>
-        )}
-        {catLabel && (
-          <span className="ml-auto font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ink-muted)]">
-            {catLabel}
-          </span>
-        )}
-      </div>
+      <EventEyebrow developing={developing} category={catLabel} />
 
       {/* Headline — heavy + tight (prototype isEvent: 29px/800/-.035em). */}
       <h1 className="text-[28px] sm:text-[32px] font-extrabold leading-[1.08] tracking-[-0.035em] text-balance">
@@ -167,45 +128,15 @@ export default async function EventPage(
       </h1>
 
       {/* Provenance row (prototype isEvent): avatars + sources·quotes +
-          corroboration strength + STARTED/UPDATED clock. Bordered top+bottom.
-          suppressHydrationWarning: relativeTime uses Date.now() (server UTC vs
-          client local tz). */}
-      <div className="flex items-center gap-3 mt-4 mb-8 py-3 border-t border-b border-[var(--border)]">
-        {outletNames.length > 0 && (
-          <span className="flex items-center shrink-0">
-            {outletNames.slice(0, 3).map((name, i) => (
-              <span
-                key={i}
-                title={name}
-                className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[7.5px] font-bold uppercase ring-2 ring-[var(--bg)]"
-                style={{ background: outletColor(name), marginLeft: i === 0 ? 0 : -6, zIndex: 3 - i }}
-              >
-                {outletInitials(name)}
-              </span>
-            ))}
-            {page.source_count > 3 && (
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 text-gray-600 text-[7.5px] font-bold ring-2 ring-[var(--bg)]" style={{ marginLeft: -6 }}>
-                +{page.source_count - 3}
-              </span>
-            )}
-          </span>
-        )}
-        <div className="leading-[1.35] min-w-0">
-          <div className="text-[12px] font-semibold text-[var(--ink)] tabular-nums">
-            {page.source_count} {page.source_count === 1 ? "source" : "sources"}
-            {quotes > 0 && ` · ${quotes} ${quotes === 1 ? "quote" : "quotes"}`}
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: corrob.color }} aria-hidden />
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: corrob.color }}>
-              {corrob.label} · {page.source_count} of {page.source_count}
-            </span>
-          </div>
-          <div suppressHydrationWarning className="font-mono text-[10.5px] text-[var(--ink-muted)] mt-0.5 uppercase tracking-[0.02em]">
-            {page.occurred_at && <>Started {shortAgo(page.occurred_at)} · </>}Updated {shortAgo(page.freshness_at)}
-          </div>
-        </div>
-      </div>
+          corroboration strength + STARTED/UPDATED clock. Labels localized
+          client-side (EventProvenance). */}
+      <EventProvenance
+        sourceCount={page.source_count}
+        quotes={quotes}
+        outletNames={outletNames}
+        occurredAt={page.occurred_at}
+        freshnessAt={page.freshness_at}
+      />
 
       {/* Synthesis — the story, high on the page. Source Serif 4 body + a
           category-accent Inter drop cap (prototype). */}
@@ -226,9 +157,7 @@ export default async function EventPage(
           cover={page.cover_image}
           className="w-full h-40 rounded-xl"
         />
-        <figcaption className="mt-2 text-center text-[11px] text-[var(--ink-muted)] italic">
-          Illustrative. Not a photograph of this event.
-        </figcaption>
+        <CoverCaption />
       </figure>
 
       {/* "This story" 2×2 action grid + the drawers each tile opens (prototype).

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { getLang, setLang, PREFS_EVENT, type Lang } from "@/lib/prefs";
+import { t } from "@/lib/i18n";
 
 /**
  * NavMenu — the header's ☰ hamburger + right-drawer (InkBytes Reader.dc.html
@@ -11,22 +12,25 @@ import { getLang, setLang, PREFS_EVENT, type Lang } from "@/lib/prefs";
  * in the bottom bar and moves Saved / Settings / About into this drawer, plus a
  * reading-language toggle. Renders the current screen label next to the ☰.
  */
-const SCREEN_LABELS: [RegExp, string][] = [
-  [/^\/event\//, "STORY"],
-  [/^\/outlook/, "OUTLOOK"],
-  [/^\/browse/, "BROWSE"],
-  [/^\/entities/, "ENTITIES"],
-  [/^\/saved/, "SAVED"],
-  [/^\/you/, "SETTINGS"],
-  [/^\/about/, "ABOUT"],
-  [/^\/$/, "BRIEF"],
+type LabelKey =
+  | "menu_story" | "nav_outlook" | "nav_browse" | "nav_entities"
+  | "menu_saved" | "menu_settings" | "menu_about" | "nav_brief";
+const SCREEN_LABELS: [RegExp, LabelKey][] = [
+  [/^\/event\//, "menu_story"],
+  [/^\/outlook/, "nav_outlook"],
+  [/^\/browse/, "nav_browse"],
+  [/^\/entities/, "nav_entities"],
+  [/^\/saved/, "menu_saved"],
+  [/^\/you/, "menu_settings"],
+  [/^\/about/, "menu_about"],
+  [/^\/$/, "nav_brief"],
 ];
-const labelFor = (path: string) => SCREEN_LABELS.find(([re]) => re.test(path))?.[1] ?? "";
+const labelKeyFor = (path: string): LabelKey | null => SCREEN_LABELS.find(([re]) => re.test(path))?.[1] ?? null;
 
-const MENU = [
-  { href: "/saved", label: "Saved", rail: "var(--accent-dot)" },
-  { href: "/you", label: "Settings", rail: "var(--accent)" },
-  { href: "/about", label: "About", rail: "#16a34a" },
+const MENU: { href: string; labelKey: "menu_saved" | "menu_settings" | "menu_about"; rail: string }[] = [
+  { href: "/saved", labelKey: "menu_saved", rail: "var(--accent-dot)" },
+  { href: "/you", labelKey: "menu_settings", rail: "var(--accent)" },
+  { href: "/about", labelKey: "menu_about", rail: "#16a34a" },
 ];
 
 export default function NavMenu() {
@@ -58,15 +62,15 @@ export default function NavMenu() {
   }, [open]);
 
   const pickLang = (l: Lang) => { setLang(l); setLangState(l); };
-  const label = labelFor(pathname);
+  const labelKey = labelKeyFor(pathname);
   // The event page carries its own EN/ES (EventActionBar) — don't double it.
   const isEvent = /^\/event\//.test(pathname);
 
   return (
     <>
       <div className="flex items-center gap-3">
-        {label && (
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</span>
+        {labelKey && (
+          <span suppressHydrationWarning className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{t(lang, labelKey)}</span>
         )}
         {!isEvent && (
           <div className="flex border border-white/30">
@@ -110,7 +114,7 @@ export default function NavMenu() {
             className="sheet-enter fixed top-0 right-0 bottom-0 z-[61] w-[296px] max-w-[85vw] bg-[var(--bg)] border-l-2 border-[var(--ink)] shadow-[-18px_0_44px_rgba(10,10,15,0.3)] overflow-y-auto"
           >
             <div className="h-[52px] bg-[var(--accent)] flex items-center justify-between px-4">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/55">Menu</span>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/55">{t(lang, "menu_title")}</span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -125,7 +129,7 @@ export default function NavMenu() {
               <div className="text-[20px] font-extrabold tracking-tight">InkBytes<span className="text-[var(--accent-dot)]">.</span></div>
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span className="w-1.5 h-1.5 bg-[#16a34a]" />
-                <span className="font-mono text-[9.5px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)]">Paid · ad-free</span>
+                <span className="font-mono text-[9.5px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)]">{t(lang, "paid_adfree")}</span>
               </div>
 
               <div className="h-0.5 bg-[var(--ink)] mt-[18px]" />
@@ -138,13 +142,13 @@ export default function NavMenu() {
                   className="flex items-center gap-3 py-4 border-b border-[var(--border)] hover:bg-black/[0.03] transition-colors -mx-[18px] px-[18px]"
                 >
                   <i className="block w-1 h-4 shrink-0" style={{ background: m.rail }} />
-                  <span className="flex-1 text-[15.5px] font-bold tracking-tight text-[var(--ink)]">{m.label}</span>
+                  <span className="flex-1 text-[15.5px] font-bold tracking-tight text-[var(--ink)]">{t(lang, m.labelKey)}</span>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#9a9a9a" strokeWidth="2"><polyline points="9 6 15 12 9 18" /></svg>
                 </Link>
               ))}
 
               <div className="flex items-center gap-2.5 mt-5">
-                <span className="font-mono text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--ink-muted)]">Reading language</span>
+                <span className="font-mono text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--ink-muted)]">{t(lang, "reading_language")}</span>
                 <span className="ml-auto flex border border-[var(--border)]">
                   {(["en", "es"] as Lang[]).map((l) => (
                     <button

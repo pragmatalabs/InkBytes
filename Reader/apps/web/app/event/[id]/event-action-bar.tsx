@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { isSaved, toggleSaved, SAVED_EVENT } from "@/lib/saved-events";
 import { readBriefingIds } from "@/lib/briefing-set";
+import { useLang } from "@/lib/prefs";
+import { t } from "@/lib/i18n";
 
 /**
  * Event chrome (prototype `chromeEvent`): ← back · EN/ES reading-language toggle
@@ -15,7 +17,6 @@ const LANGS = ["en", "es"] as const;
 type Lang = (typeof LANGS)[number];
 
 interface Props {
-  back: React.ReactNode;
   share: React.ReactNode;
   eventId: string;
   headline: string;
@@ -25,7 +26,6 @@ interface Props {
 }
 
 export default function EventActionBar({
-  back,
   share,
   eventId,
   headline,
@@ -33,6 +33,7 @@ export default function EventActionBar({
   language,
   alsoLanguages,
 }: Props) {
+  const uiLang = useLang();
   const [saved, setSaved] = useState(false);
   // Position within today's frozen briefing → "BRIEFING n/m" (prototype
   // chromeEvent). null until mount (server render uses the `back` fallback).
@@ -63,10 +64,15 @@ export default function EventActionBar({
           className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
         >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-          Briefing {briefPos.n}/{briefPos.total}
+          {t(uiLang, "briefing")} {briefPos.n}/{briefPos.total}
         </Link>
       ) : (
-        back
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+        >
+          ← {t(uiLang, "all_events")}
+        </Link>
       )}
 
       <div className="flex items-center gap-3">
@@ -90,7 +96,7 @@ export default function EventActionBar({
                   key={l}
                   href={`/event/${siblingId}`}
                   className={`${base} text-[var(--ink)] hover:bg-gray-100 transition-colors`}
-                  aria-label={`Read in ${label}`}
+                  aria-label={t(uiLang, "read_in", { lang: label })}
                 >
                   {label}
                 </Link>
@@ -101,7 +107,7 @@ export default function EventActionBar({
                 key={l}
                 className={`${base} text-[var(--ink-muted)] opacity-40 cursor-not-allowed`}
                 aria-disabled="true"
-                title={`Not available in ${label}`}
+                title={t(uiLang, "not_available_in", { lang: label })}
               >
                 {label}
               </span>
@@ -114,7 +120,7 @@ export default function EventActionBar({
           type="button"
           onClick={() => setSaved(toggleSaved({ id: eventId, headline, category, language }))}
           aria-pressed={saved}
-          aria-label={saved ? "Remove from saved" : "Save this story"}
+          aria-label={saved ? t(uiLang, "remove_saved") : t(uiLang, "save_story")}
           className="inline-flex items-center text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
         >
           <svg viewBox="0 0 24 24" width="17" height="17" fill={saved ? "var(--accent)" : "none"} stroke={saved ? "var(--accent)" : "currentColor"} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">

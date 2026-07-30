@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 /**
  * Reader preferences — localStorage for now (a signed-in profile later).
  * Backs the You screen (Slice B2): default reading language + notification
@@ -58,3 +60,25 @@ export function setNotif(next: NotifPrefs): void {
 }
 
 export const PREFS_EVENT = EVT;
+
+/**
+ * Current UI-chrome language, reactive to the pref toggle. Starts "en" on the
+ * server and first client paint (so SSR markup matches), then fills the stored
+ * pref after mount — the app's established hydration-safe pattern. Pair with
+ * `t()` from `lib/i18n`. Chrome that renders differently per language should
+ * carry `suppressHydrationWarning`, same as the dateline/read-state.
+ */
+export function useLang(): Lang {
+  const [lang, setLangState] = useState<Lang>("en");
+  useEffect(() => {
+    const sync = () => setLangState(getLang());
+    sync();
+    window.addEventListener(PREFS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(PREFS_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+  return lang;
+}

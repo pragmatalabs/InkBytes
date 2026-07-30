@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { relativeTime, outletInitials } from "@/lib/api";
+import { useLang, type Lang } from "@/lib/prefs";
+import { t, entityNoun } from "@/lib/i18n";
 import type {
   MediaRailItem,
   EvidenceItem,
@@ -61,11 +63,11 @@ const ICONS: Record<SheetKey, React.ReactNode> = {
   ),
 };
 
-const HEADS: Record<SheetKey, string> = {
-  watch: "Watch",
-  evidence: "Evidence",
-  entities: "Entities",
-  related: "Related",
+const SHEET_LABEL: Record<SheetKey, "sheet_watch" | "sheet_evidence" | "sheet_entities" | "sheet_related"> = {
+  watch: "sheet_watch",
+  evidence: "sheet_evidence",
+  entities: "sheet_entities",
+  related: "sheet_related",
 };
 
 // Colored entity avatars (prototype "Entities in this story") + friendly type
@@ -77,10 +79,6 @@ function entityColor(name: string): string {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
   return ENTITY_PALETTE[Math.abs(h) % ENTITY_PALETTE.length];
 }
-const ENTITY_NOUN: Record<string, string> = {
-  PERSON: "Person", ORG: "Organisation", LOC: "Place", EVENT: "Event", OTHER: "Topic",
-};
-
 // ── Bottom sheet shell ─────────────────────────────────────────────────────────
 
 function Sheet({
@@ -89,6 +87,7 @@ function Sheet({
   onClose,
   children,
   title,
+  lang,
 }: {
   which: SheetKey;
   count: number;
@@ -96,8 +95,9 @@ function Sheet({
   children: React.ReactNode;
   /** Overrides the default header label (e.g. "Entities in this story"). */
   title?: string;
+  lang: Lang;
 }) {
-  const heading = title ?? HEADS[which];
+  const heading = title ?? t(lang, SHEET_LABEL[which]);
   return (
     <>
       {/* Scrim */}
@@ -151,6 +151,7 @@ export default function StoryNav({
   nextId,
   accent,
 }: Props) {
+  const lang = useLang();
   const [open, setOpen] = useState<SheetKey | null>(null);
   // Source to scroll to + flash when Evidence opens from a citation tap.
   const [focusSource, setFocusSource] = useState<string | null>(null);
@@ -214,22 +215,22 @@ export default function StoryNav({
       {tiles.length > 0 && (
         <>
           <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b-2 border-[var(--ink)]">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">This story</span>
-            <span className="ml-auto font-mono text-[11px] font-bold text-[var(--ink-muted)]">Tap to open</span>
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">{t(lang, "this_story")}</span>
+            <span className="ml-auto font-mono text-[11px] font-bold text-[var(--ink-muted)]">{t(lang, "tap_to_open")}</span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
-            {tiles.map((t) => (
+            {tiles.map((tile) => (
               <button
-                key={t.key}
+                key={tile.key}
                 type="button"
-                onClick={() => setOpen(t.key)}
+                onClick={() => setOpen(tile.key)}
                 aria-haspopup="dialog"
                 className="flex flex-col gap-1.5 p-3 border border-[var(--border)] bg-white text-left text-[var(--ink)] hover:border-[var(--ink)] transition-colors"
               >
-                {ICONS[t.key]}
+                {ICONS[tile.key]}
                 <span className="text-[13px] font-bold tracking-tight leading-tight">
-                  {HEADS[t.key]}{" "}
-                  <span className="font-mono text-[10px] font-bold text-[var(--ink-muted)] tabular-nums">{t.n}</span>
+                  {t(lang, SHEET_LABEL[tile.key])}{" "}
+                  <span className="font-mono text-[10px] font-bold text-[var(--ink-muted)] tabular-nums">{tile.n}</span>
                 </span>
               </button>
             ))}
@@ -242,7 +243,7 @@ export default function StoryNav({
           href={`/event/${nextId}`}
           className="mt-5 w-full flex items-center justify-center gap-2.5 py-3.5 bg-[var(--ink)] text-white font-mono text-[12px] font-bold uppercase tracking-[0.12em] hover:opacity-90 transition-opacity"
         >
-          Next story
+          {t(lang, "next_story")}
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
             <polyline points="9 6 15 12 9 18" />
           </svg>
@@ -251,19 +252,19 @@ export default function StoryNav({
 
       {/* ── Watch ─────────────────────────────────────────────────────────── */}
       {open === "watch" && (
-        <Sheet which="watch" count={videos.length} onClose={close}>
+        <Sheet which="watch" count={videos.length} onClose={close} lang={lang}>
           <div className="mt-4">
             <VideoCoverflow videos={videos} />
           </div>
           <div className="mt-3 font-mono text-[10.5px] tracking-[0.05em] text-[var(--ink-muted)]">
-            Video only · no outlet imagery
+            {t(lang, "video_only")}
           </div>
         </Sheet>
       )}
 
       {/* ── Evidence ──────────────────────────────────────────────────────── */}
       {open === "evidence" && (
-        <Sheet which="evidence" count={evidence.length} onClose={close}>
+        <Sheet which="evidence" count={evidence.length} onClose={close} lang={lang}>
           {evidence.map((q, i) => (
             <a
               key={i}
@@ -297,7 +298,7 @@ export default function StoryNav({
 
       {/* ── Entities in this story (prototype isEntsDrawer) ──────────────────── */}
       {open === "entities" && (
-        <Sheet which="entities" count={entities.length} onClose={close} title="Entities in this story">
+        <Sheet which="entities" count={entities.length} onClose={close} title={t(lang, "entities_in_story")} lang={lang}>
           {entities.map((e, i) => (
             <button
               key={i}
@@ -313,7 +314,7 @@ export default function StoryNav({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-bold tracking-tight truncate group-hover:text-[var(--accent)] transition-colors">{e.name}</div>
-                {e.type && <div className="text-[12px] text-[var(--ink-muted)]">{ENTITY_NOUN[e.type] ?? "Topic"}</div>}
+                {e.type && <div className="text-[12px] text-[var(--ink-muted)]">{entityNoun(lang, e.type)}</div>}
               </div>
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#9a9a9a" strokeWidth="2" className="shrink-0"><polyline points="9 6 15 12 9 18" /></svg>
             </button>
@@ -323,7 +324,7 @@ export default function StoryNav({
             onClick={close}
             className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)] hover:underline"
           >
-            Explore the entity graph
+            {t(lang, "explore_graph")}
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="9 6 15 12 9 18" /></svg>
           </Link>
         </Sheet>
@@ -331,23 +332,23 @@ export default function StoryNav({
 
       {/* ── Related (story timeline + related events) ─────────────────────── */}
       {open === "related" && (
-        <Sheet which="related" count={related.length} onClose={close}>
+        <Sheet which="related" count={related.length} onClose={close} lang={lang}>
           {timeline.length > 0 && (
             <div className="mt-3.5 ml-1.5 pl-4 border-l border-[var(--border)]">
-              {timeline.map((t, i) => (
+              {timeline.map((ti, i) => (
                 <div key={i} className="relative pb-4">
                   <span className="absolute top-1 -left-[21px] w-1.5 h-1.5 bg-[var(--border)]" aria-hidden />
-                  {t.at && (
-                    <div className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)]">
-                      {relativeTime(t.at)}
+                  {ti.at && (
+                    <div suppressHydrationWarning className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)]">
+                      {relativeTime(ti.at)}
                     </div>
                   )}
-                  <div className="text-[14.5px] leading-snug tracking-tight mt-1">{t.headline}</div>
+                  <div className="text-[14.5px] leading-snug tracking-tight mt-1">{ti.headline}</div>
                 </div>
               ))}
               <div className="relative pb-1">
                 <span className="absolute top-1 -left-[21px] w-2 h-2" style={{ background: accent }} aria-hidden />
-                <div className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">Now</div>
+                <div className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">{t(lang, "now")}</div>
                 <div className="text-[14.5px] font-bold leading-snug tracking-tight mt-1">{currentHeadline}</div>
               </div>
             </div>
@@ -368,7 +369,7 @@ export default function StoryNav({
                     {r.headline}
                   </div>
                   <div className="flex items-center gap-2.5 mt-1.5 text-[11px] text-[var(--ink-muted)]">
-                    <span>{r.source_count} {r.source_count === 1 ? "source" : "sources"}</span>
+                    <span>{r.source_count} {t(lang, r.source_count === 1 ? "source_one" : "source_many")}</span>
                     <span suppressHydrationWarning className="font-mono">{relativeTime(r.freshness_at)}</span>
                     {r.language !== "en" && (
                       <span className="font-mono uppercase text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{r.language}</span>
@@ -379,7 +380,7 @@ export default function StoryNav({
                       <i className="block h-1" style={{ background: accent, width: `${pct}%` }} />
                     </span>
                     <span className="font-mono text-[11px] font-bold tabular-nums">{pct}%</span>
-                    <span className="text-[11px] text-[var(--ink-muted)]">match</span>
+                    <span className="text-[11px] text-[var(--ink-muted)]">{t(lang, "match")}</span>
                   </div>
                 </div>
               </Link>
