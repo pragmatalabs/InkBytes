@@ -11,6 +11,7 @@ import type {
   TitleHistoryEntry,
 } from "@/lib/types";
 import VideoCoverflow from "@/components/video-coverflow";
+import EntityDetailSheet, { type DrawerEntity } from "./entity-detail-sheet";
 
 /**
  * StoryNav — the event page's "This story" 2×2 action grid, and the bottom-sheet
@@ -153,6 +154,8 @@ export default function StoryNav({
   const [open, setOpen] = useState<SheetKey | null>(null);
   // Source to scroll to + flash when Evidence opens from a citation tap.
   const [focusSource, setFocusSource] = useState<string | null>(null);
+  // Entity tapped in the Entities drawer → in-place detail sub-sheet.
+  const [openEntity, setOpenEntity] = useState<DrawerEntity | null>(null);
 
   // Escape closes; lock body scroll while a sheet is open.
   useEffect(() => {
@@ -296,11 +299,11 @@ export default function StoryNav({
       {open === "entities" && (
         <Sheet which="entities" count={entities.length} onClose={close} title="Entities in this story">
           {entities.map((e, i) => (
-            <Link
+            <button
               key={i}
-              href={`/entities?e=${encodeURIComponent(e.name.toLowerCase())}`}
-              onClick={close}
-              className="flex items-center gap-3 py-3 border-b border-[var(--border)] group"
+              type="button"
+              onClick={() => setOpenEntity({ id: e.name.toLowerCase(), name: e.name, type: e.type })}
+              className="flex items-center gap-3 py-3 border-b border-[var(--border)] w-full text-left group"
             >
               <span
                 className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-[11px] font-extrabold shrink-0"
@@ -313,7 +316,7 @@ export default function StoryNav({
                 {e.type && <div className="text-[12px] text-[var(--ink-muted)]">{ENTITY_NOUN[e.type] ?? "Topic"}</div>}
               </div>
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#9a9a9a" strokeWidth="2" className="shrink-0"><polyline points="9 6 15 12 9 18" /></svg>
-            </Link>
+            </button>
           ))}
           <Link
             href="/entities"
@@ -384,6 +387,9 @@ export default function StoryNav({
           })}
         </Sheet>
       )}
+
+      {/* Entity detail — stacked over the Entities drawer (prototype entOpen) */}
+      <EntityDetailSheet entity={openEntity} onClose={() => setOpenEntity(null)} />
     </div>
   );
 }

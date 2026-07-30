@@ -129,6 +129,34 @@ export interface GraphData {
   meta: { node_count: number; edge_count: number; event_count: number };
 }
 
+/** Single-entity detail (Curator GET /entities/{id}) — powers the in-place
+ *  entity sheet on the event page (prototype entOpen). A light slice of /graph. */
+export interface EntityDetailEvent {
+  id: string;
+  headline: string;
+  source_count: number;
+  freshness_at: string;
+}
+export interface EntityDetailConnection {
+  id: string;
+  label: string;
+  weight: number;
+}
+export interface EntityDetail {
+  id: string;
+  label: string;
+  type: EntityType;
+  event_count: number;
+  today_count: number;
+  connection_count: number;
+  recent_events: EntityDetailEvent[];
+  connections: EntityDetailConnection[];
+  image?: string | null;
+  description?: string | null;
+  image_attribution?: string | null;
+  image_source?: string | null;
+}
+
 /** Related event card — returned by GET /events/{id}/related (ADR-0005). */
 export interface RelatedEvent {
   id: string;

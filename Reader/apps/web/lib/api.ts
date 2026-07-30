@@ -1,5 +1,5 @@
 import type { EventSummary, EventPage, RelatedEvent, GraphData, TrendingTopic,
-  Outlook, OutlookTopic, OutlookArchiveEntry } from "./types";
+  Outlook, OutlookTopic, OutlookArchiveEntry, EntityDetail } from "./types";
 
 const BASE = process.env.CURATOR_API_URL ?? "http://localhost:8060";
 
@@ -99,6 +99,12 @@ export function getEvents(
   if (filters?.topic)    qs.set("topic", filters.topic);
   if (filters?.category) qs.set("category", filters.category);
   return apiFetch<EventSummary[]>(`/events?${qs.toString()}`, 60);
+}
+
+/** Single-entity detail (Curator GET /entities/{id}). Throws on 404 (entity not
+ *  in any published event) — callers fall back to a light sheet. */
+export function getEntityDetail(id: string): Promise<EntityDetail> {
+  return apiFetch<EntityDetail>(`/entities/${encodeURIComponent(id)}`, 120);
 }
 
 export function getEvent(id: string): Promise<EventPage> {
