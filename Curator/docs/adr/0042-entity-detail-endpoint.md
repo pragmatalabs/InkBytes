@@ -67,11 +67,14 @@ endpoint is deferred until it lands.
 ## What SHIPS now (2026-07-30)
 
 - The Reader's **in-place `EntityDetailSheet`** + `GET /api/entity/[id]` proxy
-  (committed in 42a9551) stay. With no Curator endpoint, the proxy 404s and the
-  sheet renders its **light fallback** — entity name + type + a "View full
-  profile →" link into `/entities?e=`. Tapping an entity now opens a sheet in
-  place instead of navigating away; the rich stats fill in for free once the
-  endpoint + index ship.
+  (committed in 42a9551) stay. With no Curator endpoint the proxy returns
+  **`200 { available: false }`** (NOT a 404 — that put a red error on every entity
+  tap in the console; fixed 2026-07-30) and the sheet renders its **light
+  fallback** — entity name + type + a "View full profile →" link into
+  `/entities?e=`. Tapping an entity now opens a sheet in place instead of
+  navigating away; the rich stats fill in **for free, with no client change**,
+  once the endpoint + index ship (the proxy then returns the real detail and the
+  client shows the rich sheet).
 - The Curator `get_entity` handler was **removed** from `api_server.py` so no
   slow/index-starved route reaches prod.
 

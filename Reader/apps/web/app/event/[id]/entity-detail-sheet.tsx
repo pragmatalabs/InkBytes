@@ -30,17 +30,30 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
   const [detail, setDetail] = useState<EntityDetail | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "light">("loading");
 
+  // Key the fetch on the entity id (a string), not the object — defensive
+  // against a fresh object reference ever re-firing the request in a loop.
+  const entityId = entity?.id ?? null;
   useEffect(() => {
-    if (!entity) return;
+    if (!entityId) return;
     setDetail(null);
     setState("loading");
     let alive = true;
-    fetch(`/api/entity/${encodeURIComponent(entity.id)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("not found"))))
-      .then((d: EntityDetail) => { if (alive) { setDetail(d); setState("ok"); } })
+    fetch(`/api/entity/${encodeURIComponent(entityId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        // Endpoint deferred (Curator ADR-0042) or entity not in a published
+        // event → the proxy returns { available: false }. Render the light sheet.
+        if (d && d.available !== false && typeof d.event_count === "number") {
+          setDetail(d as EntityDetail);
+          setState("ok");
+        } else {
+          setState("light");
+        }
+      })
       .catch(() => { if (alive) setState("light"); });
     return () => { alive = false; };
-  }, [entity]);
+  }, [entityId]);
 
   useEffect(() => {
     if (!entity) return;
