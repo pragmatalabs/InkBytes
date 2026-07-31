@@ -63,6 +63,9 @@ class AskRequest(BaseModel):
     """Body for POST /ask (ADR-0022 corpus chat assistant)."""
     question: str = Field("", max_length=_MAX_QUESTION_LEN)
     mode: str = "chat"  # "resume" | "top10" | "chat"
+    # Prior conversation turns [{role, content}] so follow-ups keep context.
+    # Bounded + truncated in the handler before it reaches the LLM.
+    history: list[dict[str, Any]] = Field(default_factory=list)
 
 # ── Broad news categories derived from article-level topic strings ────────────
 # Each entry is (category_key, [keywords...]).  First match wins; "world" is
@@ -1253,6 +1256,13 @@ def build_app(app: Application) -> FastAPI:
         mode = body.mode if body.mode in ("resume", "top10", "chat") else "chat"
         if mode == "chat" and not body.question.strip():
             raise HTTPException(400, "question required for chat mode")
-        return await app.assistant.answer(body.question, mode)
+        # Sanitize history before the LLM: last 8 turns, content clamped — a
+        # public endpoint must not let callers stuff unbounded context (cost).
+        hist = [
+            {"role": "user" if (h.get("role") == "user") else "assistant",
+             "content": str(h.get("content", ""))[:1000]}
+            for h in (body.history or [])[-8:] if isinstance(h, dict)
+        ]
+        return await app.assistant.answer(body.question, mode, hist)
 
     return api

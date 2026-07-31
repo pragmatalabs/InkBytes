@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { question?: string; mode?: string };
+  let body: { question?: string; mode?: string; history?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -97,11 +97,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "question required" }, { status: 400 });
   }
 
+  // Recent conversation turns for follow-up context — bounded + clamped here
+  // too (defence in depth; Curator re-sanitizes) so a caller can't stuff the
+  // LLM prompt via this public route.
+  const history = Array.isArray(body.history)
+    ? body.history.slice(-8).map((h) => {
+        const m = (h ?? {}) as { role?: unknown; content?: unknown };
+        return { role: m.role === "user" ? "user" : "assistant", content: String(m.content ?? "").slice(0, 1000) };
+      })
+    : [];
+
   try {
     const res = await fetch(`${CURATOR}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, mode }),
+      body: JSON.stringify({ question, mode, history }),
       cache: "no-store",
     });
     if (!res.ok) {

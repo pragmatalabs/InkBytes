@@ -46,18 +46,28 @@ class AssistantSkill:
         # Keep everything above the "## Input format" marker as the system prompt.
         return re.split(r"^## Input format", raw, flags=re.MULTILINE)[0].strip()
 
-    async def answer(self, question: str, mode: str = "chat") -> dict:
+    async def answer(self, question: str, mode: str = "chat",
+                     history: list[dict] | None = None) -> dict:
         """Return {answer_md, sources:[{n,title,url,event_id,outlet}]}.
 
         mode: "resume" | "top10" | "chat" (free-form). "top10" carries its
         category in the question text (e.g. "top 10 in technology today").
+        `history` = prior [{role, content}] turns so follow-ups keep context.
         """
         question = (question or "").strip()[:_MAX_QUESTION_CHARS]
+        history = history or []
 
         if mode in ("resume", "top10"):
             sources = await self._retrieve_digest()
         else:
-            sources = await self._retrieve_chat(question)
+            # Follow-ups: retrieve on the recent user turns + the question, so a
+            # bare "tell me more" still finds the right articles (not just the
+            # literal follow-up text).
+            prior = " ".join(
+                m.get("content", "") for m in history[-4:] if m.get("role") == "user"
+            ).strip()
+            retrieval_q = (prior + " " + question).strip()[:_MAX_QUESTION_CHARS] if prior else question
+            sources = await self._retrieve_chat(retrieval_q)
 
         if not sources:
             return {
@@ -65,7 +75,7 @@ class AssistantSkill:
                 "sources": [],
             }
 
-        user_content = self._build_user_content(question, mode, sources)
+        user_content = self._build_user_content(question, mode, sources, history)
         result = await self.llm.structured(
             model=self.llm_cfg.synthesize_model,
             system_prompt=self._system_prompt,
@@ -155,7 +165,8 @@ class AssistantSkill:
             })
         return out
 
-    def _build_user_content(self, question: str, mode: str, sources: list[dict]) -> str:
+    def _build_user_content(self, question: str, mode: str, sources: list[dict],
+                            history: list[dict] | None = None) -> str:
         if mode == "resume":
             ask = "Give today's news resume from the sources below."
         elif mode == "top10":
@@ -163,7 +174,18 @@ class AssistantSkill:
                   " — pick only from the sources below."
         else:
             ask = question
-        lines = [ask, "", "SOURCES:"]
+        lines: list[str] = []
+        # Prepend the recent conversation so a follow-up ("what about the EU
+        # angle?") is answered in context — still grounded ONLY in the sources.
+        convo = []
+        for m in (history or [])[-6:]:
+            who = "User" if m.get("role") == "user" else "Assistant"
+            txt = (m.get("content") or "").strip().replace("\n", " ")[:400]
+            if txt:
+                convo.append(f"{who}: {txt}")
+        if convo:
+            lines += ["CONVERSATION SO FAR (most recent last):", *convo, ""]
+        lines += [ask, "", "SOURCES:"]
         for s in sources:
             tag = s["topic"] or s["outlet"] or "news"
             lines.append(f"[{s['n']}] {s['title']} — {tag}")
