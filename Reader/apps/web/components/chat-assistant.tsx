@@ -15,12 +15,14 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { relativeTime, isDeveloping } from "@/lib/api";
+import { themeAccent } from "@/lib/theme-colors";
 import {
   listChats, saveChat, getChat, deleteChat, SAVED_CHATS_EVENT,
-  type ChatMsg, type ChatSource, type SavedChat,
+  type ChatMsg, type ChatSource, type ChatCoverage, type SavedChat,
 } from "@/lib/saved-chats";
 
-interface AskResponse { answer_md: string; sources: ChatSource[]; error?: string }
+interface AskResponse { answer_md: string; sources: ChatSource[]; coverage?: ChatCoverage; error?: string }
 type Mode = "resume" | "top10" | "chat";
 
 /** Cap: a briefing assistant, not an endless chatbot. */
@@ -39,53 +41,118 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-// ── Markdown-ish answer rendering: [n] citations → event links ────────────────
-function renderLine(line: string, sources: ChatSource[], onNavigate: () => void) {
-  return line.split(/(\[\d+\])/g).map((part, i) => {
-    const m = part.match(/^\[(\d+)\]$/);
-    if (m) {
-      const src = sources.find((s) => s.n === parseInt(m[1], 10));
-      if (src) {
-        return (
-          <Link
-            key={i} href={src.url} onClick={onNavigate} title={src.title}
-            className="text-[var(--accent-dot)] font-semibold hover:underline align-super text-[0.7em]"
-          >
-            [{m[1]}]
-          </Link>
-        );
-      }
-    }
-    // inline **bold**
-    return part.split(/(\*\*[^*]+\*\*)/g).map((seg, j) => {
-      const b = seg.match(/^\*\*([^*]+)\*\*$/);
-      return b ? <strong key={`${i}-${j}`} className="font-semibold">{b[1]}</strong> : <span key={`${i}-${j}`}>{seg}</span>;
-    });
+// ── 1B "the router": a short framing answer that hands you the event cards ────
+const CARDS_INITIAL = 4;
+
+// The framing prose strips [n] markers — in 1B the event cards ARE the citations.
+const stripCites = (s: string): string => s.replace(/\s?\[\d+\]/g, "");
+
+function inlineBold(line: string, keyPrefix: string) {
+  return line.split(/(\*\*[^*]+\*\*)/g).map((seg, j) => {
+    const b = seg.match(/^\*\*([^*]+)\*\*$/);
+    return b ? <strong key={`${keyPrefix}-${j}`} className="font-semibold">{b[1]}</strong> : <span key={`${keyPrefix}-${j}`}>{seg}</span>;
   });
 }
 
-function AnswerBody({ md, sources, onNavigate }: { md: string; sources: ChatSource[]; onNavigate: () => void }) {
-  const lines = md.trim().split(/\n+/).filter(Boolean);
+// The framing answer, white on the navy block. Lists collapse to plain lines
+// (the events carry the structure); citation markers are dropped.
+function NavyAnswer({ md }: { md: string }) {
+  const lines = stripCites(md).trim().split(/\n+/)
+    .map((l) => l.replace(/^\s*([-*]|\d+[.)])\s+/, "").replace(/^#{1,3}\s+/, "").trim())
+    .filter(Boolean);
+  return <>{lines.map((line, i) => <p key={i} className="mb-2 last:mb-0 leading-relaxed">{inlineBold(line, String(i))}</p>)}</>;
+}
+
+// The events the answer points to: cited [n] in order, deduped; all sources if
+// the model cited none.
+function citedSources(md: string, sources: ChatSource[]): ChatSource[] {
+  const seen = new Set<number>();
+  const order: number[] = [];
+  for (const m of md.matchAll(/\[(\d+)\]/g)) {
+    const n = parseInt(m[1], 10);
+    if (!seen.has(n)) { seen.add(n); order.push(n); }
+  }
+  const cited = order.map((n) => sources.find((s) => s.n === n)).filter(Boolean) as ChatSource[];
+  return cited.length ? cited : sources;
+}
+
+// One routed event → the reader's event page ("one elegant page per event").
+function EventCard({ src, onNavigate }: { src: ChatSource; onNavigate: () => void }) {
+  const accent = themeAccent(src.category ?? null);
+  const dev = src.freshness_at ? isDeveloping(src.freshness_at) : false;
   return (
-    <>
-      {lines.map((line, i) => {
-        const listItem = /^\s*([-*]|\d+[.)])\s+/.test(line);
-        const heading = /^#{1,3}\s+/.test(line);
-        const clean = line.replace(/^\s*([-*]|\d+[.)])\s+/, "").replace(/^#{1,3}\s+/, "");
-        if (heading) {
-          return <p key={i} className="font-bold text-[15px] mt-3 mb-1 first:mt-0">{renderLine(clean, sources, onNavigate)}</p>;
-        }
-        if (listItem) {
-          return (
-            <div key={i} className="flex gap-2 mb-1.5 leading-relaxed">
-              <span className="text-[var(--accent-dot)] shrink-0 mt-[1px]">•</span>
-              <span>{renderLine(clean, sources, onNavigate)}</span>
-            </div>
-          );
-        }
-        return <p key={i} className="mb-2.5 leading-relaxed last:mb-0">{renderLine(line, sources, onNavigate)}</p>;
-      })}
-    </>
+    <Link
+      href={src.url}
+      onClick={onNavigate}
+      className="group block bg-white border border-[var(--border)] border-l-4 p-3 hover:shadow-md hover:border-gray-300 transition-all"
+      style={{ borderLeftColor: accent }}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: accent }} />
+        <span className="font-mono text-[8.5px] font-extrabold uppercase tracking-[0.12em]" style={{ color: accent }}>{src.category || "news"}</span>
+        {dev && (
+          <span className="ml-auto inline-flex items-center gap-1 font-mono text-[8.5px] font-extrabold uppercase tracking-[0.1em] text-[#16a34a]">
+            <i className="w-1.5 h-1.5 bg-[#16a34a] block" />Developing
+          </span>
+        )}
+      </div>
+      <div className="text-[15px] font-bold tracking-tight leading-snug mt-2 group-hover:text-[var(--accent)] transition-colors">{src.title}</div>
+      <div className="flex items-center gap-2.5 mt-2 text-[var(--ink-muted)]">
+        {typeof src.source_count === "number" && (
+          <span className="font-mono text-[10px] font-bold tabular-nums">{src.source_count} {src.source_count === 1 ? "SOURCE" : "SOURCES"}</span>
+        )}
+        {src.freshness_at && <span suppressHydrationWarning className="font-mono text-[10px] font-bold">{relativeTime(src.freshness_at)}</span>}
+        <span className="ml-auto font-mono text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-[var(--accent)]">Open brief →</span>
+      </div>
+    </Link>
+  );
+}
+
+// A full assistant turn: framing answer + coverage strip + the events it routes to.
+function AssistantTurn({ msg, onNavigate }: { msg: ChatMsg; onNavigate: () => void }) {
+  const [showAll, setShowAll] = useState(false);
+  const cards = citedSources(msg.content, msg.sources ?? []);
+  const visible = showAll ? cards : cards.slice(0, CARDS_INITIAL);
+  const cov = msg.coverage;
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Framing answer — navy block, no bubble, no avatar */}
+      <div className="bg-[var(--accent)] text-white p-3.5">
+        <div className="text-[15px]"><NavyAnswer md={msg.content} /></div>
+        {cov && cov.events > 0 && (
+          <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-white/15">
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-white/55 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+            <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.12em] text-white/55">
+              Read from {cov.events} event{cov.events === 1 ? "" : "s"} · {cov.articles} article{cov.articles === 1 ? "" : "s"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* The events the answer routes you to */}
+      {cards.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 pb-1.5 border-b-2 border-[var(--ink)]">
+            <span className="font-mono text-[9px] font-extrabold uppercase tracking-[0.14em]">The events</span>
+            <span className="ml-auto font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--ink-muted)]">{cards.length} total</span>
+          </div>
+          <div className="flex flex-col gap-2 mt-3">
+            {visible.map((s) => <EventCard key={s.n} src={s} onNavigate={onNavigate} />)}
+            {cards.length > CARDS_INITIAL && !showAll && (
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className="text-center py-2.5 border border-[var(--border)] bg-white font-mono text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[var(--accent)] hover:border-[var(--ink)] transition-colors"
+              >
+                Show {cards.length - CARDS_INITIAL} more
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-0.5"><CopyButton text={msg.content} /></div>
+    </div>
   );
 }
 
@@ -184,7 +251,7 @@ export default function ChatAssistant() {
       if (!res.ok || data.error) {
         setError(data.error ?? "Something went wrong. Try again in a moment.");
       } else {
-        const botMsg: ChatMsg = { id: uid(), role: "assistant", content: data.answer_md, sources: data.sources };
+        const botMsg: ChatMsg = { id: uid(), role: "assistant", content: data.answer_md, sources: data.sources, coverage: data.coverage };
         const withBot = [...next, botMsg];
         setMessages(withBot);
         persist(withBot);
@@ -249,13 +316,16 @@ export default function ChatAssistant() {
               {view === "saved" ? (
                 <button onClick={() => setView("chat")} aria-label="Back to chat" className="p-2 -ml-1 text-white/80 hover:text-white">{Ico.back("w-5 h-5")}</button>
               ) : (
-                <span className="pl-2 inline-flex items-center gap-2 font-bold tracking-tight">
-                  {Ico.bot("w-5 h-5 text-white/90")}
-                  Ask InkBytes<span className="text-[var(--accent-dot)]">.</span>
-                </span>
+                <span className="pl-2 font-bold tracking-tight">Ask InkBytes<span className="text-[var(--accent-dot)]">.</span></span>
               )}
               {view === "saved" && <span className="pl-1 font-bold tracking-tight">Saved chats</span>}
               <div className="ml-auto flex items-center gap-0.5">
+                {/* Quota stated honestly in the header (1B), not apologised for under the input */}
+                {view === "chat" && (
+                  <span className="mr-1.5 font-mono text-[8.5px] font-bold uppercase tracking-[0.12em] text-white/65 border border-white/25 px-1.5 py-0.5">
+                    {Math.max(0, MAX_USER_TURNS - userTurns)} left
+                  </span>
+                )}
                 {view === "chat" && messages.length > 0 && (
                   <button onClick={exportChat} aria-label="Export conversation" title="Export" className="p-2 text-white/75 hover:text-white">{Ico.download("w-[18px] h-[18px]")}</button>
                 )}
@@ -326,42 +396,25 @@ export default function ChatAssistant() {
                 <div className="flex flex-col gap-4">
                   {messages.map((m) => (
                     m.role === "user" ? (
-                      <div key={m.id} className="self-end max-w-[85%]">
-                        <div className="rounded-2xl rounded-br-md bg-[var(--accent)] text-white px-3.5 py-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
+                      <div key={m.id} className="self-end max-w-[88%] text-right border-r-[3px] border-[var(--accent)] pr-3">
+                        <div className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-[var(--ink-muted)]">You asked</div>
+                        <div className="text-[15.5px] font-bold tracking-tight leading-snug mt-1 whitespace-pre-wrap">{m.content}</div>
                       </div>
                     ) : (
-                      <div key={m.id} className="flex gap-2.5">
-                        <span className="mt-0.5 w-7 h-7 rounded-full bg-[var(--accent)] text-white grid place-items-center shrink-0">{Ico.bot("w-4 h-4")}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[14.5px] text-[var(--ink)]">
-                            <AnswerBody md={m.content} sources={m.sources ?? []} onNavigate={closeOverlay} />
-                          </div>
-                          {m.sources && m.sources.length > 0 && (
-                            <div className="mt-3 flex flex-col gap-1">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--ink-muted)]">Sources</p>
-                              {m.sources.map((s) => (
-                                <Link key={s.n} href={s.url} onClick={closeOverlay} className="text-[12.5px] text-[var(--ink)] hover:text-[var(--accent-dot)] transition-colors">
-                                  <span className="font-mono text-[10px] text-[var(--ink-muted)] mr-1.5">[{s.n}]</span>{s.title}
-                                </Link>
-                              ))}
-                            </div>
-                          )}
-                          <div className="mt-2"><CopyButton text={m.content} /></div>
-                        </div>
-                      </div>
+                      <AssistantTurn key={m.id} msg={m} onNavigate={closeOverlay} />
                     )
                   ))}
 
                   {loading && (
-                    <div className="flex gap-2.5">
-                      <span className="mt-0.5 w-7 h-7 rounded-full bg-[var(--accent)] text-white grid place-items-center shrink-0">{Ico.bot("w-4 h-4")}</span>
-                      <div className="flex items-center gap-1 pt-2.5">
+                    <div className="flex items-center gap-2 py-2">
+                      <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Reading the corpus</span>
+                      <span className="flex items-center gap-1">
                         {[0, 1, 2].map((i) => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[var(--ink-muted)] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
-                      </div>
+                      </span>
                     </div>
                   )}
 
-                  {error && !loading && <p className="text-[13px] text-red-600 pl-9">{error}</p>}
+                  {error && !loading && <p className="text-[13px] text-red-600">{error}</p>}
                 </div>
               </div>
             </div>
@@ -399,7 +452,7 @@ export default function ChatAssistant() {
                   </form>
                 )}
                 <p className="mt-2 text-center text-[10.5px] text-[var(--ink-muted)]">
-                  Answers come only from InkBytes published events. {!atLimit && `${MAX_USER_TURNS - userTurns} question${MAX_USER_TURNS - userTurns === 1 ? "" : "s"} left in this chat.`}
+                  Answers come only from InkBytes published events.
                 </p>
               </div>
             </div>

@@ -73,6 +73,7 @@ class AssistantSkill:
             return {
                 "answer_md": "I don't have InkBytes coverage on that yet.",
                 "sources": [],
+                "coverage": {"events": 0, "articles": 0},
             }
 
         user_content = self._build_user_content(question, mode, sources, history)
@@ -83,8 +84,14 @@ class AssistantSkill:
             response_model=AnswerV1,
             max_tokens=self.llm_cfg.max_tokens_synth,
         )
+        # Coverage honesty (1B): how much of the corpus this answer read — the
+        # retrieval pool size + its total articles ("read from N events · M articles").
+        coverage = {
+            "events": len(sources),
+            "articles": sum((s.get("article_count") or 0) for s in sources),
+        }
         logger.info("ASSISTANT mode=%s q=%r -> %d sources", mode, question[:60], len(sources))
-        return {"answer_md": result.answer_md, "sources": sources}
+        return {"answer_md": result.answer_md, "sources": sources, "coverage": coverage}
 
     # ── retrieval ────────────────────────────────────────────────────────────
 
@@ -97,6 +104,14 @@ class AssistantSkill:
                    LEFT(p.synthesis_md, {_SUMMARY_CHARS}) AS summary,
                    e.topic,
                    e.language,
+                   e.source_count,
+                   e.article_count,
+                   p.freshness_at,
+                   -- Broad theme (ADR-0032) = dominant article theme; drives the
+                   -- Reader card's category accent (matches GET /events).
+                   (SELECT a2.theme FROM articles a2
+                     WHERE a2.event_id = e.id AND a2.theme IS NOT NULL
+                     GROUP BY a2.theme ORDER BY COUNT(*) DESC LIMIT 1) AS category,
                    (SELECT a.outlet_name FROM articles a
                      WHERE a.event_id = e.id AND a.outlet_name IS NOT NULL
                      ORDER BY a.scraped_at DESC LIMIT 1) AS outlet
@@ -122,7 +137,11 @@ class AssistantSkill:
         vec = await self.embed.embed(question)
         rows = await self.db.pool.fetch(  # type: ignore[union-attr]
             f"""
-            SELECT event_id, headline, summary, topic, language, outlet
+            SELECT event_id, headline, summary, topic, language,
+                   source_count, article_count, freshness_at, outlet,
+                   (SELECT a2.theme FROM articles a2
+                     WHERE a2.event_id = t.event_id AND a2.theme IS NOT NULL
+                     GROUP BY a2.theme ORDER BY COUNT(*) DESC LIMIT 1) AS category
               FROM (
                 SELECT DISTINCT ON (p.event_id)
                        p.event_id,
@@ -130,6 +149,9 @@ class AssistantSkill:
                        LEFT(p.synthesis_md, {_SUMMARY_CHARS}) AS summary,
                        e.topic,
                        e.language,
+                       e.source_count,
+                       e.article_count,
+                       p.freshness_at,
                        a.outlet_name AS outlet,
                        (a.embedding <=> $1::vector) AS dist
                   FROM articles a
@@ -153,13 +175,21 @@ class AssistantSkill:
     def _number(rows) -> list[dict]:
         out = []
         for i, r in enumerate(rows, start=1):
+            fresh = r["freshness_at"]
             out.append({
                 "n": i,
                 "event_id": r["event_id"],
                 "title": r["headline"],
                 "summary": (r["summary"] or "").strip(),
                 "topic": r["topic"],
+                # Broad theme (ADR-0032) for the Reader "router" card accent.
+                "category": r["category"],
                 "outlet": r["outlet"] or "",
+                # Router-card fields (1B): source count + freshness for the card
+                # meta; article_count feeds the answer's coverage total.
+                "source_count": r["source_count"],
+                "article_count": r["article_count"],
+                "freshness_at": fresh.isoformat() if fresh is not None else None,
                 # The Reader links citations to the InkBytes event page.
                 "url": f"/event/{r['event_id']}",
             })

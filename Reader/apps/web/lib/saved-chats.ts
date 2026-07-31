@@ -5,12 +5,27 @@
  * chats with Ask InkBytes. localStorage for now (a signed-in profile later),
  * same shape/pattern as lib/saved-events. Capped so the drawer never bloats.
  */
-export interface ChatSource { n: number; title: string; url: string; outlet?: string }
+export interface ChatSource {
+  n: number;
+  title: string;
+  url: string;
+  outlet?: string;
+  // Router-card fields (1B) — /ask now returns these per cited event.
+  event_id?: string;
+  category?: string | null;   // broad theme → card accent
+  source_count?: number;
+  article_count?: number;
+  freshness_at?: string | null;
+  summary?: string;
+}
+/** Corpus coverage for an answer — "read from N events · M articles" (1B). */
+export interface ChatCoverage { events: number; articles: number }
 export interface ChatMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: ChatSource[];
+  coverage?: ChatCoverage;
 }
 export interface SavedChat {
   id: string;
