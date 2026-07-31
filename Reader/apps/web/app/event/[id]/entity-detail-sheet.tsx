@@ -103,9 +103,8 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
             </button>
           </div>
 
-          {/* Reference links — a Wikipedia link for every entity (by name).
-              A canonical Wikidata link can join here once the API exposes the
-              stored wikidata_qid. */}
+          {/* Reference links — a Wikipedia link for every entity (by name), plus
+              a canonical Wikidata link when the API resolved a QID. */}
           <div className="pt-3.5 flex flex-wrap gap-1.5">
             <a
               href={wikiUrl}
@@ -116,6 +115,17 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
               Wikipedia
               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M14 4h6v6M20 4 11 13" /></svg>
             </a>
+            {detail?.wikidata_qid && (
+              <a
+                href={`https://www.wikidata.org/wiki/${detail.wikidata_qid}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-white text-[12px] font-semibold hover:border-[var(--ink)] transition-colors"
+              >
+                Wikidata
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M14 4h6v6M20 4 11 13" /></svg>
+              </a>
+            )}
           </div>
 
           {state === "loading" && (

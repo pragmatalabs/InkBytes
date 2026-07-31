@@ -1046,7 +1046,8 @@ def build_app(app: Application) -> FastAPI:
                                     WHEN 'LOC' THEN 2 WHEN 'EVENT' THEN 3 ELSE 4 END
                       LIMIT 1)                                                AS type,
                     em.thumb_url AS image, em.description,
-                    em.attribution AS image_attribution, em.source_url AS image_source
+                    em.attribution AS image_attribution, em.source_url AS image_source,
+                    em.wikidata_qid AS wikidata_qid
                   FROM (SELECT 1) _base
                   LEFT JOIN entity_media em ON em.name_norm = $1 AND em.blocked = FALSE
                 """,
@@ -1114,6 +1115,10 @@ def build_app(app: Application) -> FastAPI:
             "description": ident["description"],
             "image_attribution": ident["image_attribution"],
             "image_source": ident["image_source"],
+            # Canonical Wikidata id (only for entities the photo backfill resolved
+            # — people with a license-clean Commons portrait). Powers a canonical
+            # Wikidata/Wikipedia link in the Reader entity sheet; null otherwise.
+            "wikidata_qid": ident["wikidata_qid"],
             "stats_available": stats is not None,
         }
         if stats is not None:

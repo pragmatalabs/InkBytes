@@ -158,6 +158,9 @@ export interface EntityDetail {
   description?: string | null;
   image_attribution?: string | null;
   image_source?: string | null;
+  /** Canonical Wikidata id (e.g. "Q170453") — only for photo-resolved entities.
+   *  Powers a canonical Wikidata link in the entity sheet; null otherwise. */
+  wikidata_qid?: string | null;
 }
 
 /** Related event card — returned by GET /events/{id}/related (ADR-0005). */

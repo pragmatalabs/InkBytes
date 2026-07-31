@@ -189,14 +189,56 @@ class SynthesizeSkill:
             )
         return "ARTICLES:\n" + "\n".join(chunks)
 
+    # Entity-type dominance tie-break: on an equal mention count, PERSON beats
+    # ORG beats LOC…, so a mostly-person name doesn't flip to ORG. Mirrors the
+    # tie-break in api_server GET /entities/{name}.
+    _TYPE_PRIORITY = {"PERSON": 0, "ORG": 1, "LOC": 2, "EVENT": 3, "OTHER": 4}
+
+    @staticmethod
+    async def _resolve_entity_types(conn, article_ids: list, names: list) -> list[dict]:
+        """Map each synthesized top-entity NAME to its dominant NER type across
+        the cluster's articles (the `entities` table holds per-mention types).
+
+        Returns ``[{name[, type]}]`` — ``type`` omitted when the name isn't found
+        (defensive; the Reader guards on a missing type). article_id is indexed
+        (idx_entities_article) so this is a bounded lookup per published page.
+        """
+        if not article_ids or not names:
+            return [{"name": n} for n in names]
+        rows = await conn.fetch(
+            """
+            SELECT LOWER(name) AS k, UPPER(type) AS t, COUNT(*) AS c
+              FROM entities
+             WHERE article_id = ANY($1::text[])
+             GROUP BY LOWER(name), UPPER(type)
+            """,
+            article_ids,
+        )
+        best: dict[str, tuple[tuple[int, int], str]] = {}
+        for r in rows:
+            rank = (r["c"], -SynthesizeSkill._TYPE_PRIORITY.get(r["t"], 4))
+            if r["k"] not in best or rank > best[r["k"]][0]:
+                best[r["k"]] = (rank, r["t"])
+        out: list[dict] = []
+        for n in names:
+            hit = best.get(n.strip().lower())
+            out.append({"name": n, "type": hit[1]} if hit else {"name": n})
+        return out
+
     async def _persist(self, event_id: str, page: PageV1, rows: list) -> None:
         evidence = [e.model_dump() for e in page.evidence_rail]
-        entities = [{"name": n} for n in page.entities_top]
         # Use scraped_at (Messor wall-clock, always reliable) not published_at
         # (outlet-supplied — can be null, future-dated, or wrong). See memory:
         # freshness-at-use-scraped-at.md
         freshness = max((r["scraped_at"] for r in rows if r["scraped_at"]), default=None)
         async with self.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            # Attach each top entity's dominant NER type (from the per-mention
+            # `entities` table over this cluster's articles) so the Reader labels
+            # them (person/org/place/…). entities_top names are LLM-produced →
+            # matched case-insensitively; name-only when a type can't be resolved.
+            entities = await self._resolve_entity_types(
+                conn, [r["id"] for r in rows], page.entities_top
+            )
             await conn.execute(
                 """
                 INSERT INTO pages (id, event_id, headline, synthesis_md,
