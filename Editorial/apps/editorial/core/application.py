@@ -25,9 +25,28 @@ from services.tts import Tts, to_speakable
 logger = logging.getLogger(__name__)
 _APP_DIR = Path(__file__).resolve().parent.parent
 # Global Editorial Policy (ADR-0010) is a hard system preamble on every column.
-_SYSTEM = ("Eres un columnista editorial profesional de un medio de pago, sin "
-           "publicidad. Sigue las instrucciones al pie de la letra.\n\n"
-           "POLÍTICA EDITORIAL GLOBAL (obligatoria):\n" + global_policy())
+# The system prompt is LANGUAGE-AWARE: a Spanish-framed system that opens with
+# "Eres un columnista…" primes Spanish output, and deepseek-v4-flash then returns
+# empty/degraded content when the body is asked for in English (12/14 EN columns
+# came back blank on 2026-07-30). Give EN columns an English frame + an explicit
+# "write in English" directive; the (Spanish) policy rides along as guidance.
+_POLICY = global_policy()
+_SYSTEM_BY_LANG = {
+    "es": ("Eres un columnista editorial profesional de un medio de pago, sin "
+           "publicidad. Sigue las instrucciones al pie de la letra. Escribe SIEMPRE "
+           "en español.\n\nPOLÍTICA EDITORIAL GLOBAL (obligatoria):\n" + _POLICY),
+    "en": ("You are a professional editorial columnist for a paid, ad-free news "
+           "outlet. Follow the instructions to the letter, and write the ENTIRE "
+           "column — headline and body — in natural, native English.\n\nGLOBAL "
+           "EDITORIAL POLICY (mandatory — apply it fully; it is written in Spanish, "
+           "but your column MUST be in English):\n" + _POLICY),
+}
+
+
+def _system_for(language: str) -> str:
+    return _SYSTEM_BY_LANG.get(language, _SYSTEM_BY_LANG["es"])
+
+
 _LANG_NAMES = {"es": "español", "en": "English"}
 # Floor for a publishable column body. A real column is ~2–4 k chars (a 450–600
 # word piece); anything under this is an empty/truncated LLM hiccup — skip it
@@ -117,7 +136,7 @@ class Application:
         mp = roster[await self._select_method(theme, roster, events, edition_date)]
 
         prompt = self._render(theme, mp.ready_prompt, language, edition_date, events)
-        text = await self.llm.complete(system=_SYSTEM, user=prompt)
+        text = await self.llm.complete(system=_system_for(language), user=prompt)
         headline, body = self._split(text)
         # Drop empty/truncated generations — a blank or one-sentence stub must
         # not be published as a column (and must not crash the batch). The next
