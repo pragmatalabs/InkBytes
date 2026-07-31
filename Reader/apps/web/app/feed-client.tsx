@@ -8,6 +8,7 @@ import { useLang } from "@/lib/prefs";
 import { t, categoryLabel } from "@/lib/i18n";
 import type { EventSummary, OutlookArchiveEntry } from "@/lib/types";
 import { themeAccent } from "@/lib/theme-colors";
+import { CategoryIcon } from "@/components/icons";
 import { ColumnMast, titleCase } from "@/components/column-mast";
 import { getRead } from "@/lib/read-state";
 import { reconcileBriefing } from "@/lib/briefing-set";
@@ -492,24 +493,30 @@ export default function FeedClient({ events, activeTopic = null, error, focusSea
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1.5 mt-3.5">
+          {/* Category chips — a horizontal carousel of small (h-32px · min-96px)
+              rounded chips with the theme icon, tinted the category accent. */}
+          <div className="flex gap-2 mt-3.5 -mx-4 px-4 overflow-x-auto scrollbar-hide pb-0.5">
             {availableCats.map((c) => {
               const active = activeCategory === c.key;
-              const rail = c.key === "all" ? "transparent" : themeAccent(c.key);
+              const accent = c.key === "all" ? "var(--ink)" : themeAccent(c.key);
               return (
                 <button
                   key={c.key}
                   onClick={() => setCat(c.key)}
                   aria-pressed={active}
-                  style={{ borderLeftColor: rail, borderLeftWidth: 3 }}
-                  className={`text-[11px] font-bold px-2.5 py-[7px] border transition-colors ${
+                  className={`shrink-0 h-8 min-w-[96px] px-3 inline-flex items-center gap-1.5 rounded-full border text-[11px] font-bold whitespace-nowrap transition-colors ${
                     active
                       ? "bg-[var(--ink)] text-white border-[var(--ink)]"
                       : "bg-white text-[var(--ink)] border-[var(--border)] hover:border-gray-400"
                   }`}
                 >
-                  {categoryLabel(uiLang, c.key, c.label)}{" "}
-                  <span className={`font-mono text-[10px] tabular-nums ${active ? "text-white/70" : "text-[var(--ink-muted)]"}`}>{catCount(c.key)}</span>
+                  {c.key !== "all" && (
+                    <span className="inline-flex shrink-0" style={active ? undefined : { color: accent }}>
+                      <CategoryIcon category={c.key} className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                  <span className="truncate">{categoryLabel(uiLang, c.key, c.label)}</span>
+                  <span className={`ml-auto pl-0.5 font-mono text-[10px] tabular-nums ${active ? "text-white/70" : "text-[var(--ink-muted)]"}`}>{catCount(c.key)}</span>
                 </button>
               );
             })}
