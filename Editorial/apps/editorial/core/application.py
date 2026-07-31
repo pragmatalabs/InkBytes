@@ -29,6 +29,10 @@ _SYSTEM = ("Eres un columnista editorial profesional de un medio de pago, sin "
            "publicidad. Sigue las instrucciones al pie de la letra.\n\n"
            "POLÍTICA EDITORIAL GLOBAL (obligatoria):\n" + global_policy())
 _LANG_NAMES = {"es": "español", "en": "English"}
+# Floor for a publishable column body. A real column is ~2–4 k chars (a 450–600
+# word piece); anything under this is an empty/truncated LLM hiccup — skip it
+# rather than publish a broken stub (e.g. the 62-char crime/es of 2026-07-30).
+_MIN_BODY_CHARS = 300
 
 
 class Application:
@@ -87,9 +91,13 @@ class Application:
 
     @staticmethod
     def _split(text: str) -> tuple[str, str]:
-        """First non-empty line = headline; the rest = body."""
-        lines = [ln for ln in text.strip().splitlines()]
-        i = next((k for k, ln in enumerate(lines) if ln.strip()), 0)
+        """First non-empty line = headline; the rest = body. An empty /
+        whitespace-only LLM response yields ("", "") instead of an IndexError —
+        the caller drops thin output rather than crashing the whole batch."""
+        lines = text.strip().splitlines()
+        i = next((k for k, ln in enumerate(lines) if ln.strip()), None)
+        if i is None:
+            return "", ""
         headline = lines[i].strip().lstrip("#").strip().strip('"').removeprefix("Titular:").strip()
         body = "\n".join(lines[i + 1:]).strip()
         return headline, (body or text.strip())
@@ -111,6 +119,13 @@ class Application:
         prompt = self._render(theme, mp.ready_prompt, language, edition_date, events)
         text = await self.llm.complete(system=_SYSTEM, user=prompt)
         headline, body = self._split(text)
+        # Drop empty/truncated generations — a blank or one-sentence stub must
+        # not be published as a column (and must not crash the batch). The next
+        # daily run or a manual re-run fills the gap.
+        if not headline or len(body) < _MIN_BODY_CHARS:
+            logger.warning("EDITORIAL skip %s/%s — thin output (headline=%r, %d body chars)",
+                           theme, language, headline[:50], len(body))
+            return None
         event_ids = [e["event_id"] for e in events]
         # provenance for the Phase-2 SLM: the method label + the input events
         input_context = {
@@ -240,7 +255,11 @@ class Application:
         written: list[dict] = []
         for language in self.cfg.editorial.languages:
             for theme in PERSONAS:
-                r = await self.generate_theme(theme, language, edition_date, dry_run)
+                try:
+                    r = await self.generate_theme(theme, language, edition_date, dry_run)
+                except Exception as e:  # noqa: BLE001 — one bad theme must NEVER abort the batch
+                    logger.exception("EDITORIAL failed %s/%s (%s) — continuing", theme, language, e)
+                    continue
                 if r:
                     written.append(r)
         logger.info("EDITORIAL batch done: %d columns for %s", len(written), edition_date)
