@@ -146,9 +146,12 @@ export interface EntityDetail {
   id: string;
   label: string;
   type: EntityType;
-  event_count: number;
-  today_count: number;
-  connection_count: number;
+  /** Whether the heavy co-occurrence stats resolved within the query budget.
+   *  false for mega-entities — identity/media below still populate. */
+  stats_available: boolean;
+  event_count: number | null;
+  today_count: number | null;
+  connection_count: number | null;
   recent_events: EntityDetailEvent[];
   connections: EntityDetailConnection[];
   image?: string | null;

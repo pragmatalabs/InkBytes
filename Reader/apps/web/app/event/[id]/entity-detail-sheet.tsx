@@ -41,9 +41,11 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;
-        // Endpoint deferred (Curator ADR-0042) or entity not in a published
-        // event → the proxy returns { available: false }. Render the light sheet.
-        if (d && d.available !== false && typeof d.event_count === "number") {
+        // The proxy returns { available: false } only when the entity is truly
+        // not found (Curator 404). Otherwise we always get identity (type /
+        // photo / description); the heavy stats are attached only when they
+        // computed in time (stats_available) — mega-entities show identity-only.
+        if (d && d.available !== false && d.label) {
           setDetail(d as EntityDetail);
           setState("ok");
         } else {
@@ -104,47 +106,80 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
               {detail.description && (
                 <p className="-mt-1 text-[13px] leading-snug text-[var(--ink-muted)]">{detail.description}</p>
               )}
-              {/* 3-up stats */}
-              <div className="grid grid-cols-3 gap-px bg-[var(--border)] border border-[var(--border)]">
-                {([[t(lang, "stat_stories"), detail.event_count], [t(lang, "stat_links"), detail.connection_count], [t(lang, "stat_today"), detail.today_count]] as const).map(([label, val]) => (
-                  <div key={label} className="bg-white px-3 py-3">
-                    <p className="text-xl font-bold tabular-nums leading-none">{val}</p>
-                    <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-muted)] mt-1.5">{label}</p>
-                  </div>
-                ))}
-              </div>
-              {/* Recent events */}
-              {detail.recent_events.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1">
-                    {t(lang, "recent_events")}
-                    {detail.event_count > detail.recent_events.length && (
-                      <span className="normal-case tracking-normal font-normal"> — {detail.recent_events.length} {t(lang, "of")} {detail.event_count}</span>
-                    )}
-                  </p>
-                  <div className="flex flex-col divide-y divide-[var(--border)]">
-                    {detail.recent_events.map((ev) => (
-                      <Link key={ev.id} href={`/event/${ev.id}`} onClick={onClose} className="py-3 group">
-                        <p className="text-[13px] font-medium leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-2">{ev.headline}</p>
-                        <p suppressHydrationWarning className="text-[11px] text-[var(--ink-muted)] mt-1">{ev.source_count} {t(lang, ev.source_count === 1 ? "source_one" : "source_many")} · {relativeTime(ev.freshness_at, lang)}</p>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+              {/* Wikimedia credit — links the CC attribution to the Commons file page */}
+              {detail.image && detail.image_source && (
+                <a
+                  href={detail.image_source}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="-mt-2 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--ink-muted)] hover:text-[var(--accent)] transition-colors self-start"
+                >
+                  {detail.image_attribution || "Wikimedia Commons"}
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M14 4h6v6M20 4 11 13" /></svg>
+                </a>
               )}
-              {/* Connections */}
-              {detail.connections.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-2">{t(lang, "connections")}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {detail.connections.map((c) => (
-                      <Link key={c.id} href={`/entities?e=${encodeURIComponent(c.id)}`} onClick={onClose} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-[var(--border)] bg-white text-xs font-medium hover:border-gray-300 transition-colors">
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: colorOf(c.label) }} />
-                        {c.label}
-                      </Link>
+
+              {detail.stats_available && typeof detail.event_count === "number" ? (
+                <>
+                  {/* 3-up stats */}
+                  <div className="grid grid-cols-3 gap-px bg-[var(--border)] border border-[var(--border)]">
+                    {([[t(lang, "stat_stories"), detail.event_count], [t(lang, "stat_links"), detail.connection_count], [t(lang, "stat_today"), detail.today_count]] as const).map(([label, val]) => (
+                      <div key={label} className="bg-white px-3 py-3">
+                        <p className="text-xl font-bold tabular-nums leading-none">{val}</p>
+                        <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-muted)] mt-1.5">{label}</p>
+                      </div>
                     ))}
                   </div>
-                </div>
+                  {/* Recent events */}
+                  {detail.recent_events.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-1">
+                        {t(lang, "recent_events")}
+                        {(detail.event_count ?? 0) > detail.recent_events.length && (
+                          <span className="normal-case tracking-normal font-normal"> — {detail.recent_events.length} {t(lang, "of")} {detail.event_count}</span>
+                        )}
+                      </p>
+                      <div className="flex flex-col divide-y divide-[var(--border)]">
+                        {detail.recent_events.map((ev) => (
+                          <Link key={ev.id} href={`/event/${ev.id}`} onClick={onClose} className="py-3 group">
+                            <p className="text-[13px] font-medium leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-2">{ev.headline}</p>
+                            <p suppressHydrationWarning className="text-[11px] text-[var(--ink-muted)] mt-1">{ev.source_count} {t(lang, ev.source_count === 1 ? "source_one" : "source_many")} · {relativeTime(ev.freshness_at, lang)}</p>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Connections */}
+                  {detail.connections.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)] mb-2">{t(lang, "connections")}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {detail.connections.map((c) => (
+                          <Link key={c.id} href={`/entities?e=${encodeURIComponent(c.id)}`} onClick={onClose} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-[var(--border)] bg-white text-xs font-medium hover:border-gray-300 transition-colors">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: colorOf(c.label) }} />
+                            {c.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Identity-only — a mega-entity whose co-occurrence stats are too
+                   heavy to compute live. Photo / type / description already show
+                   above; offer the full profile for the numbers. */
+                <>
+                  <p className="text-[13px] leading-relaxed text-[var(--ink-muted)]">
+                    {t(lang, "mentioned_in_story", { noun: noun.toLowerCase() })}
+                  </p>
+                  <Link
+                    href={`/entities?e=${encodeURIComponent(entity.id)}`}
+                    onClick={onClose}
+                    className="inline-flex items-center justify-center gap-2 py-3 border border-[var(--ink)] text-[13px] font-semibold hover:bg-[var(--ink)] hover:text-white transition-colors"
+                  >
+                    {t(lang, "view_full_profile")}
+                  </Link>
+                </>
               )}
             </div>
           )}

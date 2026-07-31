@@ -1013,19 +1013,51 @@ def build_app(app: Application) -> FastAPI:
         connections for ONE entity), so the Reader never loads the whole (heavy)
         graph to show one story's entity. `name` is the lowercased entity key.
 
-        Perf (ADR-0042): the `LOWER(name) = $1` lookups ride the
-        `idx_entities_name_lower` functional index (migration 025), so
-        normal/mid entities answer in <500 ms. A ~2.5 s query timeout caps the
-        handful of mega-entities (e.g. Donald Trump ≈ 8 s over ~1900 events) →
-        404 → the Reader renders its light fallback (`/api/entity` proxy).
+        Perf (ADR-0042): split into a cheap IDENTITY query (dominant type +
+        entity_media photo/description/Commons link — index seeks + a PK lookup,
+        always fast) and a heavy STATS query (co-occurrence over the entity's
+        events, ~2.5 s timeout). Identity is ALWAYS returned; stats are attached
+        only if they compute in time — so mega-entities (Trump ≈ 8 s) still show
+        the photo/type/description sheet, just without the counts. `stats_available`
+        tells the Reader which. Both ride `idx_entities_name_lower` (migration 025).
         """
         key = (name or "").strip().lower()
         if len(key) < 2:
             raise HTTPException(status_code=404, detail="entity not found")
         response.headers["Cache-Control"] = "public, max-age=120"
-        try:
-            async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
-                row = await conn.fetchrow(
+        async with app.db.pool.acquire() as conn:  # type: ignore[union-attr]
+            # ── Identity + media: always cheap (index seeks + entity_media PK).
+            # Returns for ANY entity, mega ones included, so the photo / type /
+            # description / Commons link show regardless of the stats below.
+            ident = await conn.fetchrow(
+                """
+                SELECT
+                    (SELECT ent.name FROM entities ent
+                      WHERE LOWER(ent.name) = $1
+                      GROUP BY ent.name ORDER BY COUNT(*) DESC LIMIT 1)       AS label,
+                    (SELECT UPPER(ent.type) FROM entities ent
+                      WHERE LOWER(ent.name) = $1
+                      GROUP BY UPPER(ent.type)
+                      ORDER BY COUNT(*) DESC,
+                               CASE UPPER(ent.type) WHEN 'PERSON' THEN 0 WHEN 'ORG' THEN 1
+                                    WHEN 'LOC' THEN 2 WHEN 'EVENT' THEN 3 ELSE 4 END
+                      LIMIT 1)                                                AS type,
+                    em.thumb_url AS image, em.description,
+                    em.attribution AS image_attribution, em.source_url AS image_source
+                  FROM (SELECT 1) _base
+                  LEFT JOIN entity_media em ON em.name_norm = $1 AND em.blocked = FALSE
+                """,
+                key,
+                timeout=2.0,
+            )
+            if not ident or ident["label"] is None:
+                raise HTTPException(status_code=404, detail="entity not found")
+
+            # ── Stats: heavy co-occurrence. Times out for mega-entities → omit
+            # (the sheet then shows identity only, not a wholesale fallback).
+            stats = None
+            try:
+                stats = await conn.fetchrow(
                     """
                     WITH target_events AS MATERIALIZED (
                         SELECT DISTINCT a.event_id
@@ -1053,24 +1085,8 @@ def build_app(app: Application) -> FastAPI:
                         HAVING COUNT(DISTINCT a.event_id) >= 2
                          ORDER BY weight DESC
                          LIMIT 15
-                    ),
-                    dtype AS (
-                        SELECT UPPER(ent.type) AS type
-                          FROM entities ent
-                          JOIN articles a ON a.id = ent.article_id
-                         WHERE LOWER(ent.name) = $1
-                           AND a.event_id IN (SELECT event_id FROM target_events)
-                         GROUP BY UPPER(ent.type)
-                         ORDER BY COUNT(*) DESC,
-                                  CASE UPPER(ent.type) WHEN 'PERSON' THEN 0 WHEN 'ORG' THEN 1
-                                       WHEN 'LOC' THEN 2 WHEN 'EVENT' THEN 3 ELSE 4 END
-                         LIMIT 1
                     )
                     SELECT
-                        (SELECT ent.name FROM entities ent
-                          WHERE LOWER(ent.name) = $1
-                          GROUP BY ent.name ORDER BY COUNT(*) DESC LIMIT 1)          AS label,
-                        (SELECT type FROM dtype)                                     AS type,
                         (SELECT COUNT(*) FROM target_events)                         AS event_count,
                         (SELECT COUNT(DISTINCT event_id) FROM ev_meta
                            WHERE freshness_at > NOW() - INTERVAL '24 hours')         AS today_count,
@@ -1079,35 +1095,37 @@ def build_app(app: Application) -> FastAPI:
                             (SELECT page_id AS id, headline, source_count, freshness_at
                                FROM ev_meta ORDER BY freshness_at DESC LIMIT 15) x), '[]'::json) AS recent_events,
                         COALESCE((SELECT JSON_AGG(y) FROM
-                            (SELECT id, label, weight FROM conns ORDER BY weight DESC LIMIT 15) y), '[]'::json) AS connections,
-                        em.thumb_url AS image, em.description,
-                        em.attribution AS image_attribution, em.source_url AS image_source
-                      FROM (SELECT 1) _base
-                      LEFT JOIN entity_media em ON em.name_norm = $1 AND em.blocked = FALSE
+                            (SELECT id, label, weight FROM conns ORDER BY weight DESC LIMIT 15) y), '[]'::json) AS connections
                     """,
                     key,
                     timeout=2.5,
                 )
-        except (TimeoutError, asyncio.TimeoutError):
-            # Mega-entity: too heavy to compute live within the budget. The
-            # Reader falls back to the light sheet on any non-200 response.
-            raise HTTPException(status_code=404, detail="entity detail unavailable")
-        if not row or row["label"] is None:
-            raise HTTPException(status_code=404, detail="entity not found")
-        return {
+            except (TimeoutError, asyncio.TimeoutError):
+                stats = None
+
+        out: dict[str, Any] = {
             "id": key,
-            "label": row["label"],
-            "type": row["type"] or "OTHER",
-            "event_count": row["event_count"],
-            "today_count": row["today_count"],
-            "connection_count": row["connection_count"],
-            "recent_events": _decode_json_col(row["recent_events"]),
-            "connections": _decode_json_col(row["connections"]),
-            "image": row["image"],
-            "description": row["description"],
-            "image_attribution": row["image_attribution"],
-            "image_source": row["image_source"],
+            "label": ident["label"],
+            "type": ident["type"] or "OTHER",
+            "image": ident["image"],
+            "description": ident["description"],
+            "image_attribution": ident["image_attribution"],
+            "image_source": ident["image_source"],
+            "stats_available": stats is not None,
         }
+        if stats is not None:
+            out["event_count"] = stats["event_count"]
+            out["today_count"] = stats["today_count"]
+            out["connection_count"] = stats["connection_count"]
+            out["recent_events"] = _decode_json_col(stats["recent_events"])
+            out["connections"] = _decode_json_col(stats["connections"])
+        else:
+            out["event_count"] = None
+            out["today_count"] = None
+            out["connection_count"] = None
+            out["recent_events"] = []
+            out["connections"] = []
+        return out
 
     @api.get("/events/{event_id}/related")
     async def get_related_events(

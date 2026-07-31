@@ -70,9 +70,20 @@ Post-fix timings (index + ANALYZE, scoped `target_events AS MATERIALIZED`):
 So **normal/mid entities answer in <500 ms** (rich sheet). The handful of
 mega-entities (Trump, and similar top nodes) are still heavy because the
 co-occurrence aggregation runs over ~1 900 events; a **2.5 s `fetchrow`
-timeout** cuts them → `404` → the Reader's light fallback. A precomputed
-per-entity rollup (aligned with the parked ADR-0039 graph matviews) would make
-even those instant — a future optimisation, not required for the common case.
+timeout** cuts the *stats* there. A precomputed per-entity rollup (aligned with
+the parked ADR-0039 graph matviews) would make even those instant — a future
+optimisation, not required for the common case.
+
+**Identity ≠ stats (decoupled, 2026-07-30 follow-up).** The `type`, photo,
+`description` and Commons link come from a *cheap* query — the dominant type via
+the index + an `entity_media` PK lookup — which resolves fast for **any** entity,
+mega ones included. So the endpoint splits into (1) an always-run **identity**
+query and (2) the heavy **stats** query under the timeout. Identity is always
+returned; stats are attached only when they compute, flagged by
+`stats_available`. A mega-entity therefore returns its photo/type/description
+(HTTP 200), and the Reader shows an **identity sheet** (photo + type +
+description + Wikimedia credit + "View full profile"), never a bare name-only
+card. `404` is reserved for an entity that genuinely isn't in the corpus.
 
 ## What SHIPS (2026-07-30)
 
