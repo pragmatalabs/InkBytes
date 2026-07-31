@@ -66,7 +66,13 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
   }, [entity, onClose]);
 
   if (!entity) return null;
-  const noun = entityNoun(lang, entity.type);
+  // Prefer the API-resolved dominant type — event-page entities arrive name-only
+  // (pages.entities is written without type), so entity.type is usually absent.
+  const noun = entityNoun(lang, detail?.type ?? entity.type);
+  // Reference link. Wikipedia's "Go" resolves to the exact article for a known
+  // entity and falls back to search otherwise — never a hard 404. Works from the
+  // name alone (every entity), and follows the reading-language pref.
+  const wikiUrl = `https://${lang}.wikipedia.org/w/index.php?title=Special:Search&search=${encodeURIComponent(entity.name)}&go=Go`;
 
   return (
     <>
@@ -95,6 +101,21 @@ export default function EntityDetailSheet({ entity, onClose }: { entity: DrawerE
             <button onClick={onClose} aria-label="Close" className="w-7 h-7 grid place-items-center border border-[var(--border)] bg-white hover:border-[var(--ink)] transition-colors shrink-0">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
             </button>
+          </div>
+
+          {/* Reference links — a Wikipedia link for every entity (by name).
+              A canonical Wikidata link can join here once the API exposes the
+              stored wikidata_qid. */}
+          <div className="pt-3.5 flex flex-wrap gap-1.5">
+            <a
+              href={wikiUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-white text-[12px] font-semibold hover:border-[var(--ink)] transition-colors"
+            >
+              Wikipedia
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M14 4h6v6M20 4 11 13" /></svg>
+            </a>
           </div>
 
           {state === "loading" && (
