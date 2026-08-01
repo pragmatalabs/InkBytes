@@ -18,6 +18,8 @@ from services.embedding_service import EmbeddingService
 from services.llm_service import LlmService, LlmQuotaError
 from services.media_validation import MediaValidator
 from services.message_service import MessageService, ProcessingPausedError
+from services.ops_alert import OpsAlerter
+from services import balance_monitor
 from services import taxonomy
 from services.ner_prepass import NerPrepass
 from services.cover_image import pick_cover, _UA as _COVER_UA
@@ -82,6 +84,10 @@ class Application:
         # Corpus chat assistant (ADR-0022): grounded digests + Q&A over
         # published events, reusing the synthesis LLM engine.
         self.assistant = AssistantSkill(self.llm, self.db, self.embed, cfg.llm)
+        # Ops alerting (ADR-0044): best-effort phone-push webhook. Used by the
+        # worker's on_quota_exhausted (both providers dead) and the api-only
+        # balance monitor (low balance). Inert (logs only) with no webhook set.
+        self.alerter = OpsAlerter()
         # Concurrency gate — article pipeline
         self._sem = asyncio.Semaphore(cfg.application.max_concurrent_articles)
         # Embed serialisation: CPU-only Ollama bge-m3 saturates (and times out)
@@ -303,7 +309,16 @@ class Application:
             logger.critical(
                 "LLM quota exhausted — consumer stopping. "
                 "Pending articles have been requeued. "
-                "Restart the worker when the Anthropic quota resets."
+                "Restart the worker when the LLM quota/balance is restored."
+            )
+            # ADR-0044 reactive alert: reaching here means the primary AND the
+            # configured fallback are BOTH exhausted (or no fallback is set) — a
+            # real freeze is starting. Page a human (cooldown-throttled).
+            self.alerter.alert(
+                "llm-quota-exhausted",
+                "🚨 InkBytes: LLM primary AND fallback are BOTH quota/credit "
+                "exhausted — the pipeline has HALTED and the feed will freeze. "
+                "Top up (and check the fallback provider's balance too).",
             )
             if not stop.done():
                 stop.set_result(None)
@@ -323,6 +338,19 @@ class Application:
         self._config_task = asyncio.create_task(self._config_refresh_loop())
         # Keep the event loop alive until interrupted or quota exhausted.
         await stop
+
+    def start_balance_monitor(self) -> "asyncio.Task | None":
+        """Start the single-instance DeepSeek balance monitor (ADR-0044).
+
+        Called ONLY from the `--api-only` container so the poll + low-balance
+        page runs once, not once per worker replica. Returns the task (or None
+        if no DeepSeek key / already running)."""
+        if getattr(self, "_balance_task", None) is not None:
+            return self._balance_task
+        self._balance_task = asyncio.create_task(
+            balance_monitor.run(self.alerter, self.cfg.llm)
+        )
+        return self._balance_task
 
     async def run_command_consumer(self) -> None:
         """Consume ONLY the Backoffice command queue (no article pipeline).

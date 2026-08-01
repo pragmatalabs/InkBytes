@@ -354,6 +354,88 @@ class LlmService:
             return model.split("/", 1)[1]
         return getattr(self.cfg, "deepseek_fallback_model", None) or "deepseek-v4-flash"
 
+    def _build_call_kwargs(self, provider: str, model: str, *, system_prompt: str,
+                           user_content: str, response_model, max_tokens: int,
+                           label: str) -> dict:
+        """Build provider-correct call kwargs. Anthropic takes a top-level
+        `system=`; OpenAI-compatible providers fold it into the messages. When
+        the (fallback) provider is OpenRouter, attach the per-task `models` array
+        so OpenRouter itself degrades across the chain. Used for BOTH the primary
+        call and the ADR-0044 failover call so a cross-provider failover is
+        wire-correct (e.g. deepseek → openrouter)."""
+        if provider == "anthropic":
+            messages = [{"role": "user", "content": user_content}]
+            extra = {"system": system_prompt}
+        else:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ]
+            extra = {}
+        kwargs = dict(
+            model=model, max_tokens=max_tokens, temperature=self.cfg.temperature,
+            messages=messages, response_model=response_model, **extra,
+        )
+        if provider == "openrouter":
+            fallbacks = (
+                self.cfg.enrich_fallbacks if label == "enrich"
+                else self.cfg.synthesize_fallbacks
+            )
+            chain = [model, *[m for m in (fallbacks or []) if m and m != model]]
+            if len(chain) > 1:
+                kwargs["extra_body"] = {"models": chain}
+        return kwargs
+
+    def _fallback_model(self, model: str) -> str:
+        """Translate the active model to the generic fallback provider's id.
+
+        openrouter → namespace a bare id (`deepseek-chat` → `deepseek/deepseek-chat`);
+        deepseek/openai → strip a namespace; anthropic → a Haiku default. An
+        explicit cfg.fallback_model always wins.
+        """
+        explicit = getattr(self.cfg, "fallback_model", "") or ""
+        if explicit:
+            return explicit
+        fb = (getattr(self.cfg, "fallback_provider", "") or "").lower()
+        if fb == "openrouter":
+            return model if "/" in model else f"deepseek/{model}"
+        if fb in ("deepseek", "openai"):
+            return model.split("/", 1)[1] if "/" in model else model
+        if fb == "anthropic":
+            return "claude-haiku-4-5"
+        return model
+
+    def _resolve_fallback(self, model: str):
+        """Return (client, fb_provider, fb_model) for a quota/credit failover, or
+        None. Prefers the generic ADR-0044 fallback_provider (any primary → a
+        different account); falls back to the legacy openrouter→direct-DeepSeek
+        path when only that is configured."""
+        primary = (self.cfg.provider or "").lower()
+        fb = (getattr(self.cfg, "fallback_provider", "") or "").lower()
+        # Generic failover (ADR-0044): active provider → configured fallback.
+        if fb and fb != primary:
+            # Build a provider-swapped cfg copy and reuse _build_client. Clear
+            # base_url — it is the PRIMARY provider's endpoint; the fallback must
+            # use its own default (or its own override, absent here).
+            fb_cfg = self.cfg.model_copy(update={"provider": fb, "base_url": None})
+            if _is_stub_mode(fb_cfg):   # fallback provider has no API key set
+                logger.warning("ADR-0044 fallback_provider=%s set but has no API key — "
+                               "cannot fail over", fb)
+                return None
+            sig = ("gen", fb, fb_cfg.deepseek_api_key, fb_cfg.openrouter_api_key,
+                   fb_cfg.api_key, fb_cfg.openai_api_key)
+            if self._fallback_client is None or self._fallback_client_sig != sig:
+                self._fallback_client = _build_client(fb_cfg)
+                self._fallback_client_sig = sig
+                logger.info("Built '%s' fallback client (ADR-0044 generic failover)", fb)
+            return (self._fallback_client, fb, self._fallback_model(model))
+        # Legacy failover: OpenRouter primary out of credits → direct DeepSeek.
+        if primary == "openrouter":
+            legacy = self._deepseek_fallback_client()
+            if legacy is not None:
+                return (legacy, "deepseek", self._deepseek_fallback_model(model))
+        return None
+
     async def _run_structured(self, client, kwargs: dict, label: str,
                               model: str, event_id: str | None):
         """Execute one structured call on `client`, metering token usage."""
@@ -409,42 +491,12 @@ class LlmService:
         if self._stub_mode:
             return _stub_response(response_model, user_content)
 
-        # Anthropic uses a top-level `system=` param; OpenAI folds it into
-        # messages as {"role": "system", ...}.  Build provider-specific kwargs.
         provider = (self.cfg.provider or "anthropic").lower()
-        if provider == "anthropic":
-            messages = [{"role": "user", "content": user_content}]
-            extra = {"system": system_prompt}
-        else:  # openai and any other OpenAI-compatible provider
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ]
-            extra = {}
-
-        kwargs = dict(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=self.cfg.temperature,
-            messages=messages,
-            response_model=response_model,
-            **extra,
-        )
         label = _CALL_LABELS.get(response_model.__name__, response_model.__name__)
-
-        # OpenRouter fallback routing: pass an ordered `models` array (via
-        # extra_body → request body) so a quota-walled / errored primary degrades
-        # to the next model instead of failing the call. Per-task: enrich uses
-        # enrich_fallbacks; everything else (synth + /ask) uses synthesize_fallbacks.
-        # Only OpenRouter honors this param; other providers ignore extra_body.
-        if provider == "openrouter":
-            fallbacks = (
-                self.cfg.enrich_fallbacks if label == "enrich"
-                else self.cfg.synthesize_fallbacks
-            )
-            chain = [model, *[m for m in (fallbacks or []) if m and m != model]]
-            if len(chain) > 1:
-                kwargs["extra_body"] = {"models": chain}
+        kwargs = self._build_call_kwargs(
+            provider, model, system_prompt=system_prompt, user_content=user_content,
+            response_model=response_model, max_tokens=max_tokens, label=label,
+        )
 
         # Prefer create_with_completion (real token usage for cost accounting);
         # _run_structured falls back to plain create() if unavailable.
@@ -452,33 +504,37 @@ class LlmService:
             return await self._run_structured(self._client, kwargs, label, model, event_id)
         except Exception as exc:
             is_quota = self._is_quota_error(exc)
-            # Provider-level fallback: OpenRouter out of credits/quota → retry the
-            # SAME call on the DIRECT DeepSeek endpoint. This sits ABOVE OpenRouter's
-            # own per-model `models` array (which can't help when the whole account
-            # is out of credits). Gated by cfg.openrouter_deepseek_fallback + a key.
-            if is_quota and provider == "openrouter":
-                fb = self._deepseek_fallback_client()
-                if fb is not None:
-                    fb_model = self._deepseek_fallback_model(model)
-                    fb_kwargs = {k: v for k, v in kwargs.items() if k != "extra_body"}
-                    fb_kwargs["model"] = fb_model
+            # ADR-0044 provider-level failover: the active provider hit a credit/
+            # quota wall → retry the SAME call on a DIFFERENT account (generic
+            # fallback_provider, or the legacy openrouter→deepseek path). This is
+            # what keeps the feed alive when e.g. the DeepSeek balance hits $0
+            # (the 2026-08-01 freeze) instead of halting the worker.
+            if is_quota:
+                resolved = self._resolve_fallback(model)
+                if resolved is not None:
+                    fb_client, fb_provider, fb_model = resolved
+                    fb_kwargs = self._build_call_kwargs(
+                        fb_provider, fb_model, system_prompt=system_prompt,
+                        user_content=user_content, response_model=response_model,
+                        max_tokens=max_tokens, label=label,
+                    )
                     logger.warning(
-                        "OpenRouter quota/credit error — falling back to DIRECT "
-                        "DeepSeek (model=%s). cause=%s", fb_model, str(exc)[:160],
+                        "Provider '%s' quota/credit wall — failing over to '%s' "
+                        "(model=%s). cause=%s", provider, fb_provider, fb_model,
+                        str(exc)[:160],
                     )
                     try:
-                        return await self._run_structured(fb, fb_kwargs, label, fb_model, event_id)
+                        return await self._run_structured(
+                            fb_client, fb_kwargs, label, fb_model, event_id)
                     except Exception as exc2:
                         if self._is_quota_error(exc2):
                             raise LlmQuotaError(
-                                f"OpenRouter AND direct-DeepSeek fallback both "
-                                f"quota-exhausted: {exc2}"
+                                f"'{provider}' primary AND '{fb_provider}' fallback "
+                                f"BOTH quota-exhausted: {exc2}"
                             ) from exc2
                         raise
-            # Surface a hard quota wall as LlmQuotaError immediately — no point
-            # retrying a spend cap (the tenacity config already skips 400s, but
-            # instructor may wrap them). Caller requeues + pauses.
-            if is_quota:
+                # No fallback available — surface a hard quota wall as
+                # LlmQuotaError. Caller requeues the article + pauses the worker.
                 raise LlmQuotaError(str(exc)) from exc
             raise
 

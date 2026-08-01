@@ -181,6 +181,17 @@ class LlmCfg(BaseModel):
     openrouter_deepseek_fallback: bool = True
     deepseek_fallback_base_url: str = "https://api.deepseek.com/v1"
     deepseek_fallback_model: str = "deepseek-v4-flash"
+    # Generic provider-level failover (ADR-0044). When the ACTIVE provider hits a
+    # credit/quota wall (e.g. DeepSeek balance → $0 → HTTP 402), transparently
+    # retry the SAME structured call on this fallback provider — a DIFFERENT
+    # account/balance — instead of raising LlmQuotaError and halting the worker
+    # (the 2026-08-01 14h feed freeze). "" = disabled. Works for any primary; the
+    # legacy openrouter→deepseek toggle above still covers the openrouter primary
+    # when this is unset. Env-only (LLM_FALLBACK_PROVIDER) so a Backoffice DB row
+    # never clobbers it. The fallback is only as good as ITS balance — keep the
+    # fallback account funded and watch the low-balance alert (ADR-0044).
+    fallback_provider: str = ""            # "" | openrouter | deepseek | anthropic | openai
+    fallback_model: str = ""               # explicit override; "" = auto-translate the active model
     # Per-Mtok list prices for cost accounting (ADR-0028). Defaults =
     # deepseek-v4-flash, the production model as of 2026-06 (verified against
     # the DeepSeek invoice). DeepSeek bills CACHED input tokens ~50x cheaper
@@ -518,6 +529,11 @@ def _overlay_env(cfg: CuratorConfig) -> CuratorConfig:
         # Provider-level fallback OpenRouter→direct-DeepSeek on quota/credit error.
         # Default-on in code; Backoffice curator_settings overrides at runtime.
         "OPENROUTER_DEEPSEEK_FALLBACK": ("llm", "openrouter_deepseek_fallback"),
+        # Generic provider failover (ADR-0044): ANY primary → this provider on a
+        # quota/credit wall. Env-only (NOT in _DB_SETTINGS_MAP) so the periodic DB
+        # overlay never clobbers it. In prod: LLM_FALLBACK_PROVIDER=openrouter.
+        "LLM_FALLBACK_PROVIDER": ("llm", "fallback_provider"),
+        "LLM_FALLBACK_MODEL":    ("llm", "fallback_model"),
         # Pre-enrich triage gate (ADR-0030). Enable + point at the Hostinger
         # Ollama in prod via infra/.env; bool/str coerced by re-validation.
         "TRIAGE_ENABLED":    ("triage", "enabled"),

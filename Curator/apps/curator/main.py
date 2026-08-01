@@ -111,6 +111,10 @@ async def _run(args: argparse.Namespace) -> None:
             # propagate to /status without restarting the API container
             # (same loop the --worker runs; harmless to also run in api-only mode).
             app._config_task = asyncio.create_task(app._config_refresh_loop())
+            # ADR-0044: run the DeepSeek balance monitor here — the api-only
+            # container is the single instance, so it polls/pages once (not ×N
+            # workers). Inert when no DeepSeek key / no webhook is configured.
+            app.start_balance_monitor()
             await api_task
         else:
             print("Nothing to do. Use --consume, --worker, --api-only, --fixture <path>, --dry-run <path>, --reenrich-missing, --reenrich-stubs, or --conclude-stories.")
