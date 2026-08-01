@@ -118,6 +118,11 @@ class ClusterSkill:
                         """,
                         row["event_id"], material,
                     )
+                    # ADR-0043: a material attach delivered a newer article — keep
+                    # the published page's freshness_at current (re-synthesis is
+                    # throttled and won't always refresh it).
+                    if material:
+                        await self._touch_page_freshness(conn, row["event_id"])
                     # Read back the authoritative distinct-outlet count we just
                     # wrote. (Previously this was approximated in Python from the
                     # candidate set, which under-counted and suppressed synthesis
@@ -231,6 +236,30 @@ class ClusterSkill:
             logger.info("BREAKING event %s — ≥2 pulse outlets within %d min (demotes in %dh)",
                         flagged, self.cfg.breaking_window_minutes, self.cfg.breaking_ttl_hours)
 
+    async def _touch_page_freshness(self, conn, event_id: str) -> None:
+        """ADR-0043: keep a PUBLISHED page's freshness_at aligned with its
+        definition — max(article.scraped_at) — on every material attach.
+
+        SynthesizeSkill is the ONLY other writer of pages.freshness_at
+        (synthesize.py: freshness = max(scraped_at)), and re-synthesis is
+        throttled by the ADR-0035 watermark. So a fresh article attaching to an
+        already-published event bumps the material clock
+        (events.last_material_update_at) but would otherwise leave
+        pages.freshness_at frozen at the last synthesis — the Reader card then
+        shows a stale age (hours/days) even though the story just gained
+        coverage, and the lifecycle feed (ordered by the material clock,
+        ADR-0033) fills with old-looking timestamps. Mirrors synthesize's
+        definition exactly. No-op for events without a published page."""
+        await conn.execute(
+            """
+            UPDATE pages
+               SET freshness_at = (SELECT MAX(scraped_at) FROM articles WHERE event_id = $1)
+             WHERE event_id = $1
+               AND published_at IS NOT NULL
+            """,
+            event_id,
+        )
+
     async def _run_precision(self, conn, *, article_id, embedding, entity_names,
                              language, scraped_at) -> ClusterResult:
         """ADR-0031 — centroid-linkage + entity-specificity gate.
@@ -299,6 +328,10 @@ class ClusterSkill:
                         centroid = (SELECT avg(embedding) FROM articles WHERE event_id = $1 AND embedding IS NOT NULL)
                      WHERE id = $1
                     """, ev_id, material)
+                # ADR-0043: keep the published page's freshness_at aligned with
+                # its newest article on a material attach (see path above).
+                if material:
+                    await self._touch_page_freshness(conn, ev_id)
                 await self._maybe_flag_breaking(conn, ev_id)
                 src = await conn.fetchval("SELECT source_count FROM events WHERE id = $1", ev_id)
                 logger.info("CLUSTER-P attach %s -> %s (centroid_d=%.3f, spec=%d, sources=%d, %s)",
