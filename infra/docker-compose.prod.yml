@@ -207,6 +207,19 @@ services:
       # backups OpenRouter tries when the primary errors/rate-limits.
       OPENROUTER_ENRICH_FALLBACKS: ${OPENROUTER_ENRICH_FALLBACKS:-}
       OPENROUTER_SYNTH_FALLBACKS: ${OPENROUTER_SYNTH_FALLBACKS:-}
+      # Generic provider failover + ops alerting (Curator ADR-0044). Dormant until
+      # set in infra/.env. LLM_FALLBACK_PROVIDER=openrouter → when the active
+      # provider hits a credit/quota wall the same call is retried on a DIFFERENT
+      # balance instead of freezing the feed. OPS_ALERT_* → DeepSeek balance monitor
+      # (api-only) + best-effort Slack/Telegram page before/at a freeze.
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
+      OPS_ALERT_WEBHOOK_KIND: ${OPS_ALERT_WEBHOOK_KIND:-slack}
+      OPS_ALERT_TELEGRAM_CHAT_ID: ${OPS_ALERT_TELEGRAM_CHAT_ID:-}
+      DEEPSEEK_LOW_BALANCE_USD: ${DEEPSEEK_LOW_BALANCE_USD:-2}
+      OPS_BALANCE_POLL_SECONDS: ${OPS_BALANCE_POLL_SECONDS:-1800}
+      OPS_ALERT_COOLDOWN_SECONDS: ${OPS_ALERT_COOLDOWN_SECONDS:-10800}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
@@ -296,6 +309,19 @@ services:
       # backups OpenRouter tries when the primary errors/rate-limits.
       OPENROUTER_ENRICH_FALLBACKS: ${OPENROUTER_ENRICH_FALLBACKS:-}
       OPENROUTER_SYNTH_FALLBACKS: ${OPENROUTER_SYNTH_FALLBACKS:-}
+      # Generic provider failover + ops alerting (Curator ADR-0044). Dormant until
+      # set in infra/.env. LLM_FALLBACK_PROVIDER=openrouter → when the active
+      # provider hits a credit/quota wall the same call is retried on a DIFFERENT
+      # balance instead of freezing the feed. OPS_ALERT_* → DeepSeek balance monitor
+      # (api-only) + best-effort Slack/Telegram page before/at a freeze.
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
+      OPS_ALERT_WEBHOOK_KIND: ${OPS_ALERT_WEBHOOK_KIND:-slack}
+      OPS_ALERT_TELEGRAM_CHAT_ID: ${OPS_ALERT_TELEGRAM_CHAT_ID:-}
+      DEEPSEEK_LOW_BALANCE_USD: ${DEEPSEEK_LOW_BALANCE_USD:-2}
+      OPS_BALANCE_POLL_SECONDS: ${OPS_BALANCE_POLL_SECONDS:-1800}
+      OPS_ALERT_COOLDOWN_SECONDS: ${OPS_ALERT_COOLDOWN_SECONDS:-10800}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-ollama}
       EMBEDDINGS_BASE_URL: ${EMBEDDINGS_BASE_URL:-http://ollama:11434/v1}
       EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-bge-m3}
